@@ -1,0 +1,42 @@
+namespace Maliev.PurchaseOrderService.Api.DTOs;
+
+/// <summary>
+/// Request to cancel a purchase order
+/// </summary>
+public class CancelPurchaseOrderRequest
+{
+    /// <summary>
+    /// User canceling the purchase order
+    /// </summary>
+    public string CanceledBy { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Reason for cancellation
+    /// </summary>
+    public string Reason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Additional comments about the cancellation
+    /// </summary>
+    public string? Comments { get; set; }
+
+    /// <summary>
+    /// Cancellation timestamp (optional, defaults to current time)
+    /// </summary>
+    public DateTime? CanceledAt { get; set; }
+
+    /// <summary>
+    /// Whether to send notifications after cancellation
+    /// </summary>
+    public bool SendNotifications { get; set; } = true;
+
+    /// <summary>
+    /// Whether to automatically handle related documents
+    /// </summary>
+    public bool ArchiveDocuments { get; set; } = true;
+
+    /// <summary>
+    /// Additional metadata for cancellation
+    /// </summary>
+    public Dictionary<string, string>? Metadata { get; set; }
+}

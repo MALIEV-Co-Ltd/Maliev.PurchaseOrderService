@@ -1,69 +1,363 @@
-namespace Maliev.PurchaseOrderService.Api.Controllers
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Maliev.PurchaseOrderService.Api.DTOs;
+using Maliev.PurchaseOrderService.Api.Services;
+using Maliev.PurchaseOrderService.Api.Clients;
+using Maliev.PurchaseOrderService.Data;
+using Microsoft.EntityFrameworkCore;
+using AutoMapper;
+using System.Net;
+
+namespace Maliev.PurchaseOrderService.Api.Controllers;
+
+/// <summary>
+/// Order Items API Controller for read-only operations and cache refresh
+/// </summary>
+[ApiController]
+[Route("purchase-orders/{purchaseOrderId:int}/order-items")]
+[Authorize]
+[Produces("application/json")]
+public class OrderItemsController : ControllerBase
 {
-    using Maliev.PurchaseOrderService.Api.DTOs;
-    using Maliev.PurchaseOrderService.Api.Services;
-    using Microsoft.AspNetCore.Mvc;
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
-    using Asp.Versioning;
+    private readonly PurchaseOrderContext _context;
+    private readonly IOrderServiceClient _orderService;
+    private readonly IMapper _mapper;
+    private readonly ILogger<OrderItemsController> _logger;
 
-    [ApiController]
-    [Route("v{version:apiVersion}/[controller]")]
-    [ApiVersion("1.0")]
-    public class OrderItemsController : ControllerBase
+    public OrderItemsController(
+        PurchaseOrderContext context,
+        IOrderServiceClient orderService,
+        IMapper mapper,
+        ILogger<OrderItemsController> logger)
     {
-        private readonly IPurchaseOrderService _purchaseOrderService;
+        _context = context;
+        _orderService = orderService;
+        _mapper = mapper;
+        _logger = logger;
+    }
 
-        public OrderItemsController(IPurchaseOrderService purchaseOrderService)
+    /// <summary>
+    /// Gets all order items for a purchase order
+    /// </summary>
+    /// <param name="purchaseOrderId">Purchase order ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of order items</returns>
+    [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<OrderItemDto>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    public async Task<ActionResult<IEnumerable<OrderItemDto>>> GetOrderItems(
+        int purchaseOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        try
         {
-            _purchaseOrderService = purchaseOrderService;
+            _logger.LogInformation("Getting order items for purchase order {PurchaseOrderId}", purchaseOrderId);
+
+            // Verify purchase order exists
+            var purchaseOrderExists = await _context.PurchaseOrders
+                .AnyAsync(po => po.Id == purchaseOrderId && !po.IsDeleted, cancellationToken);
+
+            if (!purchaseOrderExists)
+            {
+                return NotFound(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = $"Purchase order with ID {purchaseOrderId} not found",
+                        Code = "PURCHASE_ORDER_NOT_FOUND"
+                    }
+                });
+            }
+
+            // Get order items from database
+            var orderItems = await _context.OrderItems
+                .Where(oi => oi.PurchaseOrderId == purchaseOrderId)
+                .OrderBy(oi => oi.ProductName)
+                .ToListAsync(cancellationToken);
+
+            var orderItemDtos = _mapper.Map<IEnumerable<OrderItemDto>>(orderItems);
+
+            return Ok(orderItemDtos);
         }
-
-        [HttpGet("ByPurchaseOrder/{purchaseOrderId}")]
-        public async Task<ActionResult<IEnumerable<OrderItemDto>>> GetOrderItemsByPurchaseOrderId(int purchaseOrderId)
+        catch (Exception ex)
         {
-            var orderItems = await _purchaseOrderService.GetOrderItemsByPurchaseOrderIdAsync(purchaseOrderId);
-            return Ok(orderItems);
+            _logger.LogError(ex, "Error getting order items for purchase order {PurchaseOrderId}", purchaseOrderId);
+            return StatusCode(500, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "An error occurred while retrieving order items",
+                    Code = "INTERNAL_ERROR"
+                }
+            });
         }
+    }
 
-        [HttpGet("{id}")]
-        public async Task<ActionResult<OrderItemDto>> GetOrderItem(int id)
+    /// <summary>
+    /// Gets a specific order item by ID
+    /// </summary>
+    /// <param name="purchaseOrderId">Purchase order ID</param>
+    /// <param name="itemId">Order item ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Order item details</returns>
+    [HttpGet("{itemId:int}")]
+    [ProducesResponseType(typeof(OrderItemDto), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    public async Task<ActionResult<OrderItemDto>> GetOrderItem(
+        int purchaseOrderId,
+        int itemId,
+        CancellationToken cancellationToken = default)
+    {
+        try
         {
-            var orderItem = await _purchaseOrderService.GetOrderItemByIdAsync(id);
+            _logger.LogInformation("Getting order item {ItemId} for purchase order {PurchaseOrderId}", itemId, purchaseOrderId);
+
+            var orderItem = await _context.OrderItems
+                .FirstOrDefaultAsync(oi => oi.Id == itemId && oi.PurchaseOrderId == purchaseOrderId, cancellationToken);
+
             if (orderItem == null)
             {
-                return NotFound();
+                return NotFound(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = $"Order item with ID {itemId} not found for purchase order {purchaseOrderId}",
+                        Code = "ORDER_ITEM_NOT_FOUND"
+                    }
+                });
             }
-            return Ok(orderItem);
-        }
 
-        [HttpPost]
-        public async Task<ActionResult<OrderItemDto>> PostOrderItem(CreateOrderItemDto orderItemDto)
-        {
-            var orderItem = await _purchaseOrderService.CreateOrderItemAsync(orderItemDto);
-            return CreatedAtAction(nameof(GetOrderItem), new { id = orderItem.Id }, orderItem);
+            var orderItemDto = _mapper.Map<OrderItemDto>(orderItem);
+            return Ok(orderItemDto);
         }
-
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutOrderItem(int id, UpdateOrderItemDto orderItemDto)
+        catch (Exception ex)
         {
-            var orderItem = await _purchaseOrderService.UpdateOrderItemAsync(id, orderItemDto);
-            if (orderItem == null)
+            _logger.LogError(ex, "Error getting order item {ItemId} for purchase order {PurchaseOrderId}", itemId, purchaseOrderId);
+            return StatusCode(500, new ErrorResponse
             {
-                return NotFound();
-            }
-            return NoContent();
+                Error = new ErrorInfo
+                {
+                    Message = "An error occurred while retrieving the order item",
+                    Code = "INTERNAL_ERROR"
+                }
+            });
         }
+    }
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteOrderItem(int id)
+    /// <summary>
+    /// Refreshes order items from the external OrderService
+    /// </summary>
+    /// <param name="purchaseOrderId">Purchase order ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Updated list of order items</returns>
+    [HttpPut("refresh")]
+    [ProducesResponseType(typeof(OrderItemRefreshResult), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
+    public async Task<ActionResult<OrderItemRefreshResult>> RefreshOrderItems(
+        int purchaseOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        try
         {
-            var result = await _purchaseOrderService.DeleteOrderItemAsync(id);
-            if (!result)
+            _logger.LogInformation("Refreshing order items for purchase order {PurchaseOrderId}", purchaseOrderId);
+
+            // Get purchase order with order ID
+            var purchaseOrder = await _context.PurchaseOrders
+                .FirstOrDefaultAsync(po => po.Id == purchaseOrderId && !po.IsDeleted, cancellationToken);
+
+            if (purchaseOrder == null)
             {
-                return NotFound();
+                return NotFound(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = $"Purchase order with ID {purchaseOrderId} not found",
+                        Code = "PURCHASE_ORDER_NOT_FOUND"
+                    }
+                });
             }
-            return NoContent();
+
+            // Note: OrderID is required, so no null check needed
+            if (purchaseOrder.OrderID == 0)
+            {
+                return BadRequest(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = "Purchase order is not linked to an external order",
+                        Code = "NO_EXTERNAL_ORDER"
+                    }
+                });
+            }
+
+            // Get current order items count
+            var currentItemsCount = await _context.OrderItems
+                .CountAsync(oi => oi.PurchaseOrderId == purchaseOrderId, cancellationToken);
+
+            var result = new OrderItemRefreshResult
+            {
+                PurchaseOrderId = purchaseOrderId,
+                OrderId = purchaseOrder.OrderID,
+                RefreshedAt = DateTime.UtcNow,
+                RefreshedBy = User.Identity?.Name ?? "unknown",
+                PreviousItemCount = currentItemsCount
+            };
+
+            try
+            {
+                // Fetch fresh data from OrderService
+                var externalOrderItems = await _orderService.GetOrderItemsAsync(
+                    purchaseOrder.OrderID, cancellationToken);
+
+                if (externalOrderItems == null || !externalOrderItems.Any())
+                {
+                    result.Success = false;
+                    result.ErrorMessage = "No order items found in external service";
+                    return Ok(result);
+                }
+
+                // Remove existing order items
+                var existingItems = await _context.OrderItems
+                    .Where(oi => oi.PurchaseOrderId == purchaseOrderId)
+                    .ToListAsync(cancellationToken);
+
+                _context.OrderItems.RemoveRange(existingItems);
+
+                // Add refreshed order items
+                var newOrderItems = externalOrderItems.Select(item => new Data.Entities.OrderItem
+                {
+                    PurchaseOrderId = purchaseOrderId,
+                    ExternalOrderItemId = item.Id,
+                    ProductCode = item.ProductCode,
+                    ProductName = item.ProductName ?? "Unknown Product",
+                    Quantity = item.Quantity,
+                    UnitPrice = item.UnitPrice,
+                    TotalPrice = item.TotalPrice,
+                    UnitOfMeasure = item.UnitOfMeasure ?? "each",
+                    Currency = purchaseOrder.Currency,
+                    CachedAt = DateTime.UtcNow
+                }).ToList();
+
+                _context.OrderItems.AddRange(newOrderItems);
+                await _context.SaveChangesAsync(cancellationToken);
+
+                // Update result
+                result.Success = true;
+                result.NewItemCount = newOrderItems.Count;
+                result.ItemsAdded = newOrderItems.Count;
+                result.ItemsRemoved = existingItems.Count;
+                result.OrderItems = _mapper.Map<List<OrderItemDto>>(newOrderItems);
+
+                // Recalculate purchase order totals if items changed
+                if (result.NewItemCount != result.PreviousItemCount)
+                {
+                    var newSubtotal = newOrderItems.Sum(oi => oi.TotalPrice);
+                    if (purchaseOrder.SubtotalAmount != newSubtotal)
+                    {
+                        purchaseOrder.SubtotalAmount = newSubtotal;
+                        purchaseOrder.UpdatedAt = DateTime.UtcNow;
+                        purchaseOrder.UpdatedBy = result.RefreshedBy;
+
+                        await _context.SaveChangesAsync(cancellationToken);
+
+                        result.SubtotalUpdated = true;
+                        result.NewSubtotal = newSubtotal;
+                    }
+                }
+
+                _logger.LogInformation("Order items refreshed for purchase order {PurchaseOrderId}: {ItemsAdded} added, {ItemsRemoved} removed",
+                    purchaseOrderId, result.ItemsAdded, result.ItemsRemoved);
+
+                return Ok(result);
+            }
+            catch (Exception serviceEx)
+            {
+                _logger.LogWarning(serviceEx, "Failed to refresh order items from external service for purchase order {PurchaseOrderId}", purchaseOrderId);
+
+                result.Success = false;
+                result.ErrorMessage = "Failed to connect to external order service";
+                return Ok(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing order items for purchase order {PurchaseOrderId}", purchaseOrderId);
+            return StatusCode(500, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "An error occurred while refreshing order items",
+                    Code = "INTERNAL_ERROR"
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Gets order items summary for a purchase order
+    /// </summary>
+    /// <param name="purchaseOrderId">Purchase order ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Order items summary statistics</returns>
+    [HttpGet("summary")]
+    [ProducesResponseType(typeof(OrderItemsSummaryDto), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    public async Task<ActionResult<OrderItemsSummaryDto>> GetOrderItemsSummary(
+        int purchaseOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting order items summary for purchase order {PurchaseOrderId}", purchaseOrderId);
+
+            // Verify purchase order exists
+            var purchaseOrderExists = await _context.PurchaseOrders
+                .AnyAsync(po => po.Id == purchaseOrderId && !po.IsDeleted, cancellationToken);
+
+            if (!purchaseOrderExists)
+            {
+                return NotFound(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = $"Purchase order with ID {purchaseOrderId} not found",
+                        Code = "PURCHASE_ORDER_NOT_FOUND"
+                    }
+                });
+            }
+
+            // Calculate summary statistics
+            var itemsQuery = _context.OrderItems.Where(oi => oi.PurchaseOrderId == purchaseOrderId);
+
+            var summary = new OrderItemsSummaryDto
+            {
+                PurchaseOrderId = purchaseOrderId,
+                TotalItems = await itemsQuery.CountAsync(cancellationToken),
+                TotalQuantity = await itemsQuery.SumAsync(oi => oi.Quantity, cancellationToken),
+                TotalValue = await itemsQuery.SumAsync(oi => oi.TotalPrice, cancellationToken),
+                UniqueCategories = 0, // ItemCategory property not available in OrderItem entity
+                LastUpdated = await itemsQuery
+                    .MaxAsync(oi => (DateTime?)oi.CachedAt, cancellationToken) ?? DateTime.UtcNow
+            };
+
+            // Category breakdown not available since ItemCategory property doesn't exist
+            summary.CategoryBreakdown = new List<CategorySummaryDto>();
+
+            return Ok(summary);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting order items summary for purchase order {PurchaseOrderId}", purchaseOrderId);
+            return StatusCode(500, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "An error occurred while retrieving order items summary",
+                    Code = "INTERNAL_ERROR"
+                }
+            });
         }
     }
 }

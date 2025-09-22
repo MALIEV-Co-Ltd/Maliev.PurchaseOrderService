@@ -1,160 +1,195 @@
-namespace Maliev.PurchaseOrderService.Data
+using Microsoft.EntityFrameworkCore;
+using Maliev.PurchaseOrderService.Data.Entities;
+
+namespace Maliev.PurchaseOrderService.Data;
+
+/// <summary>
+/// Entity Framework DbContext for the Purchase Order Service
+/// Manages all entities related to purchase orders, items, addresses, files, audit logs, and domain events
+/// </summary>
+public class PurchaseOrderContext : DbContext
 {
-    using Microsoft.EntityFrameworkCore;
-    using Maliev.PurchaseOrderService.Data.Entities;
-
-    public partial class PurchaseOrderContext : DbContext
+    public PurchaseOrderContext(DbContextOptions<PurchaseOrderContext> options) : base(options)
     {
-        public PurchaseOrderContext(DbContextOptions<PurchaseOrderContext> options)
-            : base(options)
+    }
+
+    /// <summary>
+    /// Purchase orders - aggregate root
+    /// </summary>
+    public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
+
+    /// <summary>
+    /// Order items derived from external OrderService
+    /// </summary>
+    public DbSet<OrderItem> OrderItems { get; set; } = null!;
+
+    /// <summary>
+    /// Shipping and billing addresses
+    /// </summary>
+    public DbSet<Address> Addresses { get; set; } = null!;
+
+    /// <summary>
+    /// Document references for purchase orders
+    /// </summary>
+    public DbSet<PurchaseOrderFile> PurchaseOrderFiles { get; set; } = null!;
+
+    /// <summary>
+    /// Audit trail for compliance and tracking
+    /// </summary>
+    public DbSet<AuditLog> AuditLogs { get; set; } = null!;
+
+    /// <summary>
+    /// Domain events for event-driven architecture
+    /// </summary>
+    public DbSet<DomainEvent> DomainEvents { get; set; } = null!;
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        // Apply all entity configurations
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(PurchaseOrderContext).Assembly);
+
+        // Configure entity relationships
+        ConfigureEntityRelationships(modelBuilder);
+
+        // Configure global query filters for soft deletes
+        ConfigureGlobalQueryFilters(modelBuilder);
+    }
+
+    /// <summary>
+    /// Configure entity relationships and foreign keys
+    /// </summary>
+    private static void ConfigureEntityRelationships(ModelBuilder modelBuilder)
+    {
+        // PurchaseOrder -> OrderItem (One-to-Many)
+        modelBuilder.Entity<PurchaseOrder>()
+            .HasMany(po => po.OrderItems)
+            .WithOne(oi => oi.PurchaseOrder)
+            .HasForeignKey(oi => oi.PurchaseOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // PurchaseOrder -> PurchaseOrderFile (One-to-Many)
+        modelBuilder.Entity<PurchaseOrder>()
+            .HasMany(po => po.PurchaseOrderFiles)
+            .WithOne(pof => pof.PurchaseOrder)
+            .HasForeignKey(pof => pof.PurchaseOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // PurchaseOrder -> Address (Shipping) (Many-to-One, Optional)
+        modelBuilder.Entity<PurchaseOrder>()
+            .HasOne(po => po.ShippingAddress)
+            .WithMany(a => a.ShippingPurchaseOrders)
+            .HasForeignKey(po => po.ShippingAddressId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // PurchaseOrder -> Address (Billing) (Many-to-One, Optional)
+        modelBuilder.Entity<PurchaseOrder>()
+            .HasOne(po => po.BillingAddress)
+            .WithMany(a => a.BillingPurchaseOrders)
+            .HasForeignKey(po => po.BillingAddressId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Configure unique constraints
+        modelBuilder.Entity<PurchaseOrder>()
+            .HasIndex(po => po.OrderNumber)
+            .IsUnique()
+            .HasDatabaseName("IX_PurchaseOrders_OrderNumber_Unique");
+
+        // Configure composite indexes for OrderItem
+        modelBuilder.Entity<OrderItem>()
+            .HasIndex(oi => new { oi.PurchaseOrderId, oi.ExternalOrderItemId })
+            .IsUnique()
+            .HasDatabaseName("IX_OrderItems_PurchaseOrderId_ExternalOrderItemId_Unique");
+    }
+
+    /// <summary>
+    /// Configure global query filters for soft deletes
+    /// </summary>
+    private static void ConfigureGlobalQueryFilters(ModelBuilder modelBuilder)
+    {
+        // Soft delete filter for PurchaseOrder
+        modelBuilder.Entity<PurchaseOrder>()
+            .HasQueryFilter(po => !po.IsDeleted);
+
+        // Soft delete filter for PurchaseOrderFile
+        modelBuilder.Entity<PurchaseOrderFile>()
+            .HasQueryFilter(pof => !pof.IsDeleted);
+    }
+
+    /// <summary>
+    /// Override SaveChanges to automatically set timestamps and handle soft deletes
+    /// </summary>
+    public override int SaveChanges()
+    {
+        UpdateTimestamps();
+        return base.SaveChanges();
+    }
+
+    /// <summary>
+    /// Override SaveChangesAsync to automatically set timestamps and handle soft deletes
+    /// </summary>
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        UpdateTimestamps();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Automatically update Created/Modified timestamps
+    /// </summary>
+    private void UpdateTimestamps()
+    {
+        var entries = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+
+        foreach (var entry in entries)
         {
-        }
+            var entity = entry.Entity;
+            var now = DateTime.UtcNow;
 
-        public virtual DbSet<Address> Address { get; set; }
-        public virtual DbSet<OrderItem> OrderItem { get; set; }
-        public virtual DbSet<PurchaseOrder> PurchaseOrder { get; set; }
-        public virtual DbSet<PurchaseOrderFile> PurchaseOrderFile { get; set; }
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<Address>(entity =>
+            // Handle entities with CreatedAt/LastModifiedAt
+            if (entry.State == EntityState.Added)
             {
-                entity.Property(e => e.Id).HasColumnName("ID");
+                // Set CreatedAt for new entities
+                if (entity.GetType().GetProperty("CreatedAt") != null)
+                {
+                    entry.Property("CreatedAt").CurrentValue = now;
+                }
 
-                entity.Property(e => e.AddressLine1)
-                    .IsRequired()
-                    .HasMaxLength(256);
+                // Set OccurredAt for DomainEvent
+                if (entity is DomainEvent)
+                {
+                    entry.Property("OccurredAt").CurrentValue = now;
+                }
 
-                entity.Property(e => e.AddressLine2).HasMaxLength(256);
+                // Set Timestamp for AuditLog
+                if (entity is AuditLog)
+                {
+                    entry.Property("Timestamp").CurrentValue = now;
+                }
 
-                entity.Property(e => e.Building).HasMaxLength(256);
+                // Set CachedAt for OrderItem
+                if (entity is OrderItem orderItem && orderItem.CachedAt == default)
+                {
+                    entry.Property("CachedAt").CurrentValue = now;
+                }
 
-                entity.Property(e => e.City).HasMaxLength(256);
+                // Set UploadedAt for PurchaseOrderFile
+                if (entity is PurchaseOrderFile file && file.UploadedAt == default)
+                {
+                    entry.Property("UploadedAt").CurrentValue = now;
+                }
+            }
 
-                entity.Property(e => e.CountryId).HasColumnName("CountryID");
-
-                entity.Property(e => e.CreatedDate)
-                    .HasColumnType("datetime")
-                    .HasDefaultValueSql("(getutcdate())");
-
-                entity.Property(e => e.ModifiedDate)
-                    .HasColumnType("datetime")
-                    .HasDefaultValueSql("(getutcdate())");
-
-                entity.Property(e => e.PostalCode).HasMaxLength(256);
-
-                entity.Property(e => e.State).HasMaxLength(256);
-            });
-
-            modelBuilder.Entity<OrderItem>(entity =>
+            if (entry.State == EntityState.Modified)
             {
-                entity.Property(e => e.Id).HasColumnName("ID");
-
-                entity.Property(e => e.CreatedDate)
-                    .HasColumnType("datetime")
-                    .HasDefaultValueSql("(getutcdate())");
-
-                entity.Property(e => e.ModifiedDate)
-                    .HasColumnType("datetime")
-                    .HasDefaultValueSql("(getutcdate())");
-
-                entity.Property(e => e.PartNumber).HasMaxLength(100);
-
-                entity.Property(e => e.PurchaseOrderId).HasColumnName("PurchaseOrderID");
-
-                entity.Property(e => e.Subtotal)
-                    .HasColumnType("decimal(18, 2)")
-                    .HasComputedColumnSql("(CONVERT([decimal](18,2),[UnitPrice]*[Quantity]))");
-
-                entity.Property(e => e.UnitPrice).HasColumnType("decimal(18, 2)");
-
-                entity.HasOne(d => d.PurchaseOrder)
-                    .WithMany(p => p.OrderItem)
-                    .HasForeignKey(d => d.PurchaseOrderId)
-                    .HasConstraintName("FK_OrderItem_PurchaseOrder");
-            });
-
-            modelBuilder.Entity<PurchaseOrder>(entity =>
-            {
-                entity.Property(e => e.Id).HasColumnName("ID");
-
-                entity.Property(e => e.BillingAddressId).HasColumnName("BillingAddressID");
-
-                entity.Property(e => e.BillingContactPerson).HasMaxLength(256);
-
-                entity.Property(e => e.BillingFax).HasMaxLength(256);
-
-                entity.Property(e => e.BillingMobile).HasMaxLength(256);
-
-                entity.Property(e => e.BillingTelephone).HasMaxLength(256);
-
-                entity.Property(e => e.CreatedDate)
-                    .HasColumnType("datetime")
-                    .HasDefaultValueSql("(getutcdate())");
-
-                entity.Property(e => e.EmployeeId).HasColumnName("EmployeeID");
-
-                entity.Property(e => e.Fob).HasColumnName("FOB");
-
-                entity.Property(e => e.ModifiedDate)
-                    .HasColumnType("datetime")
-                    .HasDefaultValueSql("(getutcdate())");
-
-                entity.Property(e => e.ShippingAddressId).HasColumnName("ShippingAddressID");
-
-                entity.Property(e => e.ShippingContactPerson).HasMaxLength(256);
-
-                entity.Property(e => e.ShippingFax).HasMaxLength(256);
-
-                entity.Property(e => e.ShippingMethod).HasMaxLength(256);
-
-                entity.Property(e => e.ShippingMobile).HasMaxLength(256);
-
-                entity.Property(e => e.ShippingTelephone).HasMaxLength(256);
-
-                entity.Property(e => e.SupplierContactPerson).HasMaxLength(256);
-
-                entity.Property(e => e.SupplierId).HasColumnName("SupplierID");
-
-                entity.Property(e => e.Terms).HasMaxLength(256);
-
-                entity.HasOne(d => d.BillingAddress)
-                    .WithMany(p => p.PurchaseOrderBillingAddress)
-                    .HasForeignKey(d => d.BillingAddressId)
-                    .HasConstraintName("FK_PurchaseOrder_Address1");
-
-                entity.HasOne(d => d.ShippingAddress)
-                    .WithMany(p => p.PurchaseOrderShippingAddress)
-                    .HasForeignKey(d => d.ShippingAddressId)
-                    .HasConstraintName("FK_PurchaseOrder_Address");
-            });
-
-            modelBuilder.Entity<PurchaseOrderFile>(entity =>
-            {
-                entity.Property(e => e.Id).HasColumnName("ID");
-
-                entity.Property(e => e.Bucket)
-                    .IsRequired()
-                    .HasMaxLength(50);
-
-                entity.Property(e => e.CreatedDate)
-                    .HasColumnType("datetime")
-                    .HasDefaultValueSql("(getutcdate())");
-
-                entity.Property(e => e.ModifiedDate)
-                    .HasColumnType("datetime")
-                    .HasDefaultValueSql("(getutcdate())");
-
-                entity.Property(e => e.ObjectName).IsRequired();
-
-                entity.Property(e => e.PurchaseOrderId).HasColumnName("PurchaseOrderID");
-
-                entity.HasOne(d => d.PurchaseOrder)
-                    .WithMany(p => p.PurchaseOrderFile)
-                    .HasForeignKey(d => d.PurchaseOrderId)
-                    .OnDelete(DeleteBehavior.ClientSetNull)
-                    .HasConstraintName("FK_PurchaseOrderFile_PurchaseOrder");
-            });
+                // Set LastModifiedAt for modified entities
+                if (entity.GetType().GetProperty("LastModifiedAt") != null)
+                {
+                    entry.Property("LastModifiedAt").CurrentValue = now;
+                }
+            }
         }
     }
 }
