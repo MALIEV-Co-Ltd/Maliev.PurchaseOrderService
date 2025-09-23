@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Asp.Versioning;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Api.Clients;
@@ -14,7 +15,8 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// Order Items API Controller for read-only operations and cache refresh
 /// </summary>
 [ApiController]
-[Route("purchase-orders/{purchaseOrderId:int}/order-items")]
+[Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/items")]
+[ApiVersion("1.0")]
 [Authorize]
 [Produces("application/json")]
 public class OrderItemsController : ControllerBase

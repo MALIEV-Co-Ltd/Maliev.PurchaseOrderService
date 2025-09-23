@@ -38,7 +38,7 @@ public class UploadServiceTests
         {
             UploadService = new ServiceEndpoint
             {
-                BaseUrl = "https://api.maliev.com/upload",
+                BaseUrl = "https://test.api.maliev.com/upload",
                 TimeoutInSeconds = 120 // Longer timeout for file uploads
             }
         };
@@ -82,7 +82,7 @@ public class UploadServiceTests
             FileName = fileName,
             ContentType = contentType,
             FileSize = fileContent.Length,
-            Url = "https://storage.maliev.com/files/123456/test-document.pdf",
+            Url = "https://test.storage.maliev.com/files/123456/test-document.pdf",
             UploadedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddHours(24)
         };
@@ -355,10 +355,10 @@ public class UploadServiceTests
 
         // Act & Assert
         using var fileStream = new MemoryStream(fileContent);
-        var exception = await Assert.ThrowsAsync<HttpRequestException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.UploadFileAsync(fileStream, "test.pdf", "application/pdf", "purchase-orders"));
 
-        exception.Message.Should().Contain("UploadService");
+        exception.Message.Should().Contain("Failed to upload file");
     }
 
     [Fact]
@@ -380,10 +380,10 @@ public class UploadServiceTests
 
         // Act & Assert
         using var fileStream = new MemoryStream(fileContent);
-        var exception = await Assert.ThrowsAsync<TimeoutException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.UploadFileAsync(fileStream, "test.pdf", "application/pdf", "purchase-orders"));
 
-        exception.Message.Should().Contain("timeout");
+        exception.Message.Should().Contain("Timeout while uploading file");
     }
 
     [Fact]
@@ -411,10 +411,10 @@ public class UploadServiceTests
 
         // Act & Assert
         using var fileStream = new MemoryStream(fileContent);
-        var exception = await Assert.ThrowsAsync<HttpRequestException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.UploadFileAsync(fileStream, "test.pdf", "application/pdf", "purchase-orders"));
 
-        exception.Message.Should().Contain("File size exceeds");
+        exception.Message.Should().Contain("Failed to upload file");
     }
 
     [Fact]

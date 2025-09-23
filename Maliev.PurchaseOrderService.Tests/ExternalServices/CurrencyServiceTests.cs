@@ -38,7 +38,7 @@ public class CurrencyServiceTests
         {
             CurrencyService = new ServiceEndpoint
             {
-                BaseUrl = "https://api.maliev.com/currency",
+                BaseUrl = "https://test.api.maliev.com/currency",
                 TimeoutInSeconds = 15
             }
         };
@@ -364,10 +364,10 @@ public class CurrencyServiceTests
         var service = new CurrencyServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<TimeoutException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.ConvertCurrencyAsync(amount, fromCurrency, toCurrency));
 
-        exception.Message.Should().Contain("timeout");
+        exception.Message.Should().Contain("Timeout while converting currency");
     }
 
     [Fact]
@@ -397,7 +397,7 @@ public class CurrencyServiceTests
         var exception = await Assert.ThrowsAsync<HttpRequestException>(
             () => service.GetExchangeRateAsync(fromCurrency, toCurrency));
 
-        exception.Message.Should().Contain("Invalid currency pair");
+        exception.Message.Should().Contain("CurrencyService error");
     }
 
     [Fact]

@@ -401,7 +401,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var json = JsonSerializer.Serialize(createRequest);
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
-        var response = await _client.PostAsync("/api/purchaseorders", content);
+        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
         response.EnsureSuccessStatusCode();
 
         var responseContent = await response.Content.ReadAsStringAsync();

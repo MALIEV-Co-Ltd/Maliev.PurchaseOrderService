@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Maliev.PurchaseOrderService.Api.DTOs;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration.Contracts;
 
@@ -12,13 +13,13 @@ namespace Maliev.PurchaseOrderService.Tests.Integration.Contracts;
 /// Contract tests for POST /purchaseorders/v1/purchase-orders/{id}/purchaseorderfiles endpoint
 /// These tests MUST FAIL before implementation - following TDD principles
 /// </summary>
-public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplicationFactory<Program>>
+public class UploadPurchaseOrderFileContractTests : IClassFixture<TestWebApplicationFactory<Program>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TestWebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
     private readonly string _baseUrl = "/purchaseorders/v1/purchase-orders";
 
-    public UploadPurchaseOrderFileContractTests(WebApplicationFactory<Program> factory)
+    public UploadPurchaseOrderFileContractTests(TestWebApplicationFactory<Program> factory)
     {
         _factory = factory;
         _client = _factory.CreateClient();
@@ -58,7 +59,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithValidRequest_ShouldReturn201AndUploadResult()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -90,7 +91,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithNonExistentPurchaseOrderId_ShouldReturn404()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var nonExistentId = 99999;
@@ -117,7 +118,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithInvalidId_ShouldReturn400()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var invalidId = "invalid";
@@ -134,7 +135,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithEmptyContent_ShouldReturn400()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -152,7 +153,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithMissingFile_ShouldReturn400()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -181,7 +182,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithTooLargeFile_ShouldReturn413()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -206,7 +207,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithUnsupportedFileType_ShouldReturn400()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -231,7 +232,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithMissingCategory_ShouldReturn400()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -260,7 +261,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithInvalidCategory_ShouldReturn400()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -289,7 +290,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithValidPdfFile_ShouldReturn201()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -315,7 +316,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithValidImageFile_ShouldReturn201()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -341,7 +342,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_RoleBasedAccess_EmployeeRole_ShouldReturn201()
     {
         // Arrange
-        var employeeToken = GenerateValidJwtTokenWithRole("Employee"); // This will fail - token generation not implemented
+        var employeeToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", employeeToken);
 
         var purchaseOrderId = 1;
@@ -358,7 +359,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_RoleBasedAccess_InvalidRole_ShouldReturn403()
     {
         // Arrange
-        var invalidRoleToken = GenerateValidJwtTokenWithRole("InvalidRole"); // This will fail - token generation not implemented
+        var invalidRoleToken = TestJwtHelper.GenerateTestToken("test-user", "InvalidRole");
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", invalidRoleToken);
 
         var purchaseOrderId = 1;
@@ -375,7 +376,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_ApiVersioning_ShouldHandleCorrectVersion()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -393,7 +394,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithInvalidContentType_ShouldReturn415()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -410,7 +411,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_WithVirusScanFailure_ShouldReturn400()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -435,7 +436,7 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
     public async Task UploadPurchaseOrderFile_ResponseFormat_ShouldIncludeRequiredFields()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -527,15 +528,4 @@ public class UploadPurchaseOrderFileContractTests : IClassFixture<WebApplication
         return content;
     }
 
-    // This method will intentionally fail - JWT token generation not implemented yet
-    private string GenerateValidJwtToken()
-    {
-        throw new NotImplementedException("JWT token generation not implemented - this test should fail in TDD");
-    }
-
-    // This method will intentionally fail - JWT token generation with roles not implemented yet
-    private string GenerateValidJwtTokenWithRole(string role)
-    {
-        throw new NotImplementedException("JWT token generation with roles not implemented - this test should fail in TDD");
-    }
 }

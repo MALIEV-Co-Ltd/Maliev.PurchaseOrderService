@@ -212,6 +212,9 @@ builder.Services.AddScoped<IPdfGenerationService, PdfGenerationService>();
 builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
 builder.Services.AddScoped<IDomainEventService, DomainEventService>();
 
+// Health Check Services
+builder.Services.AddScoped<ExternalServicesHealthCheck>();
+
 // Controllers
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
@@ -287,48 +290,59 @@ builder.Services.AddSwaggerGen(options =>
 // Health Checks
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy())
-    .AddDbContextCheck<PurchaseOrderContext>(tags: new[] { "readiness" });
+    .AddDbContextCheck<PurchaseOrderContext>(tags: new[] { "readiness" })
+    .AddCheck<ExternalServicesHealthCheck>("external-services", tags: new[] { "readiness" })
+    .AddCheck("memory", () =>
+    {
+        // Basic memory check - ensure we're not using too much memory
+        var allocatedBytes = GC.GetTotalMemory(false);
+        var memoryThreshold = 1024 * 1024 * 512; // 512 MB threshold
 
-// Authentication
-if (!builder.Environment.IsEnvironment("Testing"))
-{
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(options =>
+        if (allocatedBytes > memoryThreshold)
         {
-            var jwtConfig = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+            return HealthCheckResult.Degraded($"High memory usage: {allocatedBytes / (1024 * 1024)} MB");
+        }
 
-            // Google Secret Manager and environment variables override appsettings
-            var jwtKey = builder.Configuration["Jwt:SecurityKey"] ?? jwtConfig.SecurityKey;
-            var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? jwtConfig.Issuer;
-            var jwtAudience = builder.Configuration["Jwt:Audience"] ?? jwtConfig.Audience;
+        return HealthCheckResult.Healthy($"Memory usage: {allocatedBytes / (1024 * 1024)} MB");
+    }, tags: new[] { "liveness" });
 
-            options.TokenValidationParameters = new TokenValidationParameters
+// Authentication - Enable for all environments including Testing
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        var jwtConfig = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+
+        // Google Secret Manager and environment variables override appsettings
+        var jwtKey = builder.Configuration["Jwt:SecurityKey"] ?? jwtConfig.SecurityKey;
+        var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? jwtConfig.Issuer;
+        var jwtAudience = builder.Configuration["Jwt:Audience"] ?? jwtConfig.Audience;
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = jwtConfig.ValidateIssuer,
+            ValidateAudience = jwtConfig.ValidateAudience,
+            ValidateLifetime = jwtConfig.ValidateLifetime,
+            ValidateIssuerSigningKey = jwtConfig.ValidateIssuerSigningKey,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew = jwtConfig.ClockSkewTimeSpan
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
             {
-                ValidateIssuer = jwtConfig.ValidateIssuer,
-                ValidateAudience = jwtConfig.ValidateAudience,
-                ValidateLifetime = jwtConfig.ValidateLifetime,
-                ValidateIssuerSigningKey = jwtConfig.ValidateIssuerSigningKey,
-                ValidIssuer = jwtIssuer,
-                ValidAudience = jwtAudience,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-                ClockSkew = jwtConfig.ClockSkewTimeSpan
-            };
-
-            options.Events = new JwtBearerEvents
+                Log.Warning("JWT authentication failed: {Error}", context.Exception.Message);
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
             {
-                OnAuthenticationFailed = context =>
-                {
-                    Log.Warning("JWT authentication failed: {Error}", context.Exception.Message);
-                    return Task.CompletedTask;
-                },
-                OnTokenValidated = context =>
-                {
-                    Log.Information("JWT token validated for user: {User}", context.Principal?.Identity?.Name);
-                    return Task.CompletedTask;
-                }
-            };
-        });
-}
+                Log.Information("JWT token validated for user: {User}", context.Principal?.Identity?.Name);
+                return Task.CompletedTask;
+            }
+        };
+    });
 
 // Authorization
 builder.Services.AddAuthorization(options =>
@@ -436,8 +450,10 @@ app.UseCors();
 if (!app.Environment.IsEnvironment("Testing"))
 {
     app.UseRateLimiter();
-    app.UseAuthentication();
 }
+
+// Always use authentication (including Testing environment)
+app.UseAuthentication();
 
 app.UseAuthorization();
 

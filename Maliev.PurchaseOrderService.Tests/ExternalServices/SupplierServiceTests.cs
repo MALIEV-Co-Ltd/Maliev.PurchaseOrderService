@@ -36,7 +36,7 @@ public class SupplierServiceTests
         {
             SupplierService = new ServiceEndpoint
             {
-                BaseUrl = "https://api.maliev.com/suppliers/v1",
+                BaseUrl = "https://test.api.maliev.com/suppliers/v1",
                 TimeoutInSeconds = 30
             }
         };

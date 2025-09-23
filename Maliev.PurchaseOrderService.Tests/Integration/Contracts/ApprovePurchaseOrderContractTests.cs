@@ -5,20 +5,21 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Maliev.PurchaseOrderService.Api.DTOs;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration.Contracts;
 
 /// <summary>
-/// Contract tests for POST /purchaseorders/v1/purchase-orders/{id}/approve endpoint
+/// Contract tests for POST /v1.0/purchase-orders/{id}/approve endpoint
 /// These tests MUST FAIL before implementation - following TDD principles
 /// </summary>
-public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFactory<Program>>
+public class ApprovePurchaseOrderContractTests : IClassFixture<TestWebApplicationFactory<Program>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TestWebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
-    private readonly string _baseUrl = "/purchaseorders/v1/purchase-orders";
+    private readonly string _baseUrl = "/v1.0/purchase-orders";
 
-    public ApprovePurchaseOrderContractTests(WebApplicationFactory<Program> factory)
+    public ApprovePurchaseOrderContractTests(TestWebApplicationFactory<Program> factory)
     {
         _factory = factory;
         _client = _factory.CreateClient();
@@ -62,7 +63,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_WithValidManagerToken_ShouldReturn200AndApprovedOrder()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var purchaseOrderId = 1;
 
@@ -94,7 +95,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_WithEmployeeRole_ShouldReturn403()
     {
         // Arrange
-        var employeeToken = GenerateValidJwtTokenWithRole("Employee"); // This will fail - token generation not implemented
+        var employeeToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", employeeToken);
         var purchaseOrderId = 1;
 
@@ -122,7 +123,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_WithNonExistentId_ShouldReturn404()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var nonExistentId = 99999;
 
@@ -150,7 +151,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_AlreadyApprovedOrder_ShouldReturn409()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var alreadyApprovedOrderId = 2; // Assume this order is already approved
 
@@ -178,7 +179,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_CancelledOrder_ShouldReturn409()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var cancelledOrderId = 3; // Assume this order is cancelled
 
@@ -206,7 +207,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_WithEmptyApprovedBy_ShouldReturn400()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var purchaseOrderId = 1;
 
@@ -235,7 +236,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_WithInvalidContentType_ShouldReturn415()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var purchaseOrderId = 1;
 
@@ -253,7 +254,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_WithEmptyBody_ShouldReturn400()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var purchaseOrderId = 1;
 
@@ -270,7 +271,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_WithInvalidIdFormat_ShouldReturn400()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var invalidId = "invalid-id";
 
@@ -289,7 +290,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_WithDirectorRole_ShouldApproveHighValueOrders()
     {
         // Arrange
-        var directorToken = GenerateValidJwtTokenWithRole("Director"); // This will fail - token generation not implemented
+        var directorToken = TestJwtHelper.GenerateAdminToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", directorToken);
         var highValueOrderId = 4; // Assume this is a high-value order requiring director approval
 
@@ -310,7 +311,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_WithManagerRoleForHighValueOrder_ShouldReturn403()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var highValueOrderId = 4; // Assume this requires director approval
 
@@ -338,7 +339,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_ShouldTriggerPdfGeneration_ForInternalOrders()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var internalOrderId = 5; // Assume this is an internal order
 
@@ -361,7 +362,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_ShouldSendNotifications_WhenRequested()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var purchaseOrderId = 1;
 
@@ -384,7 +385,7 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
     public async Task ApprovePurchaseOrder_ApiVersioning_ShouldHandleCorrectVersion()
     {
         // Arrange
-        var managerToken = GenerateValidJwtTokenWithRole("Manager"); // This will fail - token generation not implemented
+        var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
         var purchaseOrderId = 1;
 
@@ -418,15 +419,4 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<WebApplicationFac
         };
     }
 
-    // This method will intentionally fail - JWT token generation not implemented yet
-    private string GenerateValidJwtToken()
-    {
-        throw new NotImplementedException("JWT token generation not implemented - this test should fail in TDD");
-    }
-
-    // This method will intentionally fail - JWT token generation with roles not implemented yet
-    private string GenerateValidJwtTokenWithRole(string role)
-    {
-        throw new NotImplementedException("JWT token generation with roles not implemented - this test should fail in TDD");
-    }
 }

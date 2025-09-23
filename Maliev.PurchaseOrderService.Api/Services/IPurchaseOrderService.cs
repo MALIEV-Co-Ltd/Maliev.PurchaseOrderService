@@ -121,6 +121,28 @@ public interface IPurchaseOrderService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Calculates WHT for a purchase order
+    /// </summary>
+    /// <param name="id">Purchase order ID</param>
+    /// <param name="request">WHT calculation request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>WHT calculation result</returns>
+    Task<WHTCalculationResult?> CalculateWHTAsync(
+        int id,
+        WHTCalculationRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets WHT calculation history for a purchase order
+    /// </summary>
+    /// <param name="id">Purchase order ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of WHT calculations</returns>
+    Task<List<WHTCalculationResult>?> GetWHTHistoryAsync(
+        int id,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Recalculates WHT for a purchase order
     /// </summary>
     /// <param name="id">Purchase order ID</param>

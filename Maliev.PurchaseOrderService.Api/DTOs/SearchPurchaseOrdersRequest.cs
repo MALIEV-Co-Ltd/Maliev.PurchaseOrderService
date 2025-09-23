@@ -79,6 +79,16 @@ public class SearchPurchaseOrdersRequest
     public DateTime? UpdatedTo { get; set; }
 
     /// <summary>
+    /// Filter by expected delivery date from
+    /// </summary>
+    public DateTime? ExpectedDeliveryFrom { get; set; }
+
+    /// <summary>
+    /// Filter by expected delivery date to
+    /// </summary>
+    public DateTime? ExpectedDeliveryTo { get; set; }
+
+    /// <summary>
     /// Sort field
     /// </summary>
     public PurchaseOrderSortType SortBy { get; set; } = PurchaseOrderSortType.CreatedAt;

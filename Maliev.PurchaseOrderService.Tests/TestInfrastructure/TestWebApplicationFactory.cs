@@ -3,8 +3,12 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
+using Maliev.PurchaseOrderService.Api.Configuration;
 
 namespace Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
@@ -66,6 +70,9 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
             ReplaceService(services, MockServiceFactory.CreateWHTCalculationServiceMock().Object);
             ReplaceService(services, MockServiceFactory.CreateDocumentManagementServiceMock().Object);
 
+            // Configure test JWT authentication to match TestJwtHelper
+            ConfigureTestAuthentication(services);
+
             // Allow derived classes to configure additional services
             ConfigureAdditionalTestServices(services);
         });
@@ -83,6 +90,48 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
     {
         // Override in derived classes if needed
         ConfigureTestServices?.Invoke(services);
+    }
+
+    /// <summary>
+    /// Configures test JWT authentication to match TestJwtHelper configuration
+    /// </summary>
+    private void ConfigureTestAuthentication(IServiceCollection services)
+    {
+        // Remove existing JWT Bearer authentication if it exists
+        var jwtDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(JwtBearerHandler));
+        if (jwtDescriptor != null)
+        {
+            services.Remove(jwtDescriptor);
+        }
+
+        // Configure JWT options to match TestJwtHelper constants
+        services.Configure<JwtOptions>(options =>
+        {
+            options.SecurityKey = "test-signing-key-that-is-at-least-32-characters-long-for-testing-purposes";
+            options.Issuer = "test-issuer";
+            options.Audience = "test-audience";
+            options.ValidateIssuer = true;
+            options.ValidateAudience = true;
+            options.ValidateLifetime = true;
+            options.ValidateIssuerSigningKey = true;
+            options.ClockSkew = "00:05:00";
+        });
+
+        // Override JWT Bearer options configuration
+        services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = "test-issuer",
+                ValidAudience = "test-audience",
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("test-signing-key-that-is-at-least-32-characters-long-for-testing-purposes")),
+                ClockSkew = TimeSpan.FromMinutes(5)
+            };
+        });
     }
 
     /// <summary>

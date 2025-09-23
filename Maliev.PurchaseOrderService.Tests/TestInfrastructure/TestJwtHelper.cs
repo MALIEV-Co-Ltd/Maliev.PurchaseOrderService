@@ -138,12 +138,12 @@ public static class TestJwtHelper
             options.SecurityKey = TestSigningKey;
             options.Issuer = TestIssuer;
             options.Audience = TestAudience;
-            options.ValidateIssuer = false;
-            options.ValidateAudience = false;
-            options.ValidateLifetime = false;
-            options.ValidateIssuerSigningKey = false;
+            options.ValidateIssuer = true;
+            options.ValidateAudience = true;
+            options.ValidateLifetime = true;
+            options.ValidateIssuerSigningKey = true;
             options.ExpirationMinutes = 60;
-            options.ClockSkew = "00:01:00";
+            options.ClockSkew = "00:05:00";
         });
     }
 
@@ -157,12 +157,12 @@ public static class TestJwtHelper
             SecurityKey = TestSigningKey,
             Issuer = TestIssuer,
             Audience = TestAudience,
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = false,
-            ValidateIssuerSigningKey = false,
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
             ExpirationMinutes = 60,
-            ClockSkew = "00:01:00"
+            ClockSkew = "00:05:00"
         };
     }
 }

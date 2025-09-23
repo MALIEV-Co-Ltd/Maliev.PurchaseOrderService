@@ -43,7 +43,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -79,7 +79,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -112,7 +112,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -149,7 +149,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -185,7 +185,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -218,7 +218,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -256,7 +256,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -291,7 +291,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -329,7 +329,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -366,7 +366,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -402,7 +402,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -434,7 +434,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -453,7 +453,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         var queryString = BuildQueryString(searchRequest);
 
         // Act
-        var response = await Client.GetAsync($"/api/purchaseorders/search?{queryString}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?{queryString}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

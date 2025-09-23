@@ -15,8 +15,8 @@ public static class TestConfiguration
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                // Database
-                ["ConnectionStrings:PurchaseOrderDbContext"] = "Server=localhost;Database=test_purchaseorder_db;",
+                // Database - Uses InMemory database for testing, no real credentials needed
+                ["ConnectionStrings:PurchaseOrderDbContext"] = "InMemory",
 
                 // External Services using structured configuration
                 ["ExternalServices:SupplierService:BaseUrl"] = "https://test.api.maliev.com/suppliers",
@@ -37,10 +37,10 @@ public static class TestConfiguration
                 ["ExternalServices:AuthService:BaseUrl"] = "https://test.auth.maliev.com",
                 ["ExternalServices:AuthService:TimeoutInSeconds"] = "10",
 
-                // JWT Configuration
-                ["JWT:SigningKey"] = "test-secret-key-for-jwt-tokens-minimum-256-bits",
+                // JWT Configuration - TEST ONLY, NOT FOR PRODUCTION
+                ["JWT:SigningKey"] = "test-secret-key-for-jwt-tokens-minimum-256-bits-NOT-FOR-PRODUCTION",
                 ["JWT:Issuer"] = "https://test.auth.maliev.com",
-                ["JWT:Audience"] = "maliev-microservices",
+                ["JWT:Audience"] = "maliev-test-microservices",
                 ["JWT:ExpirationInMinutes"] = "60",
 
                 // CORS Configuration

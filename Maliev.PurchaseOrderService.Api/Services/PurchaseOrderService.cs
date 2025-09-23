@@ -73,7 +73,8 @@ public class PurchaseOrderService : IPurchaseOrderService
                 query = query.Where(po =>
                     po.OrderNumber.Contains(searchTerm) ||
                     (po.CustomerPO != null && po.CustomerPO.Contains(searchTerm)) ||
-                    (po.Notes != null && po.Notes.Contains(searchTerm)));
+                    (po.Notes != null && po.Notes.Contains(searchTerm)) ||
+                    (po.SupplierName != null && po.SupplierName.Contains(searchTerm)));
             }
 
             // Include related data if requested
@@ -482,6 +483,16 @@ public class PurchaseOrderService : IPurchaseOrderService
             query = query.Where(po => po.UpdatedAt <= request.UpdatedTo.Value);
         }
 
+        if (request.ExpectedDeliveryFrom.HasValue)
+        {
+            query = query.Where(po => po.ExpectedDeliveryDate >= request.ExpectedDeliveryFrom.Value);
+        }
+
+        if (request.ExpectedDeliveryTo.HasValue)
+        {
+            query = query.Where(po => po.ExpectedDeliveryDate <= request.ExpectedDeliveryTo.Value);
+        }
+
         return query;
     }
 
@@ -493,7 +504,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             PurchaseOrderSortType.OrderNumber => isDescending ? query.OrderByDescending(po => po.OrderNumber) : query.OrderBy(po => po.OrderNumber),
             PurchaseOrderSortType.CreatedAt => isDescending ? query.OrderByDescending(po => po.CreatedAt) : query.OrderBy(po => po.CreatedAt),
-            PurchaseOrderSortType.CreatedAtDesc => isDescending ? query.OrderByDescending(po => po.UpdatedAt) : query.OrderBy(po => po.UpdatedAt),
+            PurchaseOrderSortType.CreatedAtDesc => query.OrderByDescending(po => po.CreatedAt), // Always descending for CreatedAtDesc
             PurchaseOrderSortType.TotalAmount => isDescending ? query.OrderByDescending(po => po.TotalAmount) : query.OrderBy(po => po.TotalAmount),
             PurchaseOrderSortType.Status => isDescending ? query.OrderByDescending(po => po.Status) : query.OrderBy(po => po.Status),
             PurchaseOrderSortType.SupplierId => isDescending ? query.OrderByDescending(po => po.SupplierID) : query.OrderBy(po => po.SupplierID),
@@ -1069,5 +1080,93 @@ public class PurchaseOrderService : IPurchaseOrderService
             .ToListAsync(cancellationToken);
 
         return _mapper.Map<IEnumerable<AuditLogDto>>(auditLogs);
+    }
+
+    public async Task<WHTCalculationResult?> CalculateWHTAsync(
+        int id,
+        WHTCalculationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Calculating WHT for purchase order {PurchaseOrderId}", id);
+
+        try
+        {
+            var purchaseOrder = await _context.PurchaseOrders
+                .Include(po => po.OrderItems)
+                .FirstOrDefaultAsync(po => po.Id == id && !po.IsDeleted, cancellationToken);
+
+            if (purchaseOrder == null)
+            {
+                return null;
+            }
+
+            // Validate WHT rate
+            if (request.WHTRate < 0)
+            {
+                throw new ArgumentException("WHT rate cannot be negative");
+            }
+
+            if (request.WHTRate > 0.15m)
+            {
+                throw new ArgumentException("WHT rate cannot exceed 15% as per Thailand tax regulations");
+            }
+
+            // Get supplier information
+            var supplier = await _supplierService.GetSupplierAsync(request.SupplierID, cancellationToken);
+            if (supplier == null)
+            {
+                throw new ArgumentException($"Supplier {request.SupplierID} not found");
+            }
+
+            // Calculate WHT using external service
+            var result = await _whtService.CalculateWHTAsync(supplier, request.TotalAmount ?? 0m, request.CurrencyCode, cancellationToken);
+
+            // Store calculation in database if needed
+            await CreateAuditLogAsync(id, AuditAction.Create,
+                $"WHT calculated: {result.WHTAmount} {request.CurrencyCode} at {result.WHTRate:P} rate",
+                "wht-calculation", cancellationToken);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating WHT for purchase order {PurchaseOrderId}", id);
+            throw;
+        }
+    }
+
+    public async Task<List<WHTCalculationResult>?> GetWHTHistoryAsync(
+        int id,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Getting WHT history for purchase order {PurchaseOrderId}", id);
+
+        try
+        {
+            var purchaseOrder = await _context.PurchaseOrders
+                .FirstOrDefaultAsync(po => po.Id == id && !po.IsDeleted, cancellationToken);
+
+            if (purchaseOrder == null)
+            {
+                return null;
+            }
+
+            // Get WHT calculation history from audit logs
+            var whtAuditLogs = await _context.AuditLogs
+                .Where(al => al.EntityType == "PurchaseOrder" &&
+                           al.EntityId == id.ToString() &&
+                           al.ChangeReason != null && al.ChangeReason.Contains("wht"))
+                .OrderByDescending(al => al.Timestamp)
+                .ToListAsync(cancellationToken);
+
+            // For now, return empty list as we would need to parse audit logs or implement separate WHT history table
+            // This is a placeholder implementation
+            return new List<WHTCalculationResult>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting WHT history for purchase order {PurchaseOrderId}", id);
+            throw;
+        }
     }
 }

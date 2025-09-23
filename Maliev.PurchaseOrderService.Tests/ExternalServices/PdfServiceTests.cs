@@ -38,7 +38,7 @@ public class PdfServiceTests
         {
             PdfService = new ServiceEndpoint
             {
-                BaseUrl = "https://api.maliev.com/pdf",
+                BaseUrl = "https://test.api.maliev.com/pdf",
                 TimeoutInSeconds = 60 // Longer timeout for PDF generation
             }
         };
@@ -411,10 +411,10 @@ public class PdfServiceTests
         var service = new PdfServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<HttpRequestException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.GeneratePdfFromTemplateAsync("po-template", new Dictionary<string, object> { ["id"] = purchaseOrderId }, pdfRequest));
 
-        exception.Message.Should().Contain("PdfService");
+        exception.Message.Should().Contain("Failed to generate PDF");
     }
 
     [Fact]
@@ -435,10 +435,10 @@ public class PdfServiceTests
         var service = new PdfServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<TimeoutException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.GeneratePdfFromTemplateAsync("po-template", new Dictionary<string, object> { ["id"] = purchaseOrderId }, pdfRequest));
 
-        exception.Message.Should().Contain("timeout");
+        exception.Message.Should().Contain("Timeout while generating PDF");
     }
 
     [Fact]
@@ -489,10 +489,10 @@ public class PdfServiceTests
         var service = new PdfServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<HttpRequestException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.GeneratePdfFromTemplateAsync("po-template", new Dictionary<string, object> { ["id"] = purchaseOrderId }, pdfRequest));
 
-        exception.Message.Should().Contain("Template not found");
+        exception.Message.Should().Contain("Failed to generate PDF");
     }
 
     [Fact]

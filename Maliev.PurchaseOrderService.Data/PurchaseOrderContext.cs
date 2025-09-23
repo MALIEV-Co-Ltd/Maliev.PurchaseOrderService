@@ -53,6 +53,9 @@ public class PurchaseOrderContext : DbContext
         // Configure entity relationships
         ConfigureEntityRelationships(modelBuilder);
 
+        // Configure value conversions and additional mappings
+        ConfigureValueConversions(modelBuilder);
+
         // Configure global query filters for soft deletes
         ConfigureGlobalQueryFilters(modelBuilder);
     }
@@ -104,6 +107,37 @@ public class PurchaseOrderContext : DbContext
     }
 
     /// <summary>
+    /// Configure value conversions and additional mappings
+    /// </summary>
+    private static void ConfigureValueConversions(ModelBuilder modelBuilder)
+    {
+        // Ensure consistent UTC handling for DateTime properties
+        var dateTimeConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
+            v => v.ToUniversalTime(),
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        var nullableDateTimeConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime?, DateTime?>(
+            v => v.HasValue ? v.Value.ToUniversalTime() : v,
+            v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        // Apply to key entities - this ensures consistent UTC handling
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTime))
+                {
+                    property.SetValueConverter(dateTimeConverter);
+                }
+                else if (property.ClrType == typeof(DateTime?))
+                {
+                    property.SetValueConverter(nullableDateTimeConverter);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Configure global query filters for soft deletes
     /// </summary>
     private static void ConfigureGlobalQueryFilters(ModelBuilder modelBuilder)
@@ -115,6 +149,10 @@ public class PurchaseOrderContext : DbContext
         // Soft delete filter for PurchaseOrderFile
         modelBuilder.Entity<PurchaseOrderFile>()
             .HasQueryFilter(pof => !pof.IsDeleted);
+
+        // Soft delete filter for Address
+        modelBuilder.Entity<Address>()
+            .HasQueryFilter(a => !a.IsDeleted);
     }
 
     /// <summary>
@@ -158,13 +196,13 @@ public class PurchaseOrderContext : DbContext
                 }
 
                 // Set OccurredAt for DomainEvent
-                if (entity is DomainEvent)
+                if (entity is DomainEvent domainEvent && domainEvent.OccurredAt == default)
                 {
                     entry.Property("OccurredAt").CurrentValue = now;
                 }
 
                 // Set Timestamp for AuditLog
-                if (entity is AuditLog)
+                if (entity is AuditLog auditLog && auditLog.Timestamp == default)
                 {
                     entry.Property("Timestamp").CurrentValue = now;
                 }
@@ -184,10 +222,10 @@ public class PurchaseOrderContext : DbContext
 
             if (entry.State == EntityState.Modified)
             {
-                // Set LastModifiedAt for modified entities
-                if (entity.GetType().GetProperty("LastModifiedAt") != null)
+                // Set UpdatedAt for modified entities
+                if (entity.GetType().GetProperty("UpdatedAt") != null)
                 {
-                    entry.Property("LastModifiedAt").CurrentValue = now;
+                    entry.Property("UpdatedAt").CurrentValue = now;
                 }
             }
         }

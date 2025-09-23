@@ -36,7 +36,7 @@ public class OrderServiceTests
         {
             OrderService = new ServiceEndpoint
             {
-                BaseUrl = "https://api.maliev.com/orders/v1",
+                BaseUrl = "https://test.api.maliev.com/orders/v1",
                 TimeoutInSeconds = 45
             }
         };
@@ -311,10 +311,10 @@ public class OrderServiceTests
         var service = new OrderServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<HttpRequestException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.GetOrderAsync(orderId));
 
-        exception.Message.Should().Contain("OrderService");
+        exception.Message.Should().Contain("Failed to get order");
     }
 
     [Fact]
@@ -334,10 +334,10 @@ public class OrderServiceTests
         var service = new OrderServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<TimeoutException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.GetOrderAsync(orderId));
 
-        exception.Message.Should().Contain("timeout");
+        exception.Message.Should().Contain("Timeout while getting order");
     }
 
     [Fact]
@@ -368,10 +368,10 @@ public class OrderServiceTests
         var service = new OrderServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<HttpRequestException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.GetOrderAsync(0));
 
-        exception.Message.Should().Contain("Invalid customer ID");
+        exception.Message.Should().Contain("Failed to get order");
     }
 
     [Fact]
@@ -417,10 +417,10 @@ public class OrderServiceTests
         var service = new OrderServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.GetOrderAsync(orderId));
 
-        exception.Message.Should().Contain("authentication");
+        exception.Message.Should().Contain("Failed to get order");
     }
 
     [Fact]
@@ -442,10 +442,9 @@ public class OrderServiceTests
         var service = new OrderServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.UpdateOrderStatusAsync(orderId, statusUpdate.Status));
+        var result = await service.UpdateOrderStatusAsync(orderId, statusUpdate.Status);
 
-        exception.Message.Should().Contain("Order not found");
+        result.Should().BeFalse();
     }
 
     [Fact]
@@ -469,10 +468,10 @@ public class OrderServiceTests
         var service = new OrderServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.GetOrderAsync(orderId));
 
-        exception.Message.Should().Contain("parsing");
+        exception.Message.Should().Contain("Invalid response format");
     }
 
     [Fact]

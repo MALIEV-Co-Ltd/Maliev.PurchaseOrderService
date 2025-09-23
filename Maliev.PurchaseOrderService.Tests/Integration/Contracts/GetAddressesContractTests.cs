@@ -4,20 +4,21 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Maliev.PurchaseOrderService.Api.DTOs;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration.Contracts;
 
 /// <summary>
-/// Contract tests for GET /purchaseorders/v1/purchase-orders/{id}/addresses endpoint
+/// Contract tests for GET /v1.0/purchase-orders/{id}/addresses endpoint
 /// These tests MUST FAIL before implementation - following TDD principles
 /// </summary>
-public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Program>>
+public class GetAddressesContractTests : IClassFixture<TestWebApplicationFactory<Program>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TestWebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
-    private readonly string _baseUrl = "/purchaseorders/v1/purchase-orders";
+    private readonly string _baseUrl = "/v1.0/purchase-orders";
 
-    public GetAddressesContractTests(WebApplicationFactory<Program> factory)
+    public GetAddressesContractTests(TestWebApplicationFactory<Program> factory)
     {
         _factory = factory;
         _client = _factory.CreateClient();
@@ -53,7 +54,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithValidRequest_ShouldReturn200AndAddressList()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         // Act
@@ -78,7 +79,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithAddressTypeFilter_ShouldReturn200AndFilteredAddresses()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var purchaseOrderId = 1;
@@ -108,7 +109,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithCountryFilter_ShouldReturn200AndFilteredAddresses()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var country = "Thailand";
@@ -137,7 +138,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithCityFilter_ShouldReturn200AndFilteredAddresses()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var city = "Bangkok";
@@ -166,7 +167,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithPaginationParameters_ShouldReturn200AndPaginatedResults()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var page = 1;
@@ -196,7 +197,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithInvalidPaginationParameters_ShouldReturn400()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var invalidPage = -1;
@@ -222,7 +223,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithSortingParameters_ShouldReturn200AndSortedResults()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var sortBy = "Country";
@@ -254,7 +255,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithInvalidSortBy_ShouldReturn400()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var invalidSortBy = "InvalidField";
@@ -279,7 +280,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithSearchQuery_ShouldReturn200AndFilteredResults()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var searchQuery = "Bangkok";
@@ -322,7 +323,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithNoResults_ShouldReturn200AndEmptyArray()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         var nonExistentCountry = "NonExistentCountry";
@@ -348,7 +349,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_RoleBasedAccess_EmployeeRole_ShouldReturn200()
     {
         // Arrange
-        var employeeToken = GenerateValidJwtTokenWithRole("Employee"); // This will fail - token generation not implemented
+        var employeeToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", employeeToken);
 
         // Act
@@ -363,7 +364,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_RoleBasedAccess_InvalidRole_ShouldReturn403()
     {
         // Arrange
-        var invalidRoleToken = GenerateValidJwtTokenWithRole("InvalidRole"); // This will fail - token generation not implemented
+        var invalidRoleToken = TestJwtHelper.GenerateTestToken("test-user", "InvalidRole");
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", invalidRoleToken);
 
         // Act
@@ -378,7 +379,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_ApiVersioning_ShouldHandleCorrectVersion()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         // Act
@@ -394,7 +395,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_WithCacheHeaders_ShouldIncludeCacheControl()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         // Act
@@ -411,7 +412,7 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
     public async Task GetAddresses_ResponseFormat_ShouldIncludeRequiredFields()
     {
         // Arrange
-        var validToken = GenerateValidJwtToken(); // This will fail - token generation not implemented
+        var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
         // Act
@@ -441,15 +442,4 @@ public class GetAddressesContractTests : IClassFixture<WebApplicationFactory<Pro
         }
     }
 
-    // This method will intentionally fail - JWT token generation not implemented yet
-    private string GenerateValidJwtToken()
-    {
-        throw new NotImplementedException("JWT token generation not implemented - this test should fail in TDD");
-    }
-
-    // This method will intentionally fail - JWT token generation with roles not implemented yet
-    private string GenerateValidJwtTokenWithRole(string role)
-    {
-        throw new NotImplementedException("JWT token generation with roles not implemented - this test should fail in TDD");
-    }
 }

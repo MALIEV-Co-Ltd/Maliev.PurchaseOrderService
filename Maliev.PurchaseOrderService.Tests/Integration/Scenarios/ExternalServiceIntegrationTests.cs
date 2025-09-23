@@ -94,7 +94,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/api/purchaseorders", content);
+        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -135,7 +135,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/api/purchaseorders", content);
+        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -176,7 +176,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/api/purchaseorders", content);
+        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.RequestTimeout);
@@ -303,7 +303,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/calculate-wht", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/calculate-wht", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -354,7 +354,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/api/purchaseorders", content);
+        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -429,7 +429,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         for (int i = 0; i < 5; i++)
         {
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await _client.PostAsync("/api/purchaseorders", content);
+            var response = await _client.PostAsync("/v1.0/purchase-orders", content);
             responses.Add(response);
         }
 

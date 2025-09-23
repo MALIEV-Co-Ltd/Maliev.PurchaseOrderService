@@ -13,7 +13,16 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
     public void Configure(EntityTypeBuilder<OrderItem> builder)
     {
         // Table configuration
-        builder.ToTable("OrderItems");
+        builder.ToTable("OrderItems", t =>
+        {
+            // Business rule constraints
+            t.HasCheckConstraint("CK_OrderItems_Quantity_Positive",
+                "\"Quantity\" > 0");
+            t.HasCheckConstraint("CK_OrderItems_UnitPrice_Positive",
+                "\"UnitPrice\" >= 0");
+            t.HasCheckConstraint("CK_OrderItems_TotalPrice_Positive",
+                "\"TotalPrice\" >= 0");
+        });
         builder.HasKey(oi => oi.Id);
 
         // Primary key and identity
@@ -68,6 +77,26 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(oi => oi.ExternallyModified)
             .IsRequired()
             .HasDefaultValue(false);
+
+        builder.Property(oi => oi.IsSyncSuccessful)
+            .IsRequired()
+            .HasDefaultValue(true);
+
+        builder.Property(oi => oi.SourceService)
+            .IsRequired()
+            .HasMaxLength(50);
+
+        builder.Property(oi => oi.ExternalVersion)
+            .HasMaxLength(100);
+
+        builder.Property(oi => oi.ExternalStatus)
+            .HasMaxLength(50);
+
+        builder.Property(oi => oi.LastSyncError)
+            .HasMaxLength(500);
+
+        builder.Property(oi => oi.CreatedAt)
+            .IsRequired();
 
         // Unique constraint for external order item reference
         builder.HasIndex(oi => new { oi.PurchaseOrderId, oi.ExternalOrderItemId })

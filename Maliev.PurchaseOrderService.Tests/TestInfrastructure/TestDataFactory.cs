@@ -1,5 +1,6 @@
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Data.Enums;
+using Maliev.PurchaseOrderService.Data.Entities;
 
 namespace Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
@@ -28,12 +29,13 @@ public static class TestDataFactory
             OrderID = orderID,
             CurrencyID = currencyID,
             OrderType = orderType,
-            CustomerPO = customerPO ?? "CUST-PO-001",
+            CustomerPO = customerPO ?? (orderType == OrderType.External ? "CUST-PO-001" : null),
             ExpectedDeliveryDate = DateTime.UtcNow.AddDays(14),
-            WhtRate = whtRate ?? 3.0m,
+            WhtRate = whtRate ?? (orderType == OrderType.Internal ? 0.03m : null), // 3% as decimal for internal orders only
             Notes = notes ?? "Test purchase order",
             ShippingAddress = CreateAddressRequest(AddressType.Shipping),
-            BillingAddress = CreateAddressRequest(AddressType.Billing)
+            BillingAddress = CreateAddressRequest(AddressType.Billing),
+            OrderItems = new List<CreateOrderItemRequest>() // Initialize empty list
         };
     }
 
@@ -51,7 +53,8 @@ public static class TestDataFactory
             SupplierID = supplierID,
             OrderID = orderID,
             CurrencyID = currencyID,
-            OrderType = orderType
+            OrderType = orderType,
+            OrderItems = new List<CreateOrderItemRequest>() // Initialize empty list
         };
     }
 
@@ -173,7 +176,7 @@ public static class TestDataFactory
             RowVersion = rowVersion ?? Convert.ToBase64String(new byte[] { 1, 2, 3, 4 }),
             CustomerPO = customerPO ?? "UPDATED-PO-001",
             ExpectedDeliveryDate = expectedDeliveryDate ?? DateTime.UtcNow.AddDays(21),
-            WhtRate = whtRate ?? 5.0m,
+            WhtRate = whtRate ?? 0.05m, // 5% as decimal (0.05)
             Notes = notes ?? "Updated notes"
         };
     }
@@ -391,17 +394,17 @@ public static class TestDataFactory
     /// </summary>
     public static WHTCalculationRequest CreateWHTCalculationRequest(
         decimal amount = 1000.00m,
-        decimal whtRate = 0.03m,
+        decimal whtRate = 3.0m, // 3% stored as 3.0
         string currencyCode = "THB")
     {
         return new WHTCalculationRequest
         {
+            PurchaseOrderId = 1001,
             SubtotalAmount = amount,
             WHTRate = whtRate,
             CurrencyCode = currencyCode,
             SupplierID = 1234,
-            OrderType = Data.Enums.OrderType.Internal,
-            Notes = "Test WHT calculation"
+            OrderType = Data.Enums.OrderType.Internal
         };
     }
 
@@ -410,9 +413,9 @@ public static class TestDataFactory
     /// </summary>
     public static WHTCalculationResult CreateWHTCalculationResult(
         decimal amount = 1000.00m,
-        decimal whtRate = 0.03m)
+        decimal whtRate = 3.0m) // 3% stored as 3.0
     {
-        var whtAmount = amount * whtRate;
+        var whtAmount = Math.Round(amount * (whtRate / 100), 2); // Convert percentage to decimal
         return new WHTCalculationResult
         {
             WHTAmount = whtAmount,
@@ -423,7 +426,247 @@ public static class TestDataFactory
             TaxBase = amount,
             CurrencyCode = "THB",
             WHTAmountTHB = whtAmount,
-            Reason = "Standard WHT calculation"
+            Reason = "Standard WHT calculation for Thailand supplier"
+        };
+    }
+
+    #endregion
+
+    #region Database Entity Factories
+
+    /// <summary>
+    /// Creates a test Address entity for database seeding
+    /// </summary>
+    public static Address CreateAddressEntity(
+        int? id = null,
+        AddressType addressType = AddressType.Shipping,
+        string? contactName = null,
+        string createdBy = "test-user")
+    {
+        return new Address
+        {
+            Id = id ?? 0, // Let database assign ID
+            AddressType = addressType,
+            ContactName = contactName ?? "Test Contact",
+            AddressLine1 = "123 Test Street",
+            AddressLine2 = "Suite 100",
+            City = "Bangkok",
+            StateProvince = "Bangkok",
+            PostalCode = "10100",
+            Country = "Thailand",
+            PhoneNumber = "+66-2-555-0123",
+            EmailAddress = "test@maliev.com",
+            IsActive = true,
+            IsValidated = true,
+            ValidatedAt = DateTime.UtcNow,
+            CreatedBy = createdBy,
+            CreatedAt = DateTime.UtcNow,
+            IsDeleted = false
+        };
+    }
+
+    /// <summary>
+    /// Creates a test PurchaseOrder entity for database seeding
+    /// </summary>
+    public static PurchaseOrder CreatePurchaseOrderEntity(
+        int? id = null,
+        int supplierID = 1234,
+        int orderID = 5678,
+        int currencyID = 1,
+        OrderType orderType = OrderType.Internal,
+        OrderStatus status = OrderStatus.Pending,
+        string createdBy = "test-user")
+    {
+        var orderNumber = $"PO-{DateTime.UtcNow:yyyy}-{Random.Shared.Next(100000, 999999)}";
+
+        return new PurchaseOrder
+        {
+            Id = id ?? 0, // Let database assign ID
+            OrderNumber = orderNumber,
+            CustomerPO = orderType == OrderType.External ? "CUST-PO-001" : null,
+            SupplierID = supplierID,
+            OrderID = orderID,
+            CurrencyID = currencyID,
+            SupplierName = "Test Supplier",
+            SupplierContactInfo = "test@supplier.com",
+            CurrencyCode = "THB",
+            CurrencySymbol = "฿",
+            Currency = "THB",
+            OrderDate = DateTime.UtcNow,
+            ExpectedDeliveryDate = DateTime.UtcNow.AddDays(14),
+            Status = status,
+            OrderType = orderType,
+            SubtotalAmount = 1000.00m,
+            TotalAmount = 1000.00m,
+            WHTRate = orderType == OrderType.Internal ? 3.0m : null, // 3% stored as 3.0
+            WHTAmount = orderType == OrderType.Internal ? 30.00m : null, // 3% of 1000 = 30
+            CreatedBy = createdBy,
+            CreatedAt = DateTime.UtcNow,
+            Notes = "Test purchase order",
+            IsPdfGenerationEnabled = orderType == OrderType.Internal,
+            IsPdfGenerated = false,
+            IsDeleted = false,
+            RowVersion = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }
+        };
+    }
+
+    /// <summary>
+    /// Creates a test OrderItem entity for database seeding
+    /// </summary>
+    public static OrderItem CreateOrderItemEntity(
+        int? id = null,
+        int purchaseOrderId = 1,
+        int externalOrderItemId = 1,
+        string productName = "Test Product",
+        decimal quantity = 1,
+        decimal unitPrice = 1000.00m)
+    {
+        return new OrderItem
+        {
+            Id = id ?? 0, // Let database assign ID
+            PurchaseOrderId = purchaseOrderId,
+            ExternalOrderItemId = externalOrderItemId,
+            ProductCode = "PROD-001",
+            ProductName = productName,
+            Quantity = quantity,
+            UnitOfMeasure = "pcs",
+            UnitPrice = unitPrice,
+            TotalPrice = quantity * unitPrice,
+            Currency = "THB",
+            DeliveryDate = DateTime.UtcNow.AddDays(14),
+            Notes = "Test item",
+            CachedAt = DateTime.UtcNow,
+            ExternallyModified = false,
+            SourceService = "OrderService",
+            ExternalVersion = "1.0",
+            ExternalStatus = "Active",
+            IsSyncSuccessful = true,
+            CreatedAt = DateTime.UtcNow
+        };
+    }
+
+    /// <summary>
+    /// Creates a complete test purchase order with all related entities
+    /// </summary>
+    public static (PurchaseOrder purchaseOrder, List<OrderItem> orderItems, Address? shippingAddress, Address? billingAddress)
+        CreateCompletePurchaseOrderWithEntities(
+            OrderType orderType = OrderType.Internal,
+            int itemCount = 2,
+            string createdBy = "test-user")
+    {
+        // Create addresses
+        var shippingAddress = CreateAddressEntity(addressType: AddressType.Shipping, createdBy: createdBy);
+        var billingAddress = CreateAddressEntity(addressType: AddressType.Billing, createdBy: createdBy);
+
+        // Create purchase order
+        var purchaseOrder = CreatePurchaseOrderEntity(orderType: orderType, createdBy: createdBy);
+
+        // Create order items
+        var orderItems = new List<OrderItem>();
+        for (int i = 0; i < itemCount; i++)
+        {
+            var orderItem = CreateOrderItemEntity(
+                externalOrderItemId: i + 1,
+                productName: $"Test Product {i + 1}",
+                quantity: i + 1,
+                unitPrice: (i + 1) * 100.00m);
+            orderItems.Add(orderItem);
+        }
+
+        // Calculate totals
+        var subtotal = orderItems.Sum(oi => oi.TotalPrice);
+        purchaseOrder.SubtotalAmount = subtotal;
+
+        if (orderType == OrderType.Internal && purchaseOrder.WHTRate.HasValue)
+        {
+            // WHT calculation: Rate is stored as percentage (3.0 for 3%), so divide by 100
+            purchaseOrder.WHTAmount = Math.Round(subtotal * (purchaseOrder.WHTRate.Value / 100), 2);
+            purchaseOrder.TotalAmount = subtotal - purchaseOrder.WHTAmount.Value;
+        }
+        else
+        {
+            purchaseOrder.TotalAmount = subtotal;
+            purchaseOrder.WHTRate = null;
+            purchaseOrder.WHTAmount = null;
+        }
+
+        return (purchaseOrder, orderItems, shippingAddress, billingAddress);
+    }
+
+    /// <summary>
+    /// Creates a test PurchaseOrderFile entity for database seeding
+    /// </summary>
+    public static PurchaseOrderFile CreatePurchaseOrderFileEntity(
+        int? id = null,
+        int purchaseOrderId = 1,
+        string fileName = "test-document.pdf",
+        string uploadedBy = "test-user")
+    {
+        return new PurchaseOrderFile
+        {
+            Id = id ?? 0, // Let database assign ID
+            PurchaseOrderId = purchaseOrderId,
+            FileName = fileName,
+            ObjectName = $"purchase-orders/{purchaseOrderId}/{fileName}",
+            DocumentType = Data.Enums.DocumentType.Other,
+            FileSize = 1024,
+            ContentType = "application/pdf",
+            FileHash = "abcdef123456",
+            UploadedBy = uploadedBy,
+            UploadedAt = DateTime.UtcNow,
+            IsAvailable = true,
+            DownloadCount = 0,
+            IsSystemGenerated = false,
+            VirusScanStatus = "Clean",
+            VirusScanCompletedAt = DateTime.UtcNow,
+            IsDeleted = false,
+            RowVersion = new byte[] { 1, 2, 3, 4 }
+        };
+    }
+
+    /// <summary>
+    /// Creates a test DomainEvent entity for database seeding
+    /// </summary>
+    public static DomainEvent CreateDomainEventEntity(
+        string eventType = "PurchaseOrderCreated",
+        string aggregateId = "1",
+        string userId = "test-user")
+    {
+        return new DomainEvent
+        {
+            EventType = eventType,
+            AggregateType = "PurchaseOrder",
+            AggregateId = aggregateId,
+            EventData = "{}",
+            UserId = userId,
+            OccurredAt = DateTime.UtcNow,
+            CorrelationId = Guid.NewGuid().ToString(),
+            ProcessedAt = null
+        };
+    }
+
+    /// <summary>
+    /// Creates a test AuditLog entity for database seeding
+    /// </summary>
+    public static AuditLog CreateAuditLogEntity(
+        string entityType = "PurchaseOrder",
+        string entityId = "1",
+        Data.Enums.AuditAction action = Data.Enums.AuditAction.Create,
+        string userId = "test-user")
+    {
+        return new AuditLog
+        {
+            EntityType = entityType,
+            EntityId = entityId,
+            Action = action,
+            UserId = userId,
+            UserRole = "Employee",
+            OldValues = null,
+            NewValues = "{}",
+            Timestamp = DateTime.UtcNow,
+            IPAddress = "127.0.0.1",
+            UserAgent = "Test",
+            IsSuccessful = true
         };
     }
 

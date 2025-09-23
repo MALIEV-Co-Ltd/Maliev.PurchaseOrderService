@@ -68,9 +68,34 @@ public class AddressConfiguration : IEntityTypeConfiguration<Address>
         builder.Property(a => a.EmailAddress)
             .HasMaxLength(100);
 
+        builder.Property(a => a.CreatedBy)
+            .IsRequired()
+            .HasMaxLength(50);
+
+        builder.Property(a => a.UpdatedBy)
+            .HasMaxLength(50);
+
+        // Boolean properties with defaults
+        builder.Property(a => a.IsActive)
+            .IsRequired()
+            .HasDefaultValue(true);
+
+        builder.Property(a => a.IsValidated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(a => a.IsDeleted)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         // Required timestamp properties
         builder.Property(a => a.CreatedAt)
             .IsRequired();
+
+        // Optimistic concurrency control
+        builder.Property(a => a.RowVersion)
+            .IsRowVersion()
+            .IsConcurrencyToken();
 
 
         // Performance indexes
@@ -95,6 +120,10 @@ public class AddressConfiguration : IEntityTypeConfiguration<Address>
 
         builder.HasIndex(a => new { a.AddressType, a.Country })
             .HasDatabaseName("IX_Addresses_AddressType_Country");
+
+        // Soft delete index
+        builder.HasIndex(a => a.IsDeleted)
+            .HasDatabaseName("IX_Addresses_IsDeleted");
 
         // Configure relationships with PurchaseOrder
         builder.HasMany(a => a.ShippingPurchaseOrders)

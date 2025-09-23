@@ -11,46 +11,18 @@ using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Data.Entities;
 using Maliev.PurchaseOrderService.Data.Enums;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 using System.Net;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration.Scenarios;
 
-public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Program>>
+public class OptimisticConcurrencyTests : IntegrationTestBase
 {
-    private readonly WebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client1;
     private readonly HttpClient _client2;
-    private readonly Mock<ISupplierServiceClient> _mockSupplierService;
-    private readonly Mock<ICurrencyServiceClient> _mockCurrencyService;
 
-    public OptimisticConcurrencyTests(WebApplicationFactory<Program> factory)
+    public OptimisticConcurrencyTests(TestWebApplicationFactory<Program> factory) : base(factory)
     {
-        _mockSupplierService = new Mock<ISupplierServiceClient>();
-        _mockCurrencyService = new Mock<ICurrencyServiceClient>();
-
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                // Remove the real DbContext registration
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>));
-                if (descriptor != null)
-                    services.Remove(descriptor);
-
-                // Add InMemory database for testing
-                services.AddDbContext<PurchaseOrderContext>(options =>
-                {
-                    options.UseInMemoryDatabase("TestDatabase_OptimisticConcurrency");
-                });
-
-                // Replace external service clients with mocks
-                services.AddSingleton(_mockSupplierService.Object);
-                services.AddSingleton(_mockCurrencyService.Object);
-            });
-        });
-
-        _client1 = _factory.CreateClient();
-        _client2 = _factory.CreateClient();
+        _client2 = Factory.CreateClient();
     }
 
     [Fact]
@@ -58,24 +30,18 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupEmployeeAuthentication(_client1);
-        SetupEmployeeAuthentication(_client2);
-        SetupExternalServiceMocks();
+        SetupEmployeeAuthentication("emp123", "department1");
+        SetupSecondClientAuthentication("emp456", "department1");
 
         // Both clients get the same purchase order
-        var getResponse1 = await _client1.GetAsync($"/api/purchaseorders/{purchaseOrderId}");
+        var getResponse1 = await Client.GetAsync($"/api/purchaseorders/{purchaseOrderId}");
         var getResponse2 = await _client2.GetAsync($"/api/purchaseorders/{purchaseOrderId}");
 
         getResponse1.StatusCode.Should().Be(HttpStatusCode.OK);
         getResponse2.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var order1 = JsonSerializer.Deserialize<PurchaseOrderDetailResponse>(
-            await getResponse1.Content.ReadAsStringAsync(),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-        var order2 = JsonSerializer.Deserialize<PurchaseOrderDetailResponse>(
-            await getResponse2.Content.ReadAsStringAsync(),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var order1 = await DeserializeResponseAsync<PurchaseOrderDetailResponse>(getResponse1);
+        var order2 = await DeserializeResponseAsync<PurchaseOrderDetailResponse>(getResponse2);
 
         order1!.RowVersion.Should().Be(order2!.RowVersion);
 
@@ -99,7 +65,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         var content2 = new StringContent(json2, Encoding.UTF8, "application/json");
 
         // Act - First update should succeed
-        var response1 = await _client1.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content1);
+        var response1 = await Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content1);
 
         // Act - Second update should fail due to optimistic concurrency
         var response2 = await _client2.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content2);
@@ -112,7 +78,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         errorResponse.Should().Contain("concurrency");
 
         // Verify the database contains only the first update
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
         var savedOrder = await dbContext.PurchaseOrders.FindAsync(purchaseOrderId);
 
@@ -126,15 +92,13 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupEmployeeAuthentication(_client1);
-        SetupManagerAuthentication(_client2);
+        SetupEmployeeAuthentication("emp123", "department1");
+        SetupSecondClientManagerAuthentication("mgr123", "department1");
         SetupExternalServiceMocks();
 
         // Both get the current order state
-        var getResponse = await _client1.GetAsync($"/api/purchaseorders/{purchaseOrderId}");
-        var order = JsonSerializer.Deserialize<PurchaseOrderDetailResponse>(
-            await getResponse.Content.ReadAsStringAsync(),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var getResponse = await Client.GetAsync($"/api/purchaseorders/{purchaseOrderId}");
+        var order = await DeserializeResponseAsync<PurchaseOrderDetailResponse>(getResponse);
 
         // Employee prepares update
         var updateRequest = new UpdatePurchaseOrderRequest
@@ -143,9 +107,6 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
             RowVersion = order!.RowVersion
         };
 
-        var updateJson = JsonSerializer.Serialize(updateRequest);
-        var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
-
         // Manager prepares approval
         var approveRequest = new ApprovePurchaseOrderRequest
         {
@@ -153,13 +114,11 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
             ApprovedBy = "manager@maliev.com"
         };
 
-        var approveJson = JsonSerializer.Serialize(approveRequest);
-        var approveContent = new StringContent(approveJson, Encoding.UTF8, "application/json");
-
         // Act - Employee updates first
-        var updateResponse = await _client1.PutAsync($"/api/purchaseorders/{purchaseOrderId}", updateContent);
+        var updateResponse = await PutAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}", updateRequest);
 
         // Act - Manager tries to approve with stale version
+        var approveContent = new StringContent(JsonSerializer.Serialize(approveRequest), Encoding.UTF8, "application/json");
         var approveResponse = await _client2.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveContent);
 
         // Assert
@@ -170,7 +129,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         errorResponse.Should().Contain("concurrency");
 
         // Verify order is updated but not approved
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
         var savedOrder = await dbContext.PurchaseOrders.FindAsync(purchaseOrderId);
 
@@ -185,8 +144,8 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupManagerAuthentication(_client1);
-        SetupManagerAuthentication(_client2);
+        SetupManagerAuthentication("mgr123", "department1");
+        SetupSecondClientManagerAuthentication("mgr456", "department1");
 
         var approveRequest1 = new ApprovePurchaseOrderRequest
         {
@@ -200,14 +159,11 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
             ApprovedBy = "manager2@maliev.com"
         };
 
-        var json1 = JsonSerializer.Serialize(approveRequest1);
-        var content1 = new StringContent(json1, Encoding.UTF8, "application/json");
-
-        var json2 = JsonSerializer.Serialize(approveRequest2);
-        var content2 = new StringContent(json2, Encoding.UTF8, "application/json");
+        var content1 = new StringContent(JsonSerializer.Serialize(approveRequest1), Encoding.UTF8, "application/json");
+        var content2 = new StringContent(JsonSerializer.Serialize(approveRequest2), Encoding.UTF8, "application/json");
 
         // Act - Both managers try to approve simultaneously
-        var task1 = _client1.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content1);
+        var task1 = Client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content1);
         var task2 = _client2.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content2);
 
         var responses = await Task.WhenAll(task1, task2);
@@ -220,7 +176,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         conflictCount.Should().Be(1);
 
         // Verify only one approval was persisted
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
         var savedOrder = await dbContext.PurchaseOrders.FindAsync(purchaseOrderId);
 
@@ -235,7 +191,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupEmployeeAuthentication(_client1);
+        SetupEmployeeAuthentication();
         SetupExternalServiceMocks();
 
         // Update the order to increment version
@@ -252,7 +208,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client1.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content);
+        var response = await Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -266,14 +222,14 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupEmployeeAuthentication(_client1);
+        SetupEmployeeAuthentication();
 
         // Update the order to increment version
         await UpdatePurchaseOrderDirectly(purchaseOrderId, "Direct update");
 
         // Try to delete with original version (now stale)
         // Act
-        var response = await _client1.DeleteAsync($"/api/purchaseorders/{purchaseOrderId}?version=1");
+        var response = await Client.DeleteAsync($"/api/purchaseorders/{purchaseOrderId}?version=1");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -282,7 +238,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         errorResponse.Should().Contain("concurrency");
 
         // Verify order still exists
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
         var order = await dbContext.PurchaseOrders.FindAsync(purchaseOrderId);
         order.Should().NotBeNull();
@@ -293,7 +249,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupEmployeeAuthentication(_client1); // For cancellation
+        SetupEmployeeAuthentication(); // For cancellation
         SetupManagerAuthentication(_client2);  // For approval
 
         var cancelRequest = new CancelPurchaseOrderRequest
@@ -315,7 +271,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         var approveContent = new StringContent(approveJson, Encoding.UTF8, "application/json");
 
         // Act - Simultaneous cancel and approve operations
-        var cancelTask = _client1.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", cancelContent);
+        var cancelTask = Client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", cancelContent);
         var approveTask = _client2.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveContent);
 
         var responses = await Task.WhenAll(cancelTask, approveTask);
@@ -328,7 +284,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         failureResponses.Should().NotBeEmpty();
 
         // Verify final state is consistent
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
         var savedOrder = await dbContext.PurchaseOrders.FindAsync(purchaseOrderId);
 
@@ -352,7 +308,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrderWithItems();
-        SetupEmployeeAuthentication(_client1);
+        SetupEmployeeAuthentication();
         SetupEmployeeAuthentication(_client2);
         SetupExternalServiceMocks();
 
@@ -376,7 +332,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         var refreshContent = new StringContent(refreshJson, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act - Concurrent update and refresh operations
-        var updateTask = _client1.PutAsync($"/api/purchaseorders/{purchaseOrderId}", updateContent);
+        var updateTask = Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", updateContent);
         var refreshTask = _client2.PostAsync($"/api/purchaseorders/{purchaseOrderId}/refresh-items", refreshContent);
 
         var responses = await Task.WhenAll(updateTask, refreshTask);
@@ -386,7 +342,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         responses.Should().NotBeNull();
 
         // Verify data consistency
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
         var savedOrder = await dbContext.PurchaseOrders
             .Include(po => po.OrderItems)
@@ -399,7 +355,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
 
     private async Task<int> CreateDraftPurchaseOrder()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
         var purchaseOrder = new PurchaseOrder
@@ -430,7 +386,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
 
     private async Task<int> CreateDraftPurchaseOrderWithItems()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
         var purchaseOrder = new PurchaseOrder
@@ -489,7 +445,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
 
     private async Task UpdatePurchaseOrderDirectly(int purchaseOrderId, string notes)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
         var order = await dbContext.PurchaseOrders.FindAsync(purchaseOrderId);
@@ -512,9 +468,9 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
         client.DefaultRequestHeaders.Authorization = AuthenticationHeaderValue.Parse(token);
     }
 
-    private void SetupExternalServiceMocks()
+    protected override void SetupExternalServiceMocks()
     {
-        _mockSupplierService
+        MockSupplierService
             .Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SupplierDto
             {
@@ -523,7 +479,7 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
                 IsActive = true
             });
 
-        _mockCurrencyService
+        MockCurrencyService
             .Setup(x => x.ValidateCurrencyAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CurrencyDto
             {
@@ -531,5 +487,17 @@ public class OptimisticConcurrencyTests : IClassFixture<WebApplicationFactory<Pr
                 Name = "Thai Baht",
                 IsActive = true
             });
+    }
+
+    private void SetupSecondClientAuthentication(string userId, string department)
+    {
+        var token = TestJwtHelper.GenerateEmployeeToken(userId, department);
+        _client2.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+    }
+
+    private void SetupSecondClientManagerAuthentication(string userId, string department)
+    {
+        var token = TestJwtHelper.GenerateManagerToken(userId, department);
+        _client2.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     }
 }

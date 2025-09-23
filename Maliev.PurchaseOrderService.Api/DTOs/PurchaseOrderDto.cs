@@ -168,6 +168,17 @@ public class PurchaseOrderDto
     public DateTime? ApprovedAt { get; set; }
 
     /// <summary>
+    /// User ID who cancelled the order
+    /// </summary>
+    [StringLength(50)]
+    public string? CancelledBy { get; set; }
+
+    /// <summary>
+    /// Cancellation timestamp
+    /// </summary>
+    public DateTime? CancelledAt { get; set; }
+
+    /// <summary>
     /// Additional notes or comments
     /// </summary>
     [StringLength(1000)]

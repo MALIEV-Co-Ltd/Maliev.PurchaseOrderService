@@ -14,7 +14,18 @@ public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder
     public void Configure(EntityTypeBuilder<PurchaseOrder> builder)
     {
         // Table configuration
-        builder.ToTable("PurchaseOrders");
+        builder.ToTable("PurchaseOrders", t =>
+        {
+            // Business rule constraints
+            t.HasCheckConstraint("CK_PurchaseOrders_TotalAmount_Positive",
+                "\"TotalAmount\" >= 0");
+            t.HasCheckConstraint("CK_PurchaseOrders_SubtotalAmount_Positive",
+                "\"SubtotalAmount\" >= 0");
+            t.HasCheckConstraint("CK_PurchaseOrders_WHT_Rate_Valid",
+                "\"WHTRate\" IS NULL OR (\"WHTRate\" >= 0 AND \"WHTRate\" <= 100)");
+            t.HasCheckConstraint("CK_PurchaseOrders_WHT_Amount_Valid",
+                "\"WHTAmount\" IS NULL OR \"WHTAmount\" >= 0");
+        });
         builder.HasKey(po => po.Id);
 
         // Primary key and identity

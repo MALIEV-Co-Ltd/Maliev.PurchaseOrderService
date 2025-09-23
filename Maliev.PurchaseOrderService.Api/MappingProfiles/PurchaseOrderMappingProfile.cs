@@ -39,7 +39,9 @@ public class PurchaseOrderMappingProfile : Profile
             .ForMember(dest => dest.OrderItems, opt => opt.MapFrom(src => src.OrderItems))
             .ForMember(dest => dest.PurchaseOrderFiles, opt => opt.MapFrom(src => src.PurchaseOrderFiles))
             .ForMember(dest => dest.ShippingAddress, opt => opt.MapFrom(src => src.ShippingAddress))
-            .ForMember(dest => dest.BillingAddress, opt => opt.MapFrom(src => src.BillingAddress));
+            .ForMember(dest => dest.BillingAddress, opt => opt.MapFrom(src => src.BillingAddress))
+            .ForMember(dest => dest.CancelledBy, opt => opt.MapFrom(src => src.CancelledBy))
+            .ForMember(dest => dest.CancelledAt, opt => opt.MapFrom(src => src.CancelledAt));
 
         // DTO to Entity mappings
         CreateMap<PurchaseOrderDto, PurchaseOrder>()
@@ -47,7 +49,9 @@ public class PurchaseOrderMappingProfile : Profile
             .ForMember(dest => dest.OrderItems, opt => opt.MapFrom(src => src.OrderItems))
             .ForMember(dest => dest.PurchaseOrderFiles, opt => opt.MapFrom(src => src.PurchaseOrderFiles))
             .ForMember(dest => dest.ShippingAddress, opt => opt.MapFrom(src => src.ShippingAddress))
-            .ForMember(dest => dest.BillingAddress, opt => opt.MapFrom(src => src.BillingAddress));
+            .ForMember(dest => dest.BillingAddress, opt => opt.MapFrom(src => src.BillingAddress))
+            .ForMember(dest => dest.CancelledBy, opt => opt.MapFrom(src => src.CancelledBy))
+            .ForMember(dest => dest.CancelledAt, opt => opt.MapFrom(src => src.CancelledAt));
 
         // Create request to Entity mapping
         CreateMap<CreatePurchaseOrderRequest, PurchaseOrder>()
@@ -227,6 +231,11 @@ public class PurchaseOrderMappingProfile : Profile
             .ForMember(dest => dest.RowVersion, opt => opt.MapFrom(src => src.RowVersion != null ? Convert.ToBase64String(src.RowVersion) : string.Empty))
             .ForMember(dest => dest.SubtotalAmount, opt => opt.MapFrom(src => src.OrderItems != null ? src.OrderItems.Sum(item => item.TotalPrice) : 0))
             .ForMember(dest => dest.TotalAmount, opt => opt.MapFrom(src => (src.OrderItems != null ? src.OrderItems.Sum(item => item.TotalPrice) : 0) - (src.WHTAmount ?? 0)));
+
+        // PurchaseOrderDto to Response mapping
+        CreateMap<PurchaseOrderDto, PurchaseOrderResponse>()
+            .ForMember(dest => dest.WhtRate, opt => opt.MapFrom(src => src.WHTRate))
+            .ForMember(dest => dest.WhtAmount, opt => opt.MapFrom(src => src.WHTAmount));
 
         CreateMap<PurchaseOrder, PurchaseOrderDetailResponse>()
             .ForMember(dest => dest.RowVersion, opt => opt.MapFrom(src => src.RowVersion != null ? Convert.ToBase64String(src.RowVersion) : string.Empty))

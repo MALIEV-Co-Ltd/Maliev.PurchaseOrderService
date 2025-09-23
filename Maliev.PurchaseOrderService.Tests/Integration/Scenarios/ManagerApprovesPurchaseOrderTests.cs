@@ -12,50 +12,15 @@ using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Data.Entities;
 using Maliev.PurchaseOrderService.Data.Enums;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 using System.Net;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration.Scenarios;
 
-public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFactory<Program>>
+public class ManagerApprovesPurchaseOrderTests : IntegrationTestBase
 {
-    private readonly WebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client;
-    private readonly Mock<ISupplierServiceClient> _mockSupplierService;
-    private readonly Mock<IPdfGenerationService> _mockPdfService;
-    private readonly Mock<IDomainEventService> _mockDomainEventService;
-    private readonly Mock<IUploadServiceClient> _mockUploadService;
-
-    public ManagerApprovesPurchaseOrderTests(WebApplicationFactory<Program> factory)
+    public ManagerApprovesPurchaseOrderTests(TestWebApplicationFactory<Program> factory) : base(factory)
     {
-        _mockSupplierService = new Mock<ISupplierServiceClient>();
-        _mockPdfService = new Mock<IPdfGenerationService>();
-        _mockDomainEventService = new Mock<IDomainEventService>();
-        _mockUploadService = new Mock<IUploadServiceClient>();
-
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                // Remove the real DbContext registration
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>));
-                if (descriptor != null)
-                    services.Remove(descriptor);
-
-                // Add InMemory database for testing
-                services.AddDbContext<PurchaseOrderContext>(options =>
-                {
-                    options.UseInMemoryDatabase("TestDatabase_ManagerApproves");
-                });
-
-                // Replace external service clients with mocks
-                services.AddSingleton(_mockSupplierService.Object);
-                services.AddSingleton(_mockPdfService.Object);
-                services.AddSingleton(_mockDomainEventService.Object);
-                services.AddSingleton(_mockUploadService.Object);
-            });
-        });
-
-        _client = _factory.CreateClient();
     }
 
     [Fact]
@@ -63,7 +28,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupManagerAuthentication();
+        SetupManagerAuthentication("mgr123", "department1");
         SetupPdfGenerationMock();
 
         var approveRequest = new ApprovePurchaseOrderRequest
@@ -72,20 +37,13 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
             ApprovedBy = "manager@maliev.com"
         };
 
-        var json = JsonSerializer.Serialize(approveRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content);
+        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var approvedOrder = JsonSerializer.Deserialize<PurchaseOrderResponse>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        var approvedOrder = await DeserializeResponseAsync<PurchaseOrderResponse>(response);
 
         approvedOrder.Should().NotBeNull();
         approvedOrder!.Status.Should().Be(OrderStatus.Approved);
@@ -94,17 +52,17 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
         approvedOrder.Notes.Should().Be("Approved for procurement");
 
         // Verify PDF generation was triggered for internal purchase order
-        _mockPdfService.Verify(x => x.GeneratePurchaseOrderPdfAsync(
+        MockPdfService.Verify(x => x.GeneratePurchaseOrderPdfAsync(
             It.Is<int>(id => id == purchaseOrderId),
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Verify domain event was published
-        _mockDomainEventService.Verify(x => x.PublishEventAsync(
+        MockDomainEventService.Verify(x => x.PublishEventAsync(
             It.Is<DomainEventDto>(e => e.EventType == "PurchaseOrderApproved"),
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Verify data persistence
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
         var savedOrder = await dbContext.PurchaseOrders.FindAsync(purchaseOrderId);
 
@@ -119,7 +77,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
     {
         // Arrange
         var purchaseOrderId = await CreateDraftExternalPurchaseOrder();
-        SetupManagerAuthentication();
+        SetupManagerAuthentication("mgr123", "department1");
 
         var approveRequest = new ApprovePurchaseOrderRequest
         {
@@ -127,31 +85,24 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
             ApprovedBy = "manager@maliev.com"
         };
 
-        var json = JsonSerializer.Serialize(approveRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content);
+        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var approvedOrder = JsonSerializer.Deserialize<PurchaseOrderResponse>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        var approvedOrder = await DeserializeResponseAsync<PurchaseOrderResponse>(response);
 
         approvedOrder.Should().NotBeNull();
         approvedOrder!.Status.Should().Be(OrderStatus.Approved);
 
         // Verify PDF generation was NOT triggered for external purchase order
-        _mockPdfService.Verify(x => x.GeneratePurchaseOrderPdfAsync(
+        MockPdfService.Verify(x => x.GeneratePurchaseOrderPdfAsync(
             It.IsAny<int>(),
             It.IsAny<CancellationToken>()), Times.Never);
 
         // Verify domain event was still published
-        _mockDomainEventService.Verify(x => x.PublishEventAsync(
+        MockDomainEventService.Verify(x => x.PublishEventAsync(
             It.Is<DomainEventDto>(e => e.EventType == "PurchaseOrderApproved"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -161,7 +112,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
     {
         // Arrange
         var purchaseOrderId = await CreateApprovedPurchaseOrder();
-        SetupManagerAuthentication();
+        SetupManagerAuthentication("mgr123", "department1");
 
         var approveRequest = new ApprovePurchaseOrderRequest
         {
@@ -169,11 +120,8 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
             ApprovedBy = "manager@maliev.com"
         };
 
-        var json = JsonSerializer.Serialize(approveRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content);
+        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -187,7 +135,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
     {
         // Arrange
         var purchaseOrderId = await CreateCancelledPurchaseOrder();
-        SetupManagerAuthentication();
+        SetupManagerAuthentication("mgr123", "department1");
 
         var approveRequest = new ApprovePurchaseOrderRequest
         {
@@ -195,11 +143,8 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
             ApprovedBy = "manager@maliev.com"
         };
 
-        var json = JsonSerializer.Serialize(approveRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content);
+        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -213,7 +158,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupEmployeeAuthentication();
+        SetupEmployeeAuthentication("emp123", "department1");
 
         var approveRequest = new ApprovePurchaseOrderRequest
         {
@@ -221,11 +166,8 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
             ApprovedBy = "employee@maliev.com"
         };
 
-        var json = JsonSerializer.Serialize(approveRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content);
+        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -236,11 +178,11 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupManagerAuthentication();
+        SetupManagerAuthentication("mgr123", "department1");
         SetupPdfGenerationMock();
 
         // Simulate concurrent modification by updating the purchase order directly in database
-        using (var scope = _factory.Services.CreateScope())
+        using (var scope = Factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
             var order = await dbContext.PurchaseOrders.FindAsync(purchaseOrderId);
@@ -256,11 +198,8 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
             ApprovedBy = "manager@maliev.com"
         };
 
-        var json = JsonSerializer.Serialize(approveRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content);
+        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -274,7 +213,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
     {
         // Arrange
         var purchaseOrderId = await CreateDraftPurchaseOrder();
-        SetupManagerAuthentication();
+        SetupManagerAuthentication("mgr123", "department1");
         SetupFailingPdfGenerationMock();
 
         var approveRequest = new ApprovePurchaseOrderRequest
@@ -283,34 +222,27 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
             ApprovedBy = "manager@maliev.com"
         };
 
-        var json = JsonSerializer.Serialize(approveRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content);
+        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var approvedOrder = JsonSerializer.Deserialize<PurchaseOrderResponse>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        var approvedOrder = await DeserializeResponseAsync<PurchaseOrderResponse>(response);
 
         // Order should still be approved despite PDF generation failure
         approvedOrder.Should().NotBeNull();
         approvedOrder!.Status.Should().Be(OrderStatus.Approved);
 
         // Verify PDF generation was attempted
-        _mockPdfService.Verify(x => x.GeneratePurchaseOrderPdfAsync(
+        MockPdfService.Verify(x => x.GeneratePurchaseOrderPdfAsync(
             It.Is<int>(id => id == purchaseOrderId),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private async Task<int> CreateDraftPurchaseOrder()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
         var purchaseOrder = new PurchaseOrder
@@ -340,7 +272,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
 
     private async Task<int> CreateDraftExternalPurchaseOrder()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
         var purchaseOrder = new PurchaseOrder
@@ -371,7 +303,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
 
     private async Task<int> CreateApprovedPurchaseOrder()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
         var purchaseOrder = new PurchaseOrder
@@ -403,7 +335,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
 
     private async Task<int> CreateCancelledPurchaseOrder()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
         var purchaseOrder = new PurchaseOrder
@@ -431,21 +363,9 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
         return purchaseOrder.Id;
     }
 
-    private void SetupManagerAuthentication()
-    {
-        var token = "Bearer mock-manager-token";
-        _client.DefaultRequestHeaders.Authorization = AuthenticationHeaderValue.Parse(token);
-    }
-
-    private void SetupEmployeeAuthentication()
-    {
-        var token = "Bearer mock-employee-token";
-        _client.DefaultRequestHeaders.Authorization = AuthenticationHeaderValue.Parse(token);
-    }
-
     private void SetupPdfGenerationMock()
     {
-        _mockPdfService
+        MockPdfService
             .Setup(x => x.GeneratePurchaseOrderPdfAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PdfGenerationResult
             {
@@ -459,7 +379,7 @@ public class ManagerApprovesPurchaseOrderTests : IClassFixture<WebApplicationFac
 
     private void SetupFailingPdfGenerationMock()
     {
-        _mockPdfService
+        MockPdfService
             .Setup(x => x.GeneratePurchaseOrderPdfAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("PDF generation service unavailable"));
     }

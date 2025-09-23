@@ -7,6 +7,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Maliev.PurchaseOrderService.Data;
+using Maliev.PurchaseOrderService.Data.Entities;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Api.DTOs;
@@ -162,6 +163,16 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
     #endregion
 
+    #region External Service Mocking Helpers
+
+    protected virtual void SetupExternalServiceMocks()
+    {
+        // This method can be overridden by derived classes for specific mock setups
+        // The default mocks are already set up in the constructor
+    }
+
+    #endregion
+
     #region HTTP Helpers
 
     protected async Task<HttpResponseMessage> PostAsJsonAsync<T>(string requestUri, T value)
@@ -252,6 +263,221 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             PhoneNumber = "+66-2-555-0123",
             EmailAddress = "test@maliev.com"
         };
+    }
+
+    #endregion
+
+    #region Database Seeding Helpers
+
+    /// <summary>
+    /// Seeds the database with test data for scenarios that need existing purchase orders
+    /// </summary>
+    protected async Task SeedTestDataAsync()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        // Ensure database is created and clean
+        await dbContext.Database.EnsureCreatedAsync();
+
+        // Use a single transaction for better performance
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            // Don't seed if data already exists
+            if (await dbContext.PurchaseOrders.AnyAsync())
+            {
+                await transaction.CommitAsync();
+                return;
+            }
+
+            // Create test data
+            var (purchaseOrder1, orderItems1, shippingAddress1, billingAddress1) =
+                TestDataFactory.CreateCompletePurchaseOrderWithEntities(OrderType.Internal, 2, "emp123");
+
+            var (purchaseOrder2, orderItems2, shippingAddress2, billingAddress2) =
+                TestDataFactory.CreateCompletePurchaseOrderWithEntities(OrderType.External, 1, "emp456");
+
+            var (purchaseOrder3, orderItems3, shippingAddress3, billingAddress3) =
+                TestDataFactory.CreateCompletePurchaseOrderWithEntities(OrderType.Internal, 3, "emp789");
+
+            // Set specific statuses for testing
+            purchaseOrder2.Status = OrderStatus.Approved;
+            purchaseOrder2.ApprovedBy = "mgr123";
+            purchaseOrder2.ApprovedAt = DateTime.UtcNow.AddDays(-1);
+
+            purchaseOrder3.Status = OrderStatus.Cancelled;
+            purchaseOrder3.CancelledBy = "mgr123";
+            purchaseOrder3.CancelledAt = DateTime.UtcNow.AddHours(-2);
+
+            // Add all data in a single batch to minimize database round trips
+            var allAddresses = new List<Address>();
+            if (shippingAddress1 != null) allAddresses.Add(shippingAddress1);
+            if (billingAddress1 != null) allAddresses.Add(billingAddress1);
+            if (shippingAddress2 != null) allAddresses.Add(shippingAddress2);
+            if (billingAddress2 != null) allAddresses.Add(billingAddress2);
+            if (shippingAddress3 != null) allAddresses.Add(shippingAddress3);
+            if (billingAddress3 != null) allAddresses.Add(billingAddress3);
+
+            if (allAddresses.Count > 0)
+            {
+                await dbContext.Addresses.AddRangeAsync(allAddresses);
+                await dbContext.SaveChangesAsync();
+            }
+
+            // Set address foreign keys
+            purchaseOrder1.ShippingAddressId = shippingAddress1?.Id;
+            purchaseOrder1.BillingAddressId = billingAddress1?.Id;
+            purchaseOrder2.ShippingAddressId = shippingAddress2?.Id;
+            purchaseOrder2.BillingAddressId = billingAddress2?.Id;
+            purchaseOrder3.ShippingAddressId = shippingAddress3?.Id;
+            purchaseOrder3.BillingAddressId = billingAddress3?.Id;
+
+            // Add purchase orders
+            await dbContext.PurchaseOrders.AddRangeAsync(purchaseOrder1, purchaseOrder2, purchaseOrder3);
+            await dbContext.SaveChangesAsync();
+
+            // Set order item foreign keys and add them in batches
+            foreach (var item in orderItems1)
+                item.PurchaseOrderId = purchaseOrder1.Id;
+            foreach (var item in orderItems2)
+                item.PurchaseOrderId = purchaseOrder2.Id;
+            foreach (var item in orderItems3)
+                item.PurchaseOrderId = purchaseOrder3.Id;
+
+            var allOrderItems = orderItems1.Concat(orderItems2).Concat(orderItems3).ToList();
+            await dbContext.OrderItems.AddRangeAsync(allOrderItems);
+            await dbContext.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Seeds a specific purchase order for tests that need a known entity
+    /// </summary>
+    protected async Task<PurchaseOrder> SeedPurchaseOrderAsync(
+        OrderType orderType = OrderType.Internal,
+        OrderStatus status = OrderStatus.Pending,
+        string createdBy = "test-user")
+    {
+        using var scope = Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        await dbContext.Database.EnsureCreatedAsync();
+
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            var (purchaseOrder, orderItems, shippingAddress, billingAddress) =
+                TestDataFactory.CreateCompletePurchaseOrderWithEntities(orderType, 2, createdBy);
+
+            purchaseOrder.Status = status;
+
+            // Add addresses first in a batch
+            var addresses = new List<Address>();
+            if (shippingAddress != null) addresses.Add(shippingAddress);
+            if (billingAddress != null) addresses.Add(billingAddress);
+
+            if (addresses.Count > 0)
+            {
+                await dbContext.Addresses.AddRangeAsync(addresses);
+                await dbContext.SaveChangesAsync();
+            }
+
+            // Set address foreign keys
+            if (shippingAddress != null)
+                purchaseOrder.ShippingAddressId = shippingAddress.Id;
+            if (billingAddress != null)
+                purchaseOrder.BillingAddressId = billingAddress.Id;
+
+            // Add purchase order
+            await dbContext.PurchaseOrders.AddAsync(purchaseOrder);
+            await dbContext.SaveChangesAsync();
+
+            // Set order item foreign keys and add them
+            foreach (var item in orderItems)
+                item.PurchaseOrderId = purchaseOrder.Id;
+
+            await dbContext.OrderItems.AddRangeAsync(orderItems);
+            await dbContext.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+            return purchaseOrder;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Clears all test data from the database
+    /// </summary>
+    protected async Task ClearTestDataAsync()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            // Use IgnoreQueryFilters to get soft-deleted entities too
+            var orderItems = await dbContext.OrderItems.IgnoreQueryFilters().ToListAsync();
+            var purchaseOrderFiles = await dbContext.PurchaseOrderFiles.IgnoreQueryFilters().ToListAsync();
+            var purchaseOrders = await dbContext.PurchaseOrders.IgnoreQueryFilters().ToListAsync();
+            var addresses = await dbContext.Addresses.IgnoreQueryFilters().ToListAsync();
+            var auditLogs = await dbContext.AuditLogs.ToListAsync();
+            var domainEvents = await dbContext.DomainEvents.ToListAsync();
+
+            // Remove in correct order to avoid foreign key constraints
+            if (orderItems.Count > 0)
+                dbContext.OrderItems.RemoveRange(orderItems);
+            if (purchaseOrderFiles.Count > 0)
+                dbContext.PurchaseOrderFiles.RemoveRange(purchaseOrderFiles);
+            if (purchaseOrders.Count > 0)
+                dbContext.PurchaseOrders.RemoveRange(purchaseOrders);
+            if (addresses.Count > 0)
+                dbContext.Addresses.RemoveRange(addresses);
+            if (auditLogs.Count > 0)
+                dbContext.AuditLogs.RemoveRange(auditLogs);
+            if (domainEvents.Count > 0)
+                dbContext.DomainEvents.RemoveRange(domainEvents);
+
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Gets a seeded purchase order for testing
+    /// </summary>
+    protected async Task<PurchaseOrder?> GetSeededPurchaseOrderAsync(OrderStatus? status = null)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        var query = dbContext.PurchaseOrders
+            .Include(po => po.OrderItems)
+            .Include(po => po.ShippingAddress)
+            .Include(po => po.BillingAddress)
+            .AsQueryable();
+
+        if (status.HasValue)
+            query = query.Where(po => po.Status == status.Value);
+
+        return await query.FirstOrDefaultAsync();
     }
 
     #endregion

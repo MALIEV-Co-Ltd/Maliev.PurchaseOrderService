@@ -46,26 +46,26 @@ public class CurrencyServiceClient : ICurrencyServiceClient
 
             _logger.LogInformation("Getting exchange rate from {FromCurrency} to {ToCurrency}", fromCurrency, toCurrency);
 
-            var response = await _httpClient.GetAsync($"/exchange-rates/{fromCurrency}/{toCurrency}", cancellationToken);
+            var response = await _httpClient.GetAsync($"/exchange-rate/{fromCurrency}/{toCurrency}", cancellationToken);
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
                 _logger.LogWarning("Exchange rate not found for {FromCurrency} to {ToCurrency}", fromCurrency, toCurrency);
-                return null;
+                throw new InvalidOperationException($"Exchange rate not found for {fromCurrency} to {toCurrency}");
             }
 
             if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
             {
-                _logger.LogError("Authentication failed while getting exchange rate {FromCurrency} to {ToCurrency}",
+                _logger.LogError("Authentication failure while getting exchange rate {FromCurrency} to {ToCurrency}",
                     fromCurrency, toCurrency);
-                throw new UnauthorizedAccessException($"Authentication failed while getting exchange rate {fromCurrency} to {toCurrency}");
+                throw new UnauthorizedAccessException($"Currency service authentication failed while getting exchange rate {fromCurrency} to {toCurrency}");
             }
 
             if (response.StatusCode == HttpStatusCode.BadRequest)
             {
                 _logger.LogError("Invalid request for exchange rate {FromCurrency} to {ToCurrency}",
                     fromCurrency, toCurrency);
-                throw new InvalidOperationException($"Invalid request for exchange rate {fromCurrency} to {toCurrency}");
+                throw new HttpRequestException($"CurrencyService error while getting exchange rate {fromCurrency} to {toCurrency}: Bad Request");
             }
 
             try
@@ -86,7 +86,7 @@ public class CurrencyServiceClient : ICurrencyServiceClient
                 fromCurrency, toCurrency, exchangeRate?.Rate);
             return exchangeRate;
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting exchange rate {FromCurrency} to {ToCurrency}",
                 fromCurrency, toCurrency);
@@ -118,9 +118,17 @@ public class CurrencyServiceClient : ICurrencyServiceClient
             _logger.LogInformation("Converting {Amount} from {FromCurrency} to {ToCurrency}",
                 amount, fromCurrency, toCurrency);
 
-            var response = await _httpClient.GetAsync(
-                $"/currency-conversion?amount={amount}&from={fromCurrency}&to={toCurrency}",
-                cancellationToken);
+            var requestData = new
+            {
+                Amount = amount,
+                FromCurrency = fromCurrency,
+                ToCurrency = toCurrency
+            };
+
+            var json = JsonSerializer.Serialize(requestData, _jsonOptions);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync("/convert", content, cancellationToken);
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
@@ -131,8 +139,8 @@ public class CurrencyServiceClient : ICurrencyServiceClient
 
             response.EnsureSuccessStatusCode();
 
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var conversion = JsonSerializer.Deserialize<CurrencyConversionDto>(content, _jsonOptions);
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            var conversion = JsonSerializer.Deserialize<CurrencyConversionDto>(responseContent, _jsonOptions);
 
             _logger.LogInformation("Successfully converted {Amount} {FromCurrency} to {ConvertedAmount} {ToCurrency}",
                 amount, fromCurrency, conversion?.ConvertedAmount, toCurrency);
@@ -144,7 +152,7 @@ public class CurrencyServiceClient : ICurrencyServiceClient
                 fromCurrency, toCurrency);
             throw new ExternalServiceException($"Failed to convert currency {fromCurrency} to {toCurrency}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while converting currency {FromCurrency} to {ToCurrency}",
                 fromCurrency, toCurrency);
@@ -169,8 +177,8 @@ public class CurrencyServiceClient : ICurrencyServiceClient
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var currencies = JsonSerializer.Deserialize<IEnumerable<CurrencyDto>>(content, _jsonOptions) ??
-                            Enumerable.Empty<CurrencyDto>();
+            var currenciesResponse = JsonSerializer.Deserialize<CurrenciesResponse>(content, _jsonOptions);
+            var currencies = currenciesResponse?.Currencies ?? Enumerable.Empty<CurrencyDto>();
 
             _logger.LogInformation("Successfully retrieved {CurrencyCount} supported currencies", currencies.Count());
             return currencies;
@@ -180,15 +188,15 @@ public class CurrencyServiceClient : ICurrencyServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting supported currencies");
             throw new ExternalServiceException($"Failed to get supported currencies: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting supported currencies");
             throw new ExternalServiceException("Timeout while getting supported currencies", ex);
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "JSON deserialization error while getting supported currencies");
-            throw new ExternalServiceException("Invalid response format while getting supported currencies", ex);
+            _logger.LogError(ex, "JSON parsing error while getting supported currencies");
+            throw new InvalidDataException("JSON parsing error while getting supported currencies", ex);
         }
     }
 
@@ -204,7 +212,7 @@ public class CurrencyServiceClient : ICurrencyServiceClient
 
             _logger.LogInformation("Validating currency code: {CurrencyCode}", currencyCode);
 
-            var response = await _httpClient.GetAsync($"/currencies/{currencyCode}/validate", cancellationToken);
+            var response = await _httpClient.GetAsync($"/validate/{currencyCode}", cancellationToken);
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
@@ -215,17 +223,17 @@ public class CurrencyServiceClient : ICurrencyServiceClient
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var currency = JsonSerializer.Deserialize<CurrencyDto>(content, _jsonOptions);
+            var validationResponse = JsonSerializer.Deserialize<CurrencyValidationDto>(content, _jsonOptions);
 
             _logger.LogInformation("Currency validation successful for {CurrencyCode}", currencyCode);
-            return currency;
+            return validationResponse?.CurrencyInfo;
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "HTTP error occurred while validating currency {CurrencyCode}", currencyCode);
             throw new ExternalServiceException($"Failed to validate currency {currencyCode}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while validating currency {CurrencyCode}", currencyCode);
             throw new ExternalServiceException($"Timeout while validating currency {currencyCode}", ex);
@@ -264,7 +272,7 @@ public class CurrencyServiceClient : ICurrencyServiceClient
             var endDateStr = endDate.ToString("yyyy-MM-dd");
 
             var response = await _httpClient.GetAsync(
-                $"/exchange-rates/{fromCurrency}/{toCurrency}/history?startDate={startDateStr}&endDate={endDateStr}",
+                $"/historical/{fromCurrency}/{toCurrency}?startDate={startDateStr}&endDate={endDateStr}",
                 cancellationToken);
 
             if (response.StatusCode == HttpStatusCode.NotFound)
@@ -277,12 +285,22 @@ public class CurrencyServiceClient : ICurrencyServiceClient
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var historicalRates = JsonSerializer.Deserialize<IEnumerable<HistoricalExchangeRateDto>>(content, _jsonOptions) ??
-                                 Enumerable.Empty<HistoricalExchangeRateDto>();
+            var historicalResponse = JsonSerializer.Deserialize<HistoricalExchangeRatesResponse>(content, _jsonOptions);
+            var historicalRates = historicalResponse?.Rates ?? Enumerable.Empty<HistoricalExchangeRateDto>();
+
+            // Populate FromCurrency and ToCurrency for each rate if not already set
+            var populatedRates = historicalRates.Select(rate =>
+            {
+                if (string.IsNullOrEmpty(rate.FromCurrency))
+                    rate.FromCurrency = fromCurrency;
+                if (string.IsNullOrEmpty(rate.ToCurrency))
+                    rate.ToCurrency = toCurrency;
+                return rate;
+            });
 
             _logger.LogInformation("Successfully retrieved {RateCount} historical exchange rates for {FromCurrency} to {ToCurrency}",
-                historicalRates.Count(), fromCurrency, toCurrency);
-            return historicalRates;
+                populatedRates.Count(), fromCurrency, toCurrency);
+            return populatedRates;
         }
         catch (HttpRequestException ex)
         {
@@ -290,7 +308,7 @@ public class CurrencyServiceClient : ICurrencyServiceClient
                 fromCurrency, toCurrency);
             throw new ExternalServiceException($"Failed to get historical exchange rates {fromCurrency} to {toCurrency}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting historical exchange rates {FromCurrency} to {ToCurrency}",
                 fromCurrency, toCurrency);
@@ -337,7 +355,7 @@ public class CurrencyServiceClient : ICurrencyServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting currency info {CurrencyCode}", currencyCode);
             throw new ExternalServiceException($"Failed to get currency info {currencyCode}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting currency info {CurrencyCode}", currencyCode);
             throw new ExternalServiceException($"Timeout while getting currency info {currencyCode}", ex);
@@ -386,7 +404,7 @@ public class CurrencyServiceClient : ICurrencyServiceClient
                 fromCurrency, toCurrency);
             throw new ExternalServiceException($"Failed to convert currency {fromCurrency} to {toCurrency}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while converting currency {FromCurrency} to {ToCurrency}",
                 fromCurrency, toCurrency);
@@ -397,6 +415,21 @@ public class CurrencyServiceClient : ICurrencyServiceClient
             _logger.LogError(ex, "JSON deserialization error while converting currency {FromCurrency} to {ToCurrency}",
                 fromCurrency, toCurrency);
             throw new ExternalServiceException($"Invalid response format while converting currency {fromCurrency} to {toCurrency}", ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ValidateCurrencyCodeAsync(string currencyCode, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await ValidateCurrencyAsync(currencyCode, cancellationToken);
+            return result != null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error validating currency code {CurrencyCode}", currencyCode);
+            return false;
         }
     }
 }

@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Asp.Versioning;
+using AutoMapper;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.Services;
 using System.Net;
@@ -10,19 +12,23 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// Purchase Orders API Controller with full CRUD operations
 /// </summary>
 [ApiController]
-[Route("purchase-orders")]
+[Route("v{version:apiVersion}/purchase-orders")]
+[ApiVersion("1.0")]
 [Authorize]
 [Produces("application/json")]
 public class PurchaseOrdersController : ControllerBase
 {
     private readonly IPurchaseOrderService _purchaseOrderService;
+    private readonly IMapper _mapper;
     private readonly ILogger<PurchaseOrdersController> _logger;
 
     public PurchaseOrdersController(
         IPurchaseOrderService purchaseOrderService,
+        IMapper mapper,
         ILogger<PurchaseOrdersController> logger)
     {
         _purchaseOrderService = purchaseOrderService;
+        _mapper = mapper;
         _logger = logger;
     }
 
@@ -33,9 +39,9 @@ public class PurchaseOrdersController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Paginated list of purchase orders</returns>
     [HttpGet]
-    [ProducesResponseType(typeof(PaginatedResponse<PurchaseOrderDto>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(PaginatedPurchaseOrdersResponse), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
-    public async Task<ActionResult<PaginatedResponse<PurchaseOrderDto>>> GetPurchaseOrders(
+    public async Task<ActionResult<PaginatedPurchaseOrdersResponse>> GetPurchaseOrders(
         [FromQuery] SearchPurchaseOrdersRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -44,6 +50,18 @@ public class PurchaseOrdersController : ControllerBase
             _logger.LogInformation("Getting purchase orders with search criteria");
 
             // Validate page size limits
+            if (request.PageSize <= 0)
+            {
+                return BadRequest(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = "Page size must be greater than 0",
+                        Code = "INVALID_PAGE_SIZE"
+                    }
+                });
+            }
+
             if (request.PageSize > 100)
             {
                 return BadRequest(new ErrorResponse
@@ -57,7 +75,23 @@ public class PurchaseOrdersController : ControllerBase
             }
 
             var result = await _purchaseOrderService.GetPurchaseOrdersAsync(request, cancellationToken);
-            return Ok(result);
+
+            // Convert to expected response format
+            var response = new PaginatedPurchaseOrdersResponse
+            {
+                Items = _mapper.Map<List<PurchaseOrderResponse>>(result.Data),
+                Pagination = new PaginationInfo
+                {
+                    Page = result.Page,
+                    PageSize = result.PageSize,
+                    TotalCount = result.TotalCount,
+                    TotalPages = result.TotalPages,
+                    HasNextPage = result.HasNextPage,
+                    HasPreviousPage = result.HasPreviousPage
+                }
+            };
+
+            return Ok(response);
         }
         catch (Exception ex)
         {
@@ -560,6 +594,117 @@ public class PurchaseOrdersController : ControllerBase
                 Error = new ErrorInfo
                 {
                     Message = "An error occurred while retrieving purchase orders",
+                    Code = "INTERNAL_ERROR"
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Calculates WHT for a purchase order
+    /// </summary>
+    /// <param name="id">Purchase order ID</param>
+    /// <param name="request">WHT calculation request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>WHT calculation result</returns>
+    [HttpPost("{id:int}/calculate-wht")]
+    [ProducesResponseType(typeof(WHTCalculationResult), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
+    public async Task<ActionResult<WHTCalculationResult>> CalculateWHT(
+        int id,
+        [FromBody] WHTCalculationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Calculating WHT for purchase order {PurchaseOrderId}", id);
+
+            var result = await _purchaseOrderService.CalculateWHTAsync(id, request, cancellationToken);
+
+            if (result == null)
+            {
+                return NotFound(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = "Purchase order not found",
+                        Code = "PURCHASE_ORDER_NOT_FOUND"
+                    }
+                });
+            }
+
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid WHT calculation request for purchase order {PurchaseOrderId}", id);
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "INVALID_WHT_REQUEST"
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating WHT for purchase order {PurchaseOrderId}", id);
+            return StatusCode(500, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "An error occurred while calculating WHT",
+                    Code = "INTERNAL_ERROR"
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Gets WHT calculation history for a purchase order
+    /// </summary>
+    /// <param name="id">Purchase order ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of WHT calculations</returns>
+    [HttpGet("{id:int}/wht-history")]
+    [ProducesResponseType(typeof(List<WHTCalculationResult>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
+    public async Task<ActionResult<List<WHTCalculationResult>>> GetWHTHistory(
+        int id,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting WHT history for purchase order {PurchaseOrderId}", id);
+
+            var history = await _purchaseOrderService.GetWHTHistoryAsync(id, cancellationToken);
+
+            if (history == null)
+            {
+                return NotFound(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = "Purchase order not found",
+                        Code = "PURCHASE_ORDER_NOT_FOUND"
+                    }
+                });
+            }
+
+            return Ok(history);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting WHT history for purchase order {PurchaseOrderId}", id);
+            return StatusCode(500, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "An error occurred while retrieving WHT history",
                     Code = "INTERNAL_ERROR"
                 }
             });

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Asp.Versioning;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Data;
@@ -12,7 +13,8 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// Purchase Order Files API Controller for document operations
 /// </summary>
 [ApiController]
-[Route("purchase-orders/{purchaseOrderId:int}/files")]
+[Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/files")]
+[ApiVersion("1.0")]
 [Authorize]
 [Produces("application/json")]
 public class PurchaseOrderFilesController : ControllerBase

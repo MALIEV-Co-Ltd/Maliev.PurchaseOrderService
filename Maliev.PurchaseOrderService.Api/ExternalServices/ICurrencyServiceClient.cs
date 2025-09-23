@@ -74,4 +74,12 @@ public interface ICurrencyServiceClient
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Currency conversion result</returns>
     Task<CurrencyConversionResult> ConvertCurrencyAsync(string fromCurrency, string toCurrency, decimal amount, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates if a currency code is supported
+    /// </summary>
+    /// <param name="currencyCode">Currency code to validate</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if currency is valid and supported, false otherwise</returns>
+    Task<bool> ValidateCurrencyCodeAsync(string currencyCode, CancellationToken cancellationToken = default);
 }

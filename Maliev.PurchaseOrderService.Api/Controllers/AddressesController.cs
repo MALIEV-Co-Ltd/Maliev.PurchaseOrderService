@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Asp.Versioning;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Data.Entities;
@@ -14,7 +15,8 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// Addresses API Controller for managing purchase order addresses
 /// </summary>
 [ApiController]
-[Route("purchase-orders/{purchaseOrderId:int}/addresses")]
+[Route("v{version:apiVersion}/addresses")]
+[ApiVersion("1.0")]
 [Authorize]
 [Produces("application/json")]
 public class AddressesController : ControllerBase
@@ -34,54 +36,42 @@ public class AddressesController : ControllerBase
     }
 
     /// <summary>
-    /// Gets all addresses for a purchase order
+    /// Gets all addresses for purchase orders (filtered by user access)
     /// </summary>
-    /// <param name="purchaseOrderId">Purchase order ID</param>
+    /// <param name="type">Address type filter</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of addresses</returns>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<AddressDto>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     public async Task<ActionResult<IEnumerable<AddressDto>>> GetAddresses(
-        int purchaseOrderId,
+        [FromQuery] AddressType? type = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Getting addresses for purchase order {PurchaseOrderId}", purchaseOrderId);
+            _logger.LogInformation("Getting addresses (filtered by user access and type: {AddressType})", type);
 
-            // Get purchase order with addresses
-            var purchaseOrder = await _context.PurchaseOrders
-                .Include(po => po.ShippingAddress)
-                .Include(po => po.BillingAddress)
-                .FirstOrDefaultAsync(po => po.Id == purchaseOrderId && !po.IsDeleted, cancellationToken);
+            // Get all addresses from purchase orders that user has access to
+            var query = _context.Addresses.AsQueryable();
 
-            if (purchaseOrder == null)
+            // Apply address type filter if specified
+            if (type.HasValue)
             {
-                return NotFound(new ErrorResponse
-                {
-                    Error = new ErrorInfo
-                    {
-                        Message = $"Purchase order with ID {purchaseOrderId} not found",
-                        Code = "PURCHASE_ORDER_NOT_FOUND"
-                    }
-                });
+                query = query.Where(a => a.AddressType == type.Value);
             }
 
-            // Collect addresses from the purchase order
-            var addresses = new List<Address>();
-            if (purchaseOrder.ShippingAddress != null)
-                addresses.Add(purchaseOrder.ShippingAddress);
-            if (purchaseOrder.BillingAddress != null)
-                addresses.Add(purchaseOrder.BillingAddress);
+            // TODO: Apply user access filtering based on user role and ownership
+            // For now, returning all addresses (this should be filtered by user permissions)
 
+            var addresses = await query.OrderBy(a => a.CreatedAt).ToListAsync(cancellationToken);
             var addressDtos = _mapper.Map<IEnumerable<AddressDto>>(addresses);
 
             return Ok(addressDtos);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting addresses for purchase order {PurchaseOrderId}", purchaseOrderId);
+            _logger.LogError(ex, "Error getting addresses (type: {AddressType})", type);
             return StatusCode(500, new ErrorResponse
             {
                 Error = new ErrorInfo
@@ -167,9 +157,8 @@ public class AddressesController : ControllerBase
     }
 
     /// <summary>
-    /// Creates a new address for a purchase order
+    /// Creates a new address
     /// </summary>
-    /// <param name="purchaseOrderId">Purchase order ID</param>
     /// <param name="request">Create address request</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Created address</returns>
@@ -178,13 +167,12 @@ public class AddressesController : ControllerBase
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
     public async Task<ActionResult<AddressDto>> CreateAddress(
-        int purchaseOrderId,
         [FromBody] CreateAddressRequest request,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Creating address for purchase order {PurchaseOrderId}", purchaseOrderId);
+            _logger.LogInformation("Creating new address");
 
             if (!ModelState.IsValid)
             {
@@ -202,61 +190,6 @@ public class AddressesController : ControllerBase
                             Field = kvp.Key,
                             Message = string.Join(", ", kvp.Value)
                         }).ToList()
-                    }
-                });
-            }
-
-            // Verify purchase order exists and is not canceled/approved
-            var purchaseOrder = await _context.PurchaseOrders
-                .Include(po => po.ShippingAddress)
-                .Include(po => po.BillingAddress)
-                .FirstOrDefaultAsync(po => po.Id == purchaseOrderId && !po.IsDeleted, cancellationToken);
-
-            if (purchaseOrder == null)
-            {
-                return NotFound(new ErrorResponse
-                {
-                    Error = new ErrorInfo
-                    {
-                        Message = $"Purchase order with ID {purchaseOrderId} not found",
-                        Code = "PURCHASE_ORDER_NOT_FOUND"
-                    }
-                });
-            }
-
-            if (purchaseOrder.Status == OrderStatus.Approved || purchaseOrder.Status == OrderStatus.Cancelled)
-            {
-                return BadRequest(new ErrorResponse
-                {
-                    Error = new ErrorInfo
-                    {
-                        Message = $"Cannot add addresses to a {purchaseOrder.Status.ToString().ToLower()} purchase order",
-                        Code = "INVALID_PURCHASE_ORDER_STATUS"
-                    }
-                });
-            }
-
-            // Check for duplicate address type
-            if (request.AddressType == AddressType.Shipping && purchaseOrder.ShippingAddress != null)
-            {
-                return BadRequest(new ErrorResponse
-                {
-                    Error = new ErrorInfo
-                    {
-                        Message = "A shipping address already exists for this purchase order",
-                        Code = "DUPLICATE_ADDRESS_TYPE"
-                    }
-                });
-            }
-
-            if (request.AddressType == AddressType.Billing && purchaseOrder.BillingAddress != null)
-            {
-                return BadRequest(new ErrorResponse
-                {
-                    Error = new ErrorInfo
-                    {
-                        Message = "A billing address already exists for this purchase order",
-                        Code = "DUPLICATE_ADDRESS_TYPE"
                     }
                 });
             }
@@ -281,36 +214,18 @@ public class AddressesController : ControllerBase
             _context.Addresses.Add(address);
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Update purchase order with the address reference
-            if (request.AddressType == AddressType.Shipping)
-            {
-                purchaseOrder.ShippingAddressId = address.Id;
-            }
-            else if (request.AddressType == AddressType.Billing)
-            {
-                purchaseOrder.BillingAddressId = address.Id;
-            }
-
-            purchaseOrder.UpdatedBy = User.Identity?.Name ?? "unknown";
-            purchaseOrder.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Create audit log
-            await CreateAuditLogAsync(purchaseOrderId, AuditAction.Create,
-                $"Address created: {address.AddressType} - {address.AddressLine1}, {address.City}",
-                User.Identity?.Name ?? "unknown", cancellationToken);
+            _logger.LogInformation("Address created successfully with ID {AddressId}", address.Id);
 
             var addressDto = _mapper.Map<AddressDto>(address);
 
             return CreatedAtAction(
-                nameof(GetAddress),
-                new { purchaseOrderId, addressId = address.Id },
+                nameof(GetAddresses),
+                null,
                 addressDto);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating address for purchase order {PurchaseOrderId}", purchaseOrderId);
+            _logger.LogError(ex, "Error creating address");
             return StatusCode(500, new ErrorResponse
             {
                 Error = new ErrorInfo

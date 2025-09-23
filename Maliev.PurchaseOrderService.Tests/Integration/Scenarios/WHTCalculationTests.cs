@@ -11,58 +11,23 @@ using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Data.Enums;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 using System.Net;
 using System.Net.Mime;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration.Scenarios;
 
-public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
+public class WHTCalculationTests : IntegrationTestBase
 {
-    private readonly WebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client;
-    private readonly Mock<ISupplierServiceClient> _mockSupplierService;
-    private readonly Mock<IOrderServiceClient> _mockOrderService;
-    private readonly Mock<ICurrencyServiceClient> _mockCurrencyService;
-    private readonly Mock<IWHTCalculationService> _mockWHTService;
-
-    public WHTCalculationTests(WebApplicationFactory<Program> factory)
+    public WHTCalculationTests(TestWebApplicationFactory<Program> factory) : base(factory)
     {
-        _mockSupplierService = new Mock<ISupplierServiceClient>();
-        _mockOrderService = new Mock<IOrderServiceClient>();
-        _mockCurrencyService = new Mock<ICurrencyServiceClient>();
-        _mockWHTService = new Mock<IWHTCalculationService>();
-
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                // Remove the real DbContext registration
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>));
-                if (descriptor != null)
-                    services.Remove(descriptor);
-
-                // Add InMemory database for testing
-                services.AddDbContext<PurchaseOrderContext>(options =>
-                {
-                    options.UseInMemoryDatabase("TestDatabase_WHTCalculation");
-                });
-
-                // Replace external service clients with mocks
-                services.AddSingleton(_mockSupplierService.Object);
-                services.AddSingleton(_mockOrderService.Object);
-                services.AddSingleton(_mockCurrencyService.Object);
-                services.AddSingleton(_mockWHTService.Object);
-            });
-        });
-
-        _client = _factory.CreateClient();
     }
 
     [Fact]
     public async Task Calculate_WHT_For_Thailand_Supplier_Returns_Correct_Amount()
     {
         // Arrange
-        SetupEmployeeAuthentication();
+        SetupEmployeeAuthentication("emp123", "department1");
         SetupThailandSupplierMock();
 
         var purchaseOrderId = await CreateTestPurchaseOrder();
@@ -76,7 +41,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             WHTRate = 0.03m // 3% WHT for Thailand
         };
 
-        _mockWHTService
+        MockWHTService
             .Setup(x => x.CalculateWHTAsync(
                 It.IsAny<SupplierDto>(),
                 It.IsAny<decimal>(),
@@ -91,20 +56,13 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
                 TaxRegulation = "Thailand Revenue Code Section 3"
             });
 
-        var json = JsonSerializer.Serialize(calculationRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/calculate-wht", content);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/calculate-wht", calculationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<WHTCalculationResult>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        var result = await DeserializeResponseAsync<WHTCalculationResult>(response);
 
         result.Should().NotBeNull();
         result!.WHTAmount.Should().Be(300.00m);
@@ -114,7 +72,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         result.TaxRegulation.Should().Be("Thailand Revenue Code Section 3");
 
         // Verify service call
-        _mockWHTService.Verify(x => x.CalculateWHTAsync(
+        MockWHTService.Verify(x => x.CalculateWHTAsync(
             It.IsAny<SupplierDto>(),
             It.Is<decimal>(amount => amount == 10000.00m),
             It.Is<string>(currency => currency == "THB"),
@@ -125,7 +83,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Calculate_WHT_For_Foreign_Supplier_Returns_Zero_WHT()
     {
         // Arrange
-        SetupEmployeeAuthentication();
+        SetupEmployeeAuthentication("emp123", "department1");
         SetupForeignSupplierMock();
 
         var purchaseOrderId = await CreateTestPurchaseOrder();
@@ -139,7 +97,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             WHTRate = 0.00m // No WHT for foreign suppliers
         };
 
-        _mockWHTService
+        MockWHTService
             .Setup(x => x.CalculateWHTAsync(
                 It.IsAny<SupplierDto>(),
                 It.IsAny<decimal>(),
@@ -154,20 +112,13 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
                 TaxRegulation = "Not applicable for foreign suppliers"
             });
 
-        var json = JsonSerializer.Serialize(calculationRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/calculate-wht", content);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/calculate-wht", calculationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<WHTCalculationResult>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        var result = await DeserializeResponseAsync<WHTCalculationResult>(response);
 
         result.Should().NotBeNull();
         result!.WHTAmount.Should().Be(0.00m);
@@ -180,7 +131,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Calculate_WHT_For_Service_Type_Purchase_Order_Uses_Higher_Rate()
     {
         // Arrange
-        SetupEmployeeAuthentication();
+        SetupEmployeeAuthentication("emp123", "department1");
         SetupThailandSupplierMock();
 
         var purchaseOrderId = await CreateTestPurchaseOrder();
@@ -195,7 +146,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             ServiceType = "Professional Services"
         };
 
-        _mockWHTService
+        MockWHTService
             .Setup(x => x.CalculateWHTAsync(
                 It.IsAny<SupplierDto>(),
                 It.IsAny<decimal>(),
@@ -210,20 +161,13 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
                 TaxRegulation = "Thailand Revenue Code Section 40(4)(a)"
             });
 
-        var json = JsonSerializer.Serialize(calculationRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/calculate-wht", content);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/calculate-wht", calculationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<WHTCalculationResult>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        var result = await DeserializeResponseAsync<WHTCalculationResult>(response);
 
         result.Should().NotBeNull();
         result!.WHTAmount.Should().Be(500.00m);
@@ -251,13 +195,13 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
 
         // Act
-        var response = await _client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content);
+        var response = await Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Verify purchase order was updated in database
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
         var updatedOrder = await dbContext.PurchaseOrders
             .FirstOrDefaultAsync(po => po.OrderNumber.Contains("Test"));
@@ -270,7 +214,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Calculate_WHT_For_Nonexistent_Purchase_Order_Returns_NotFound()
     {
         // Arrange
-        SetupEmployeeAuthentication();
+        SetupEmployeeAuthentication("emp123", "department1");
 
         var nonexistentOrderId = 9999;
         var calculationRequest = new WHTCalculationRequest
@@ -287,7 +231,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{nonexistentOrderId}/calculate-wht", content);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{nonexistentOrderId}/calculate-wht", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -297,7 +241,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Calculate_WHT_With_Invalid_Rate_Returns_BadRequest()
     {
         // Arrange
-        SetupEmployeeAuthentication();
+        SetupEmployeeAuthentication("emp123", "department1");
         SetupThailandSupplierMock();
 
         var purchaseOrderId = await CreateTestPurchaseOrder();
@@ -311,11 +255,8 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             WHTRate = 1.5m // Invalid rate > 100%
         };
 
-        var json = JsonSerializer.Serialize(calculationRequest);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
-
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/calculate-wht", content);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/calculate-wht", calculationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -328,7 +269,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Employee_Cannot_Apply_WHT_Without_Manager_Authorization()
     {
         // Arrange
-        SetupEmployeeAuthentication(); // Employee, not Manager
+        SetupEmployeeAuthentication("emp123", "department1"); // Employee, not Manager
         SetupThailandSupplierMock();
 
         var purchaseOrderId = await CreateTestPurchaseOrder();
@@ -343,7 +284,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
 
         // Act
-        var response = await _client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content);
+        var response = await Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -353,11 +294,11 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Get_WHT_History_For_Purchase_Order_Returns_All_Calculations()
     {
         // Arrange
-        SetupEmployeeAuthentication();
+        SetupEmployeeAuthentication("emp123", "department1");
         var purchaseOrderId = await CreateTestPurchaseOrder();
 
         // Act
-        var response = await _client.GetAsync($"/api/purchaseorders/{purchaseOrderId}/wht-history");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}/wht-history");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -398,7 +339,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         var json = JsonSerializer.Serialize(createRequest);
         var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
 
-        var response = await _client.PostAsync("/api/purchaseorders", content);
+        var response = await Client.PostAsync("/v1.0/purchase-orders", content);
         response.EnsureSuccessStatusCode();
 
         var responseContent = await response.Content.ReadAsStringAsync();
@@ -413,22 +354,22 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
     private void SetupEmployeeAuthentication()
     {
         var token = "Bearer mock-employee-token";
-        _client.DefaultRequestHeaders.Authorization = AuthenticationHeaderValue.Parse(token);
+        Client.DefaultRequestHeaders.Authorization = AuthenticationHeaderValue.Parse(token);
     }
 
     private void SetupManagerAuthentication()
     {
         var token = "Bearer mock-manager-token";
-        _client.DefaultRequestHeaders.Authorization = AuthenticationHeaderValue.Parse(token);
+        Client.DefaultRequestHeaders.Authorization = AuthenticationHeaderValue.Parse(token);
     }
 
-    private void SetupExternalServiceMocks()
+    protected override void SetupExternalServiceMocks()
     {
-        _mockSupplierService
+        MockSupplierService
             .Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SupplierDto { Id = Guid.NewGuid(), Name = "Test Supplier" });
 
-        _mockSupplierService
+        MockSupplierService
             .Setup(x => x.GetSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SupplierDto
             {
@@ -438,11 +379,11 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
                 IsThaiResident = true
             });
 
-        _mockCurrencyService
+        MockCurrencyService
             .Setup(x => x.ValidateCurrencyAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CurrencyDto { Code = "THB", Name = "Thai Baht", Symbol = "฿" });
 
-        _mockOrderService
+        MockOrderService
             .Setup(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<OrderItemDto>
             {
@@ -458,11 +399,11 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
 
     private void SetupThailandSupplierMock()
     {
-        _mockSupplierService
+        MockSupplierService
             .Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SupplierDto { Id = Guid.NewGuid(), Name = "Thailand Supplier" });
 
-        _mockSupplierService
+        MockSupplierService
             .Setup(x => x.GetSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SupplierDto
             {
@@ -475,11 +416,11 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
 
     private void SetupForeignSupplierMock()
     {
-        _mockSupplierService
+        MockSupplierService
             .Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SupplierDto { Id = Guid.NewGuid(), Name = "Foreign Supplier" });
 
-        _mockSupplierService
+        MockSupplierService
             .Setup(x => x.GetSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SupplierDto
             {

@@ -80,3 +80,24 @@ public class CurrencyValidationDto
     public string Message { get; set; } = string.Empty;
     public CurrencyDto? CurrencyInfo { get; set; }
 }
+
+/// <summary>
+/// Wrapper DTO for currencies list response
+/// </summary>
+public class CurrenciesResponse
+{
+    public IEnumerable<CurrencyDto> Currencies { get; set; } = new List<CurrencyDto>();
+    public DateTime LastUpdated { get; set; }
+}
+
+/// <summary>
+/// Wrapper DTO for historical exchange rates response
+/// </summary>
+public class HistoricalExchangeRatesResponse
+{
+    public string FromCurrency { get; set; } = string.Empty;
+    public string ToCurrency { get; set; } = string.Empty;
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public IEnumerable<HistoricalExchangeRateDto> Rates { get; set; } = new List<HistoricalExchangeRateDto>();
+}

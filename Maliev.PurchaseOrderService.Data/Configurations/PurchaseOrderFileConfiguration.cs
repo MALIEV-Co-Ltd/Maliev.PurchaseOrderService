@@ -51,6 +51,23 @@ public class PurchaseOrderFileConfiguration : IEntityTypeConfiguration<PurchaseO
         builder.Property(pof => pof.Description)
             .HasMaxLength(500);
 
+        builder.Property(pof => pof.VirusScanStatus)
+            .IsRequired()
+            .HasMaxLength(50)
+            .HasDefaultValue("Pending");
+
+        builder.Property(pof => pof.FileHash)
+            .HasMaxLength(32);
+
+        builder.Property(pof => pof.ExternalUrl)
+            .HasMaxLength(1000);
+
+        builder.Property(pof => pof.LastDownloadedBy)
+            .HasMaxLength(50);
+
+        builder.Property(pof => pof.UpdatedBy)
+            .HasMaxLength(50);
+
         // Enum properties
         builder.Property(pof => pof.DocumentType)
             .IsRequired()
@@ -64,10 +81,28 @@ public class PurchaseOrderFileConfiguration : IEntityTypeConfiguration<PurchaseO
         builder.Property(pof => pof.UploadedAt)
             .IsRequired();
 
+        // Boolean properties with defaults
+        builder.Property(pof => pof.IsAvailable)
+            .IsRequired()
+            .HasDefaultValue(true);
+
+        builder.Property(pof => pof.IsSystemGenerated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(pof => pof.DownloadCount)
+            .IsRequired()
+            .HasDefaultValue(0);
+
         // Soft delete property
         builder.Property(pof => pof.IsDeleted)
             .IsRequired()
             .HasDefaultValue(false);
+
+        // Optimistic concurrency control
+        builder.Property(pof => pof.RowVersion)
+            .IsRowVersion()
+            .IsConcurrencyToken();
 
         // Unique constraint for object name to prevent duplicates
         builder.HasIndex(pof => pof.ObjectName)
