@@ -205,11 +205,11 @@ public class PurchaseOrderService : IPurchaseOrderService
             // Load order items from external service if OrderId is provided
             if (request.OrderID > 0)
             {
-                await LoadOrderItemsAsync(purchaseOrder.Id, request.OrderID, cancellationToken);
+                await LoadOrderItemsForEntityAsync(purchaseOrder, request.OrderID, cancellationToken);
             }
 
-            // Calculate WHT if applicable
-            await CalculateAndUpdateWHTAsync(purchaseOrder.Id, cancellationToken);
+            // Calculate WHT if applicable and save changes
+            await CalculateAndUpdateWHTForEntityAsync(purchaseOrder, cancellationToken, true);
 
             // Create audit log
             await CreateAuditLogAsync(purchaseOrder.Id, AuditAction.Create, "Purchase order created", createdBy, cancellationToken);
@@ -545,13 +545,25 @@ public class PurchaseOrderService : IPurchaseOrderService
                 return;
             }
 
+            await LoadOrderItemsForEntityAsync(purchaseOrder, orderId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load order items for order {OrderId}", orderId);
+        }
+    }
+
+    private async Task LoadOrderItemsForEntityAsync(PurchaseOrder purchaseOrder, int orderId, CancellationToken cancellationToken)
+    {
+        try
+        {
             var orderItemsDto = await _orderService.GetOrderItemsAsync(orderId, cancellationToken);
 
             if (orderItemsDto != null)
             {
                 var orderItems = orderItemsDto.Select(item => new OrderItem
                 {
-                    PurchaseOrderId = purchaseOrderId,
+                    PurchaseOrderId = purchaseOrder.Id,
                     ExternalOrderItemId = item.Id,
                     ProductCode = item.ProductCode,
                     ProductName = item.ProductName,
@@ -565,6 +577,9 @@ public class PurchaseOrderService : IPurchaseOrderService
 
                 _context.OrderItems.AddRange(orderItems);
                 await _context.SaveChangesAsync(cancellationToken);
+
+                // Update subtotal amount based on order items
+                purchaseOrder.SubtotalAmount = orderItems.Sum(oi => oi.TotalPrice);
             }
         }
         catch (Exception ex)
@@ -575,8 +590,18 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     private async Task CalculateAndUpdateWHTAsync(int purchaseOrderId, CancellationToken cancellationToken)
     {
-        var purchaseOrder = await _context.PurchaseOrders.FirstAsync(po => po.Id == purchaseOrderId, cancellationToken);
+        // Find the tracked entity or load it without tracking to avoid conflicts
+        var purchaseOrder = _context.PurchaseOrders.Local.FirstOrDefault(po => po.Id == purchaseOrderId);
+        if (purchaseOrder == null)
+        {
+            purchaseOrder = await _context.PurchaseOrders.FirstAsync(po => po.Id == purchaseOrderId, cancellationToken);
+        }
 
+        await CalculateAndUpdateWHTForEntityAsync(purchaseOrder, cancellationToken, true);
+    }
+
+    private async Task CalculateAndUpdateWHTForEntityAsync(PurchaseOrder purchaseOrder, CancellationToken cancellationToken, bool saveChanges = true)
+    {
         try
         {
             // Get supplier data for WHT calculation
@@ -601,17 +626,26 @@ public class PurchaseOrderService : IPurchaseOrderService
                 purchaseOrder.TotalAmount = purchaseOrder.SubtotalAmount;
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
+            // Only save changes if requested and we have changes
+            if (saveChanges && _context.ChangeTracker.HasChanges())
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to calculate WHT for purchase order {PurchaseOrderId}", purchaseOrderId);
+            _logger.LogWarning(ex, "Failed to calculate WHT for purchase order {PurchaseOrderId}", purchaseOrder.Id);
 
             // Fallback to no WHT
             purchaseOrder.WHTAmount = 0;
             purchaseOrder.WHTRate = 0;
             purchaseOrder.TotalAmount = purchaseOrder.SubtotalAmount;
-            await _context.SaveChangesAsync(cancellationToken);
+
+            // Only save changes if requested and we have changes
+            if (saveChanges && _context.ChangeTracker.HasChanges())
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
     }
 

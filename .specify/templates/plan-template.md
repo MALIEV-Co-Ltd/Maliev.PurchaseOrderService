@@ -47,20 +47,7 @@
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-**Service Autonomy**: Does design maintain service independence and use only API communication?
-**Test-First Development**: Are tests planned before implementation with clear Red-Green-Refactor cycle?
-**Explicit Contracts**: Are API contracts documented with OpenAPI/Swagger specifications?
-**Secrets Management & Security**:
-  - Does implementation avoid hardcoded secrets, connection strings, or production URLs?
-  - Are all production API endpoints replaced with environment variable placeholders?
-  - Are database credentials abstracted through environment variables?
-  - Does configuration use placeholder patterns (${ENV_VAR}) instead of real values?
-  - Are JWT secrets and authentication tokens properly externalized?
-**Security Compliance**: Are JWT authentication and role-based authorization properly planned?
-**DDOS Prevention**: Are production endpoints protected from exposure in public repositories?
-**Zero Warnings Policy**: Will implementation produce zero build warnings and errors?
-**Clean Project Artifacts**: Are unused files, templates, and boilerplate identified for deletion?
-**Simplicity**: Does design follow YAGNI principles without unnecessary complexity?
+[Gates determined based on constitution file]
 
 ## Project Structure
 
@@ -158,7 +145,8 @@ ios/ or android/
    - Quickstart test = story validation steps
 
 5. **Update agent file incrementally** (O(1) operation):
-   - Run `.specify/scripts/powershell/update-agent-context.ps1 -AgentType claude` for your AI assistant
+   - Run `.specify/scripts/powershell/update-agent-context.ps1 -AgentType claude`
+     **IMPORTANT**: Execute it exactly as specified above. Do not add or remove any arguments.
    - If exists: Add only NEW tech from current plan
    - Preserve manual additions between markers
    - Update recent changes (keep last 3)
@@ -221,4 +209,4 @@ ios/ or android/
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution v1.3.0 - See `/memory/constitution.md`*
+*Based on Constitution v2.1.1 - See `/memory/constitution.md`*

@@ -44,15 +44,11 @@ When creating this spec from a user prompt:
 3. **Think like a tester**: Every vague requirement should fail the "testable and unambiguous" checklist item
 4. **Common underspecified areas**:
    - User types and permissions
-   - Data retention/deletion policies
+   - Data retention/deletion policies  
    - Performance targets and scale
    - Error handling behaviors
    - Integration requirements
    - Security/compliance needs
-   - External service dependencies (avoid hardcoded URLs)
-   - Configuration management approach (environment variables vs. hardcoded values)
-   - Code quality standards (zero warnings/errors requirement)
-   - Project cleanup requirements (unused files, templates, boilerplate removal)
 
 ---
 

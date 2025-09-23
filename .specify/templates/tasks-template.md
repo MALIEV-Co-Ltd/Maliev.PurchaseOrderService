@@ -14,9 +14,6 @@
    → research.md: Extract decisions → setup tasks
 3. Generate tasks by category:
    → Setup: project init, dependencies, linting
-   → Security: environment variable configuration, secrets validation
-   → Quality: build validation, warning elimination, code analysis
-   → Cleanup: unused file removal, template cleanup, artifact organization
    → Tests: contract tests, integration tests
    → Core: models, services, CLI commands
    → Integration: DB, middleware, logging
@@ -50,63 +47,44 @@
 - [ ] T002 Initialize [language] project with [framework] dependencies
 - [ ] T003 [P] Configure linting and formatting tools
 
-## Phase 3.2: Security Configuration ⚠️ BEFORE ANY IMPLEMENTATION
-- [ ] T004 [P] Configure environment variables for external services (no hardcoded URLs)
-- [ ] T005 [P] Implement Google Secret Manager integration for sensitive data
-- [ ] T006 [P] Validate no secrets or connection strings in source code
-
-## Phase 3.3: Quality Assurance ⚠️ ENFORCE ZERO WARNINGS
-- [ ] T007 [P] Configure code analysis rules and linting (treat warnings as errors)
-- [ ] T008 [P] Validate build produces zero warnings (except preview SDK)
-- [ ] T009 [P] Set up CI/CD pipeline to fail on warnings
-
-## Phase 3.4: Project Cleanup ⚠️ REMOVE UNUSED ARTIFACTS
-- [ ] T010 [P] Remove boilerplate files and project template artifacts
-- [ ] T011 [P] Delete unused example/sample files not relevant to project
-- [ ] T012 [P] Clean up outdated documentation and configuration files
-- [ ] T013 [P] Update .gitignore to exclude generated and temporary files
-
-## Phase 3.5: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.6
+## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
-- [ ] T014 [P] Contract test POST /api/users in tests/contract/test_users_post.py
-- [ ] T015 [P] Contract test GET /api/users/{id} in tests/contract/test_users_get.py
-- [ ] T016 [P] Integration test user registration in tests/integration/test_registration.py
-- [ ] T017 [P] Integration test auth flow in tests/integration/test_auth.py
+- [ ] T004 [P] Contract test POST /api/users in tests/contract/test_users_post.py
+- [ ] T005 [P] Contract test GET /api/users/{id} in tests/contract/test_users_get.py
+- [ ] T006 [P] Integration test user registration in tests/integration/test_registration.py
+- [ ] T007 [P] Integration test auth flow in tests/integration/test_auth.py
 
-## Phase 3.6: Core Implementation (ONLY after tests are failing)
-- [ ] T018 [P] User model in src/models/user.py
-- [ ] T019 [P] UserService CRUD in src/services/user_service.py
-- [ ] T020 [P] CLI --create-user in src/cli/user_commands.py
-- [ ] T021 POST /api/users endpoint
-- [ ] T022 GET /api/users/{id} endpoint
-- [ ] T023 Input validation
-- [ ] T024 Error handling and logging
+## Phase 3.3: Core Implementation (ONLY after tests are failing)
+- [ ] T008 [P] User model in src/models/user.py
+- [ ] T009 [P] UserService CRUD in src/services/user_service.py
+- [ ] T010 [P] CLI --create-user in src/cli/user_commands.py
+- [ ] T011 POST /api/users endpoint
+- [ ] T012 GET /api/users/{id} endpoint
+- [ ] T013 Input validation
+- [ ] T014 Error handling and logging
 
-## Phase 3.7: Integration
-- [ ] T025 Connect UserService to DB
-- [ ] T026 Auth middleware
-- [ ] T027 Request/response logging
-- [ ] T028 CORS and security headers
+## Phase 3.4: Integration
+- [ ] T015 Connect UserService to DB
+- [ ] T016 Auth middleware
+- [ ] T017 Request/response logging
+- [ ] T018 CORS and security headers
 
-## Phase 3.8: Polish
-- [ ] T029 [P] Unit tests for validation in tests/unit/test_validation.py
-- [ ] T030 Performance tests (<200ms)
-- [ ] T031 [P] Update docs/api.md
-- [ ] T032 Remove duplication
-- [ ] T033 Run manual-testing.md
+## Phase 3.5: Polish
+- [ ] T019 [P] Unit tests for validation in tests/unit/test_validation.py
+- [ ] T020 Performance tests (<200ms)
+- [ ] T021 [P] Update docs/api.md
+- [ ] T022 Remove duplication
+- [ ] T023 Run manual-testing.md
 
 ## Dependencies
-- Security config (T004-T006) before quality (T007-T009)
-- Quality assurance (T007-T009) before cleanup (T010-T013)
-- Cleanup (T010-T013) before tests (T014-T017)
-- Tests (T014-T017) before implementation (T018-T024)
-- T018 blocks T019, T025
-- T026 blocks T028
-- Implementation before polish (T029-T033)
+- Tests (T004-T007) before implementation (T008-T014)
+- T008 blocks T009, T015
+- T016 blocks T018
+- Implementation before polish (T019-T023)
 
 ## Parallel Example
 ```
-# Launch T014-T017 together:
+# Launch T004-T007 together:
 Task: "Contract test POST /api/users in tests/contract/test_users_post.py"
 Task: "Contract test GET /api/users/{id} in tests/contract/test_users_get.py"
 Task: "Integration test registration in tests/integration/test_registration.py"

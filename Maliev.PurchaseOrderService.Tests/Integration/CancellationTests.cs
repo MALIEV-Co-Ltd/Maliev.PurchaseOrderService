@@ -9,6 +9,8 @@ using System.Text.Json;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.Models;
 using Maliev.PurchaseOrderService.Data;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
+using Maliev.PurchaseOrderService.Data.Enums;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration;
 
@@ -23,190 +25,167 @@ namespace Maliev.PurchaseOrderService.Tests.Integration;
 /// - Workflow validation and business rules
 /// - Audit trail for cancellations
 /// </summary>
-public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
+public class CancellationTests : IntegrationTestBase
 {
-    private readonly WebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client;
-    private readonly ILogger<CancellationTests> _logger;
-
-    public CancellationTests(WebApplicationFactory<Program> factory)
+    public CancellationTests(TestWebApplicationFactory<Program> factory) : base(factory)
     {
-        _factory = factory;
-        _client = _factory.CreateClient();
-
-        // Configure test logging
-        using var scope = _factory.Services.CreateScope();
-        var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-        _logger = loggerFactory.CreateLogger<CancellationTests>();
     }
 
     [Fact]
     public async Task CancelPurchaseOrder_WithManagerRole_ShouldCancelSuccessfully()
     {
         // Arrange
-        var cancellationRequest = new
+        SetupManagerAuthentication("mgr_67890");
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending);
+
+        var cancellationRequest = new CancelPurchaseOrderRequest
         {
-            reason = "Project requirements changed - equipment no longer needed"
+            Reason = "Project requirements changed - equipment no longer needed",
+            CanceledBy = "mgr_67890"
         };
 
-        // Set manager authorization header (would be JWT token in real implementation)
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
-        _client.DefaultRequestHeaders.Add("X-User-Id", "mgr_67890");
-
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase order cancellation endpoint is not implemented yet");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await DeserializeResponseAsync<PurchaseOrderDto>(response);
+        result.Should().NotBeNull();
+        result!.Status.Should().Be(Data.Enums.OrderStatus.Cancelled);
+        result.CancelledBy.Should().Be("mgr_67890");
+        result.CancelledAt.Should().NotBeNull();
     }
 
     [Fact]
     public async Task CancelPurchaseOrder_WithEmployeeRole_ShouldReturnForbidden()
     {
         // Arrange
-        var cancellationRequest = new
+        SetupEmployeeAuthentication("emp_12345");
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending);
+
+        var cancellationRequest = new CancelPurchaseOrderRequest
         {
-            reason = "Employee attempting to cancel order"
+            Reason = "Employee attempting to cancel order",
+            CanceledBy = "emp_12345"
         };
 
-        // Set employee authorization header (insufficient permissions)
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer employee-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "employee");
-        _client.DefaultRequestHeaders.Add("X-User-Id", "emp_12345");
-
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase order cancellation endpoint is not implemented yet");
-
-        // When implemented, this should return Forbidden
-        // response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
-        //     "because employees should not have permission to cancel purchase orders");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "because employees should not have permission to cancel purchase orders");
     }
 
     [Fact]
     public async Task CancelPurchaseOrder_WithAdminRole_ShouldCancelSuccessfully()
     {
         // Arrange
-        var cancellationRequest = new
+        SetupAdminAuthentication("admin_99999");
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending);
+
+        var cancellationRequest = new CancelPurchaseOrderRequest
         {
-            reason = "Admin override - emergency cancellation due to supplier issues"
+            Reason = "Admin override - emergency cancellation due to supplier issues",
+            CanceledBy = "admin_99999"
         };
 
-        // Set admin authorization header
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer admin-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "admin");
-        _client.DefaultRequestHeaders.Add("X-User-Id", "admin_99999");
-
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase order cancellation endpoint is not implemented yet");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await DeserializeResponseAsync<PurchaseOrderDto>(response);
+        result.Should().NotBeNull();
+        result!.Status.Should().Be(Data.Enums.OrderStatus.Cancelled);
+        result.CancelledBy.Should().Be("admin_99999");
+        result.CancelledAt.Should().NotBeNull();
     }
 
     [Fact]
     public async Task CancelPurchaseOrder_AlreadyCancelled_ShouldReturnConflict()
     {
         // Arrange
-        var cancellationRequest = new
+        SetupManagerAuthentication();
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Cancelled);
+
+        var cancellationRequest = new CancelPurchaseOrderRequest
         {
-            reason = "Attempting to cancel already cancelled order"
+            Reason = "Attempting to cancel already cancelled order",
+            CanceledBy = "mgr123"
         };
 
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
-
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase order cancellation endpoint is not implemented yet");
-
-        // When implemented and order is already cancelled, should return Conflict
-        // response.StatusCode.Should().Be(HttpStatusCode.Conflict,
-        //     "because the order is already in Cancelled status");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict,
+            "because the order is already in Cancelled status");
     }
 
     [Theory]
-    [InlineData(OrderStatus.Delivered)]
-    [InlineData(OrderStatus.Ordered)]
-    [InlineData(OrderStatus.Approved)]
-    public async Task CancelPurchaseOrder_WithInvalidStatus_ShouldReturnBadRequest(OrderStatus status)
+    [InlineData(Data.Enums.OrderStatus.Delivered)]
+    [InlineData(Data.Enums.OrderStatus.Ordered)]
+    public async Task CancelPurchaseOrder_WithInvalidStatus_ShouldReturnBadRequest(Data.Enums.OrderStatus status)
     {
         // Arrange
-        var cancellationRequest = new
+        SetupManagerAuthentication();
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, status);
+
+        var cancellationRequest = new CancelPurchaseOrderRequest
         {
-            reason = $"Attempting to cancel order in {status} status"
+            Reason = $"Attempting to cancel order in {status} status",
+            CanceledBy = "mgr123"
         };
 
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
-
         // Act
-        var response = await _client.PostAsJsonAsync($"/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase order cancellation endpoint is not implemented yet");
-
-        // When implemented, should validate that only Pending/Approved orders can be cancelled
-        // response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
-        //     $"because orders in {status} status cannot be cancelled");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+            $"because orders in {status} status cannot be cancelled");
     }
 
     [Fact]
     public async Task CancelPurchaseOrder_WithoutReason_ShouldReturnBadRequest()
     {
         // Arrange
-        var cancellationRequest = new
+        SetupManagerAuthentication();
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending);
+
+        var cancellationRequest = new CancelPurchaseOrderRequest
         {
-            reason = "" // Empty reason should be invalid
+            Reason = "", // Empty reason should be invalid
+            CanceledBy = "mgr123"
         };
 
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
-
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase order cancellation endpoint is not implemented yet");
-
-        // When implemented, should require cancellation reason
-        // response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
-        //     "because cancellation reason is required");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+            "because cancellation reason is required");
     }
 
     [Fact]
     public async Task CancelPurchaseOrder_NonExistentOrder_ShouldReturnNotFound()
     {
         // Arrange
-        var cancellationRequest = new
+        SetupManagerAuthentication();
+        var cancellationRequest = new CancelPurchaseOrderRequest
         {
-            reason = "Attempting to cancel non-existent order"
+            Reason = "Attempting to cancel non-existent order",
+            CanceledBy = "mgr123"
         };
 
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
-
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/99999/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync("/v1/purchase-orders/99999/cancel", cancellationRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
+        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase order cancellation endpoint is not implemented yet");
-
-        // When implemented, should return NotFound for non-existent orders
-        // response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-        //     "because the purchase order with ID 99999 does not exist");
+            "because the purchase order with ID 99999 does not exist");
     }
 
     [Fact]
@@ -220,21 +199,38 @@ public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
         // 5. RowVersion is updated for optimistic concurrency
 
         // Arrange
-        var cancellationRequest = new
+        SetupManagerAuthentication("mgr_67890");
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending);
+
+        var cancellationRequest = new CancelPurchaseOrderRequest
         {
-            reason = "Project scope changed - components no longer required"
+            Reason = "Project scope changed - components no longer required",
+            CanceledBy = "mgr_67890"
         };
 
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
-        _client.DefaultRequestHeaders.Add("X-User-Id", "mgr_67890");
-
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase order cancellation endpoint is not implemented yet");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await DeserializeResponseAsync<PurchaseOrderDto>(response);
+        result.Should().NotBeNull();
+        result!.Status.Should().Be(Data.Enums.OrderStatus.Cancelled);
+        result.CancelledBy.Should().Be("mgr_67890");
+        result.CancelledAt.Should().NotBeNull();
+
+        // Verify audit log was created
+        await ExecuteInDbContextAsync(async dbContext =>
+        {
+            var auditLogs = await dbContext.AuditLogs
+                .Where(a => a.EntityId == seededPurchaseOrder.Id.ToString() && a.Action == AuditAction.Cancel)
+                .ToListAsync();
+
+            auditLogs.Should().HaveCount(1);
+            auditLogs[0].UserId.Should().Be("mgr_67890");
+            auditLogs[0].ChangeReason.Should().Contain("Project scope changed");
+        });
     }
 
     [Fact]
@@ -251,12 +247,10 @@ public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
             reason = "Urgent cancellation - supplier quality issues identified"
         };
 
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
-        _client.DefaultRequestHeaders.Add("X-User-Id", "mgr_67890");
+        SetupManagerAuthentication("mgr_67890");
 
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync("/v1/purchase-orders/12345/cancel", cancellationRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -276,12 +270,10 @@ public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
             reason = "Project cancelled - bulk cancellation of related orders"
         };
 
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer admin-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "admin");
-        _client.DefaultRequestHeaders.Add("X-User-Id", "admin_99999");
+        SetupAdminAuthentication("admin_99999");
 
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/bulk-cancel", bulkCancellationRequest);
+        var response = await PostAsJsonAsync("/v1/purchase-orders/bulk-cancel", bulkCancellationRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -294,11 +286,10 @@ public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
         // This test validates querying cancelled orders for reporting and audit purposes
 
         // Arrange
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
+        SetupManagerAuthentication();
 
         // Act
-        var response = await _client.GetAsync("/purchase-orders?status=Cancelled&page=1&pageSize=20");
+        var response = await Client.GetAsync("/v1/purchase-orders?status=Cancelled&page=1&pageSize=20");
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -318,11 +309,10 @@ public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
             rowVersion = "OUTDATED_VERSION_TOKEN"
         };
 
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
+        SetupManagerAuthentication();
 
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync("/v1/purchase-orders/12345/cancel", cancellationRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -344,13 +334,10 @@ public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
             reason = "Department manager attempting cross-department cancellation"
         };
 
-        _client.DefaultRequestHeaders.Add("Authorization", "Bearer dept-manager-token");
-        _client.DefaultRequestHeaders.Add("X-User-Role", "manager");
-        _client.DefaultRequestHeaders.Add("X-User-Department", "Engineering");
-        _client.DefaultRequestHeaders.Add("X-User-Id", "mgr_engineering");
+        SetupManagerAuthentication("mgr_engineering");
 
         // Act - Attempting to cancel order from different department
-        var response = await _client.PostAsJsonAsync("/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync("/v1/purchase-orders/12345/cancel", cancellationRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -361,7 +348,7 @@ public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
         //     "because managers should only cancel orders in their department");
     }
 
-    private async Task<PurchaseOrderResponse> CreateTestPurchaseOrderForCancellation(OrderStatus status = OrderStatus.Pending)
+    private async Task<PurchaseOrderResponse> CreateTestPurchaseOrderForCancellation(Data.Enums.OrderStatus status = Data.Enums.OrderStatus.Pending)
     {
         // Helper method to create test purchase orders in specific status for cancellation testing
         // This will be used once the implementation exists
@@ -370,11 +357,11 @@ public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
             SupplierID = 1234,
             OrderID = 5678,
             CurrencyID = 1,
-            OrderType = (Data.Enums.OrderType)OrderType.External,
+            OrderType = Data.Enums.OrderType.External,
             Notes = "Test order for cancellation testing",
             ShippingAddress = new CreateAddressRequest
             {
-                AddressType = (Data.Enums.AddressType)AddressType.Shipping,
+                AddressType = Data.Enums.AddressType.Shipping,
                 ContactName = "Test Contact",
                 AddressLine1 = "Test Address",
                 City = "Test City",
@@ -385,7 +372,7 @@ public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
             }
         };
 
-        var response = await _client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await PostAsJsonAsync("/v1/purchase-orders", request);
         response.EnsureSuccessStatusCode();
 
         var content = await response.Content.ReadAsStringAsync();

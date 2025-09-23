@@ -9,6 +9,23 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: test_db
+          POSTGRES_INITDB_ARGS: "--auth-host=trust"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --tmpfs /var/lib/postgresql/data:rw,noexec,nosuid,size=1024m
+        ports:
+          - 5432:5432
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -18,15 +35,61 @@ jobs:
       with:
         dotnet-version: '9.x'
 
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
     - name: Restore dependencies
       run: dotnet restore Maliev.PurchaseOrderService.sln
 
     - name: Build
       run: dotnet build Maliev.PurchaseOrderService.sln --no-restore
 
+    - name: Setup test database
+      run: |
+        # Wait for PostgreSQL to be ready
+        until pg_isready -h localhost -p 5432 -U postgres; do
+          echo "Waiting for PostgreSQL..."
+          sleep 2
+        done
+        # Configure PostgreSQL for better test performance
+        psql -h localhost -p 5432 -U postgres -d test_db -c "
+          ALTER SYSTEM SET fsync = off;
+          ALTER SYSTEM SET full_page_writes = off;
+          ALTER SYSTEM SET synchronous_commit = off;
+          ALTER SYSTEM SET checkpoint_segments = 32;
+          ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+          ALTER SYSTEM SET wal_buffers = 16MB;
+          ALTER SYSTEM SET shared_buffers = 256MB;
+          SELECT pg_reload_conf();
+        "
+      env:
+        PGPASSWORD: postgres
+
     - name: Test
-      run: dotnet test Maliev.PurchaseOrderService.sln --no-build --verbosity normal
+      run: dotnet test Maliev.PurchaseOrderService.sln --no-build --verbosity normal --logger trx --results-directory TestResults
       working-directory: ${{ github.workspace }}
+      env:
+        ConnectionStrings__PurchaseOrderDbContext: "Host=localhost;Port=5432;Database=test_db;Username=postgres;Password=postgres;"
+        JWT_SIGNING_KEY: "test-signing-key-that-is-at-least-32-characters-long-for-testing-purposes"
+        JWT_ISSUER: "test-issuer"
+        JWT_AUDIENCE: "test-audience"
+        SUPPLIER_SERVICE_URL: "https://staging.api.maliev.com/suppliers"
+        ORDER_SERVICE_URL: "https://staging.api.maliev.com/orders"
+        CURRENCY_SERVICE_URL: "https://staging.api.maliev.com/currencies"
+        UPLOAD_SERVICE_URL: "https://staging.api.maliev.com/uploads"
+        PDF_SERVICE_URL: "https://staging.api.maliev.com/pdf"
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-staging
+        path: TestResults/*.trx
 
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v3

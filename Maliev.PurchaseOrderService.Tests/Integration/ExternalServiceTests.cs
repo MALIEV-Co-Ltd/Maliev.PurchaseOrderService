@@ -17,153 +17,25 @@ using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Configuration;
 using Maliev.PurchaseOrderService.Data;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration;
 
 /// <summary>
 /// Integration test Scenario 5: External service integration patterns
 /// </summary>
-public class ExternalServiceTests : IClassFixture<WebApplicationFactory<Program>>
+public class ExternalServiceTests : IntegrationTestBase
 {
-    private readonly WebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client;
-
-    public ExternalServiceTests(WebApplicationFactory<Program> factory)
+    public ExternalServiceTests(TestWebApplicationFactory<Program> factory) : base(factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                // Replace with in-memory database for testing
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>));
-                if (descriptor != null)
-                {
-                    services.Remove(descriptor);
-                }
-
-                services.AddDbContext<PurchaseOrderContext>(options =>
-                {
-                    options.UseInMemoryDatabase("InMemoryDbForExternalServiceTesting");
-                });
-
-                // Mock external service HTTP clients
-                MockSupplierServiceClient(services);
-                MockOrderServiceClient(services);
-                MockCurrencyServiceClient(services);
-            });
-        });
-
-        _client = _factory.CreateClient();
     }
 
-    private void MockSupplierServiceClient(IServiceCollection services)
-    {
-        var mockHttpMessageHandler = new Mock<HttpMessageHandler>();
-        mockHttpMessageHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(req => req.RequestUri!.ToString().Contains("/api/suppliers/")),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(JsonSerializer.Serialize(new SupplierDto
-                {
-                    Id = Guid.NewGuid(),
-                    Name = "Mock Supplier",
-                    Email = "mock@supplier.com",
-                    Phone = "+1-555-0123",
-                    IsActive = true
-                }), Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"))
-            });
-
-        var httpClient = new HttpClient(mockHttpMessageHandler.Object)
-        {
-            BaseAddress = new Uri("http://localhost:8080/")
-        };
-
-        services.RemoveAll<ISupplierServiceClient>();
-        services.AddSingleton<ISupplierServiceClient>(provider =>
-            new SupplierServiceClient(httpClient, provider.GetRequiredService<ILogger<SupplierServiceClient>>(), provider.GetRequiredService<IOptions<ExternalServiceOptions>>()));
-    }
-
-    private void MockOrderServiceClient(IServiceCollection services)
-    {
-        var mockHttpMessageHandler = new Mock<HttpMessageHandler>();
-        mockHttpMessageHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(req => req.RequestUri!.ToString().Contains("/api/orders/")),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(JsonSerializer.Serialize(new List<OrderItemDto>
-                {
-                    new OrderItemDto
-                    {
-                        Id = 1,
-                        PurchaseOrderId = 1,
-                        ExternalOrderItemId = 1,
-                        ProductName = "Mock Product",
-                        Quantity = 10,
-                        UnitOfMeasure = "pcs",
-                        UnitPrice = 100m,
-                        TotalPrice = 1000m,
-                        Currency = "USD",
-                        CachedAt = DateTime.UtcNow
-                    }
-                }), Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"))
-            });
-
-        var httpClient = new HttpClient(mockHttpMessageHandler.Object)
-        {
-            BaseAddress = new Uri("http://localhost:8080/")
-        };
-
-        services.RemoveAll<IOrderServiceClient>();
-        services.AddSingleton<IOrderServiceClient>(provider =>
-            new OrderServiceClient(httpClient, provider.GetRequiredService<ILogger<OrderServiceClient>>(), provider.GetRequiredService<IOptions<ExternalServiceOptions>>()));
-    }
-
-    private void MockCurrencyServiceClient(IServiceCollection services)
-    {
-        var mockHttpMessageHandler = new Mock<HttpMessageHandler>();
-        mockHttpMessageHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(req => req.RequestUri!.ToString().Contains("/api/currencies/")),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(JsonSerializer.Serialize(new CurrencyDto
-                {
-                    Code = "THB",
-                    Symbol = "฿",
-                    Name = "Thai Baht",
-                    DecimalPlaces = 2,
-                    IsActive = true,
-                    Country = "Thailand",
-                    CountryCode = "TH",
-                    UpdatedAt = DateTime.UtcNow
-                }), Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"))
-            });
-
-        var httpClient = new HttpClient(mockHttpMessageHandler.Object)
-        {
-            BaseAddress = new Uri("http://localhost:8080/")
-        };
-
-        services.RemoveAll<ICurrencyServiceClient>();
-        services.AddSingleton<ICurrencyServiceClient>(provider =>
-            new CurrencyServiceClient(httpClient, provider.GetRequiredService<ILogger<CurrencyServiceClient>>(), provider.GetRequiredService<IOptions<ExternalServiceOptions>>()));
-    }
 
     [Fact]
     public async Task CreatePurchaseOrder_ShouldIntegrateWithSupplierService()
     {
         // Arrange
+        SetupEmployeeAuthentication();
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -173,101 +45,68 @@ public class ExternalServiceTests : IClassFixture<WebApplicationFactory<Program>
             ExpectedDeliveryDate = DateTime.UtcNow.AddDays(30)
         };
 
-        var json = JsonSerializer.Serialize(createRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync("/purchaseorders/api/purchase-orders", content);
+        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var purchaseOrder = JsonSerializer.Deserialize<PurchaseOrderDto>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var purchaseOrder = await DeserializeResponseAsync<PurchaseOrderDto>(response);
 
         purchaseOrder.Should().NotBeNull();
-        purchaseOrder!.SupplierName.Should().Be("Mock Supplier");
+        purchaseOrder!.SupplierName.Should().NotBeNullOrEmpty();
+
+        // Verify external service interaction
+        MockSupplierService.Verify(x => x.ValidateSupplierAsync(1, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task RefreshOrderItems_ShouldIntegrateWithOrderService()
     {
-        // Arrange - Create a purchase order first
-        using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
-
-        var purchaseOrder = new Data.Entities.PurchaseOrder
-        {
-            OrderNumber = "PO-2025-EXT-001",
-            SupplierID = 1,
-            OrderID = 1,
-            CurrencyID = 1,
-            SupplierName = "Test Supplier",
-            CurrencyCode = "THB",
-            CurrencySymbol = "฿",
-            Currency = "THB",
-            OrderDate = DateTime.UtcNow,
-            Status = Data.Enums.OrderStatus.Pending,
-            OrderType = Data.Enums.OrderType.Internal,
-            SubtotalAmount = 1000m,
-            TotalAmount = 1000m,
-            CreatedBy = "employee1",
-            CreatedAt = DateTime.UtcNow
-        };
-
-        context.PurchaseOrders.Add(purchaseOrder);
-        await context.SaveChangesAsync();
+        // Arrange
+        SetupEmployeeAuthentication();
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await _client.PutAsync($"/purchaseorders/api/purchase-orders/{purchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<OrderItemRefreshResult>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var result = await DeserializeResponseAsync<OrderItemRefreshResult>(response);
 
         result.Should().NotBeNull();
         result!.Success.Should().BeTrue();
         result.NewItemCount.Should().BeGreaterThan(0);
+
+        // Verify external service interaction
+        MockOrderService.Verify(x => x.GetOrderItemsAsync(seededPurchaseOrder.OrderID, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task ExternalServiceFailure_ShouldBeHandledGracefully()
     {
-        // This test would require mocking service failures
-        // For now, we'll test the basic resilience pattern
+        // Arrange
+        SetupEmployeeAuthentication();
 
-        // Arrange - Create a request that would normally succeed
+        // Setup mock to simulate service failure
+        MockSupplierService
+            .Setup(x => x.ValidateSupplierAsync(999, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("External service unavailable"));
+
         var createRequest = new CreatePurchaseOrderRequest
         {
-            SupplierID = 999, // Non-existent supplier to trigger external service lookup
+            SupplierID = 999, // Non-existent supplier to trigger failure
             OrderID = 1,
             CurrencyID = 1,
             OrderType = Data.Enums.OrderType.Internal
         };
 
-        var json = JsonSerializer.Serialize(createRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync("/purchaseorders/api/purchase-orders", content);
+        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
 
-        // Assert - Should either succeed with fallback data or return appropriate error
+        // Assert - Should return appropriate error
         response.StatusCode.Should().BeOneOf(
-            HttpStatusCode.Created,      // Success with fallback
             HttpStatusCode.BadRequest,   // Validation error
             HttpStatusCode.ServiceUnavailable // Service unavailable
         );
@@ -277,6 +116,7 @@ public class ExternalServiceTests : IClassFixture<WebApplicationFactory<Program>
     public async Task CurrencyServiceIntegration_ShouldProvideExchangeRates()
     {
         // Arrange
+        SetupEmployeeAuthentication();
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -285,36 +125,27 @@ public class ExternalServiceTests : IClassFixture<WebApplicationFactory<Program>
             OrderType = Data.Enums.OrderType.Internal
         };
 
-        var json = JsonSerializer.Serialize(createRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync("/purchaseorders/api/purchase-orders", content);
+        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var purchaseOrder = JsonSerializer.Deserialize<PurchaseOrderDto>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var purchaseOrder = await DeserializeResponseAsync<PurchaseOrderDto>(response);
 
         purchaseOrder.Should().NotBeNull();
         purchaseOrder!.CurrencyCode.Should().Be("THB");
         purchaseOrder.CurrencySymbol.Should().Be("฿");
+
+        // Verify external service interaction
+        MockCurrencyService.Verify(x => x.ValidateCurrencyAsync("THB", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task CircuitBreakerPattern_ShouldPreventCascadingFailures()
     {
-        // This is a conceptual test - actual circuit breaker testing would require
-        // more sophisticated mocking and multiple requests
-
-        // Arrange - Multiple requests to potentially trigger circuit breaker
+        // Arrange
+        SetupEmployeeAuthentication();
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -323,16 +154,9 @@ public class ExternalServiceTests : IClassFixture<WebApplicationFactory<Program>
             OrderType = Data.Enums.OrderType.Internal
         };
 
-        var json = JsonSerializer.Serialize(createRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act - Make multiple concurrent requests
         var tasks = Enumerable.Range(1, 5).Select(_ =>
-            _client.PostAsync("/purchaseorders/api/purchase-orders",
-                new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"))));
+            PostAsJsonAsync("/v1/purchase-orders", createRequest));
 
         var responses = await Task.WhenAll(tasks);
 
@@ -351,7 +175,8 @@ public class ExternalServiceTests : IClassFixture<WebApplicationFactory<Program>
     [Fact]
     public async Task CacheIntegration_ShouldImprovePerformance()
     {
-        // Arrange - Make two identical requests
+        // Arrange
+        SetupEmployeeAuthentication();
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -360,21 +185,14 @@ public class ExternalServiceTests : IClassFixture<WebApplicationFactory<Program>
             OrderType = Data.Enums.OrderType.Internal
         };
 
-        var json = JsonSerializer.Serialize(createRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-
         // Act - First request (cache miss)
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var response1 = await _client.PostAsync("/purchaseorders/api/purchase-orders",
-            new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json")));
+        var response1 = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
         var firstRequestTime = sw.ElapsedMilliseconds;
 
         // Second request for same supplier (cache hit - if caching is implemented)
         sw.Restart();
-        var response2 = await _client.PostAsync("/purchaseorders/api/purchase-orders",
-            new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json")));
+        var response2 = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
         var secondRequestTime = sw.ElapsedMilliseconds;
 
         // Assert
@@ -389,10 +207,8 @@ public class ExternalServiceTests : IClassFixture<WebApplicationFactory<Program>
     [Fact]
     public async Task RetryPolicy_ShouldHandleTransientFailures()
     {
-        // This test demonstrates the concept of retry policies
-        // In a real implementation, you would mock transient failures
-
         // Arrange
+        SetupEmployeeAuthentication();
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -401,14 +217,8 @@ public class ExternalServiceTests : IClassFixture<WebApplicationFactory<Program>
             OrderType = Data.Enums.OrderType.Internal
         };
 
-        var json = JsonSerializer.Serialize(createRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync("/purchaseorders/api/purchase-orders", content);
+        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
 
         // Assert - Should eventually succeed despite potential transient failures
         response.StatusCode.Should().BeOneOf(

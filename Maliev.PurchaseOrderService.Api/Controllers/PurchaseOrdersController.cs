@@ -13,7 +13,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("v{version:apiVersion}/purchase-orders")]
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Authorize]
 [Produces("application/json")]
 public class PurchaseOrdersController : ControllerBase

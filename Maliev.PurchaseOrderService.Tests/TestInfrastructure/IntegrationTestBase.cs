@@ -68,6 +68,47 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         };
 
         SetupCommonMocks();
+        InitializeDatabase();
+    }
+
+    /// <summary>
+    /// Initialize PostgreSQL database for testing with proper isolation
+    /// </summary>
+    private void InitializeDatabase()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        // Create database schema for PostgreSQL testing
+        // EnsureCreated works for PostgreSQL and creates tables based on entity configurations
+        context.Database.EnsureCreated();
+
+        // Clear any existing test data to ensure clean state
+        ClearAllTestData(context);
+    }
+
+    /// <summary>
+    /// Clear all test data from the database for test isolation
+    /// </summary>
+    private void ClearAllTestData(PurchaseOrderContext context)
+    {
+        // Remove all test data in correct order to avoid foreign key constraints
+        // Use ExecuteSqlRaw for better performance and to avoid loading entities into memory
+
+        context.Database.ExecuteSqlRaw("DELETE FROM \"OrderItems\"");
+        context.Database.ExecuteSqlRaw("DELETE FROM \"PurchaseOrderFiles\"");
+        context.Database.ExecuteSqlRaw("DELETE FROM \"PurchaseOrders\"");
+        context.Database.ExecuteSqlRaw("DELETE FROM \"Addresses\"");
+        context.Database.ExecuteSqlRaw("DELETE FROM \"AuditLogs\"");
+        context.Database.ExecuteSqlRaw("DELETE FROM \"DomainEvents\"");
+
+        // Reset identity sequences for consistent test data
+        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"PurchaseOrders_Id_seq\" RESTART WITH 1");
+        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"OrderItems_Id_seq\" RESTART WITH 1");
+        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"Addresses_Id_seq\" RESTART WITH 1");
+        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"PurchaseOrderFiles_Id_seq\" RESTART WITH 1");
+        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"AuditLogs_Id_seq\" RESTART WITH 1");
+        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"DomainEvents_Id_seq\" RESTART WITH 1");
     }
 
     /// <summary>

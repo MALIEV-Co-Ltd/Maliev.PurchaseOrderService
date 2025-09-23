@@ -36,7 +36,11 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
 
                 services.AddDbContext<PurchaseOrderContext>(options =>
                 {
-                    options.UseInMemoryDatabase("InMemoryDbForSearchTesting");
+                    var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__PurchaseOrderDbContext")
+                        ?? "Host=localhost;Port=5432;Database=test_db;Username=postgres;Password=postgres;";
+                    options.UseNpgsql(connectionString);
+                    options.EnableSensitiveDataLogging();
+                    options.EnableDetailedErrors();
                 });
             });
         });
@@ -142,7 +146,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         await SeedTestDataAsync();
 
         // Act
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -165,7 +169,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         await SeedTestDataAsync();
 
         // Act
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders?status=Approved");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders?status=Approved");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -189,7 +193,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         await SeedTestDataAsync();
 
         // Act
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders?orderType=External");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders?orderType=External");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -212,7 +216,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         await SeedTestDataAsync();
 
         // Act
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders?supplierName=Alpha");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders?supplierName=Alpha");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -237,7 +241,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         var toDate = DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd");
 
         // Act
-        var response = await _client.GetAsync($"/purchaseorders/api/purchase-orders?fromDate={fromDate}&toDate={toDate}");
+        var response = await _client.GetAsync($"/purchaseorders/v1/purchase-orders?fromDate={fromDate}&toDate={toDate}");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -264,7 +268,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         await SeedTestDataAsync();
 
         // Act
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders?minAmount=10000&maxAmount=20000");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders?minAmount=10000&maxAmount=20000");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -291,7 +295,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         await SeedTestDataAsync();
 
         // Act - Sort by total amount descending
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders?sortBy=TotalAmountDesc");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders?sortBy=TotalAmountDesc");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -316,7 +320,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         await SeedTestDataAsync();
 
         // Act - Get first page with 2 items per page
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders?page=1&pageSize=2");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders?page=1&pageSize=2");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -344,7 +348,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         await SeedTestDataAsync();
 
         // Act - Multiple filters: Internal orders, Pending status, amount > 4000
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders?orderType=Internal&status=Pending&minAmount=4000");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders?orderType=Internal&status=Pending&minAmount=4000");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -370,7 +374,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
         await SeedTestDataAsync();
 
         // Act
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders?searchText=PO-2025-SEARCH-002");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders?searchText=PO-2025-SEARCH-002");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -390,7 +394,7 @@ public class SearchFilterTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task SearchPurchaseOrders_WithInvalidParameters_ShouldReturnValidationError()
     {
         // Act - Invalid page size
-        var response = await _client.GetAsync("/purchaseorders/api/purchase-orders?pageSize=0");
+        var response = await _client.GetAsync("/purchaseorders/v1/purchase-orders?pageSize=0");
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);

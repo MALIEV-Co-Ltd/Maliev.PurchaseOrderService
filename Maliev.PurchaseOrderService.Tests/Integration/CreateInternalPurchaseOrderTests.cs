@@ -10,36 +10,41 @@ using Maliev.PurchaseOrderService.Api;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Data.Enums;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration;
 
 /// <summary>
 /// Integration test Scenario 1: Employee creates internal PO with PDF generation
 /// </summary>
-public class CreateInternalPurchaseOrderTests : IClassFixture<WebApplicationFactory<Program>>
+public class CreateInternalPurchaseOrderTests : IClassFixture<TestWebApplicationFactory<Program>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TestWebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
 
-    public CreateInternalPurchaseOrderTests(WebApplicationFactory<Program> factory)
+    public CreateInternalPurchaseOrderTests(TestWebApplicationFactory<Program> factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                // Replace with in-memory database for testing
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>));
-                if (descriptor != null)
-                {
-                    services.Remove(descriptor);
-                }
+        // Create a unique database name for this test class
+        var uniqueDatabaseName = $"test_db_{Guid.NewGuid():N}";
 
-                services.AddDbContext<PurchaseOrderContext>(options =>
-                {
-                    options.UseInMemoryDatabase("InMemoryDbForTesting");
-                });
+        _factory = factory;
+        _factory.ConfigureTestServices = services =>
+        {
+            // Override the database connection to use unique database
+            var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>));
+            if (descriptor != null)
+            {
+                services.Remove(descriptor);
+            }
+
+            var connectionString = $"Host=localhost;Port=5432;Database={uniqueDatabaseName};Username=postgres;Password=postgres;";
+            services.AddDbContext<PurchaseOrderContext>(options =>
+            {
+                options.UseNpgsql(connectionString);
+                options.EnableSensitiveDataLogging();
+                options.EnableDetailedErrors();
             });
-        });
+        };
 
         _client = _factory.CreateClient();
     }
@@ -47,6 +52,11 @@ public class CreateInternalPurchaseOrderTests : IClassFixture<WebApplicationFact
     [Fact]
     public async Task CreateInternalPurchaseOrder_ShouldSucceed_AndTriggerPdfGeneration()
     {
+        // Ensure database is created for this test
+        using var setupScope = _factory.Services.CreateScope();
+        var setupContext = setupScope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+        await setupContext.Database.EnsureCreatedAsync();
+
         // Arrange
         var createRequest = new CreatePurchaseOrderRequest
         {
@@ -64,8 +74,12 @@ public class CreateInternalPurchaseOrderTests : IClassFixture<WebApplicationFact
         });
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
+        // Add authentication token
+        var token = TestJwtHelper.GenerateTestToken("emp123", "Employee");
+        _client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
         // Act
-        var response = await _client.PostAsync("/purchaseorders/api/purchase-orders", content);
+        var response = await _client.PostAsync("/purchaseorders/v1/purchase-orders", content);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);
@@ -114,7 +128,7 @@ public class CreateInternalPurchaseOrderTests : IClassFixture<WebApplicationFact
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync("/purchaseorders/api/purchase-orders", content);
+        var response = await _client.PostAsync("/purchaseorders/v1/purchase-orders", content);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
@@ -149,7 +163,7 @@ public class CreateInternalPurchaseOrderTests : IClassFixture<WebApplicationFact
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync("/purchaseorders/api/purchase-orders", content);
+        var response = await _client.PostAsync("/purchaseorders/v1/purchase-orders", content);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);

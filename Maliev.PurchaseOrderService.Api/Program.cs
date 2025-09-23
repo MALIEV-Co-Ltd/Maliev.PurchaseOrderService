@@ -433,6 +433,9 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+// Configure route prefix for all controllers FIRST
+app.UsePathBase("/purchaseorders");
+
 // Middleware Pipeline (EXACT ORDER)
 if (app.Environment.IsDevelopment())
 {
@@ -440,7 +443,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Purchase Order Service API v1");
-        c.RoutePrefix = "purchaseorders/swagger";
+        c.RoutePrefix = "swagger";
     });
 }
 
@@ -458,8 +461,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Health Checks
-app.MapGet("/purchaseorders/liveness", () => "Healthy").AllowAnonymous();
-app.MapHealthChecks("/purchaseorders/readiness", new HealthCheckOptions
+app.MapGet("/liveness", () => "Healthy").AllowAnonymous();
+app.MapHealthChecks("/readiness", new HealthCheckOptions
 {
     Predicate = healthCheck => healthCheck.Tags.Contains("readiness"),
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse

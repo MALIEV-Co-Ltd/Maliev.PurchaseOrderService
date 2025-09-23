@@ -6,75 +6,32 @@ using System.Text.Json;
 using System.Text;
 using Xunit;
 using FluentAssertions;
+using Moq;
 using Maliev.PurchaseOrderService.Api;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Data.Entities;
 using Maliev.PurchaseOrderService.Data.Enums;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
+using System.Net;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration;
 
 /// <summary>
 /// Integration test Scenario 2: Manager approves purchase order
 /// </summary>
-public class ApprovalWorkflowTests : IClassFixture<WebApplicationFactory<Program>>
+public class ApprovalWorkflowTests : IntegrationTestBase
 {
-    private readonly WebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client;
-
-    public ApprovalWorkflowTests(WebApplicationFactory<Program> factory)
+    public ApprovalWorkflowTests(TestWebApplicationFactory<Program> factory) : base(factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                // Replace with in-memory database for testing
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>));
-                if (descriptor != null)
-                {
-                    services.Remove(descriptor);
-                }
-
-                services.AddDbContext<PurchaseOrderContext>(options =>
-                {
-                    options.UseInMemoryDatabase("InMemoryDbForApprovalTesting");
-                });
-            });
-        });
-
-        _client = _factory.CreateClient();
     }
 
     [Fact]
     public async Task ApprovePurchaseOrder_WithValidManager_ShouldSucceed()
     {
-        // Arrange - Create a purchase order first
-        using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
-
-        var purchaseOrder = new PurchaseOrder
-        {
-            OrderNumber = "PO-2025-001",
-            SupplierID = 1,
-            OrderID = 1,
-            CurrencyID = 1,
-            SupplierName = "Test Supplier",
-            CurrencyCode = "THB",
-            CurrencySymbol = "฿",
-            Currency = "THB",
-            OrderDate = DateTime.UtcNow,
-            Status = OrderStatus.Pending,
-            OrderType = OrderType.Internal,
-            SubtotalAmount = 10000m,
-            TotalAmount = 9700m,
-            WHTRate = 3m,
-            WHTAmount = 300m,
-            CreatedBy = "employee1",
-            CreatedAt = DateTime.UtcNow
-        };
-
-        context.PurchaseOrders.Add(purchaseOrder);
-        await context.SaveChangesAsync();
+        // Arrange
+        SetupManagerAuthentication("manager1");
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(OrderType.Internal, OrderStatus.Pending);
 
         var approvalRequest = new ApprovePurchaseOrderRequest
         {
@@ -82,23 +39,13 @@ public class ApprovalWorkflowTests : IClassFixture<WebApplicationFactory<Program
             ApprovedBy = "manager1"
         };
 
-        var json = JsonSerializer.Serialize(approvalRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/purchaseorders/api/purchase-orders/{purchaseOrder.Id}/approve", content);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/approve", approvalRequest);
 
         // Assert
-        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var approvedPO = JsonSerializer.Deserialize<PurchaseOrderDto>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var approvedPO = await DeserializeResponseAsync<PurchaseOrderDto>(response);
 
         approvedPO.Should().NotBeNull();
         approvedPO!.Status.Should().Be(OrderStatus.Approved);
@@ -106,45 +53,24 @@ public class ApprovalWorkflowTests : IClassFixture<WebApplicationFactory<Program
         approvedPO.ApprovedAt.Should().NotBeNull();
 
         // Verify audit log entry was created
-        var auditLogs = await context.AuditLogs
-            .Where(a => a.EntityId == purchaseOrder.Id.ToString() && a.Action == AuditAction.Approve)
-            .ToListAsync();
+        await ExecuteInDbContextAsync(async dbContext =>
+        {
+            var auditLogs = await dbContext.AuditLogs
+                .Where(a => a.EntityId == seededPurchaseOrder.Id.ToString() && a.Action == AuditAction.Approve)
+                .ToListAsync();
 
-        auditLogs.Should().HaveCount(1);
-        auditLogs[0].UserId.Should().Be("manager1");
-        auditLogs[0].ChangeReason.Should().Contain("Approved");
+            auditLogs.Should().HaveCount(1);
+            auditLogs[0].UserId.Should().Be("manager1");
+            auditLogs[0].ChangeReason.Should().Contain("Approved");
+        });
     }
 
     [Fact]
     public async Task ApprovePurchaseOrder_AlreadyApproved_ShouldReturnConflict()
     {
-        // Arrange - Create an already approved purchase order
-        using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
-
-        var purchaseOrder = new PurchaseOrder
-        {
-            OrderNumber = "PO-2025-002",
-            SupplierID = 1,
-            OrderID = 1,
-            CurrencyID = 1,
-            SupplierName = "Test Supplier",
-            CurrencyCode = "THB",
-            CurrencySymbol = "฿",
-            Currency = "THB",
-            OrderDate = DateTime.UtcNow,
-            Status = OrderStatus.Approved, // Already approved
-            OrderType = OrderType.Internal,
-            SubtotalAmount = 10000m,
-            TotalAmount = 9700m,
-            CreatedBy = "employee1",
-            CreatedAt = DateTime.UtcNow,
-            ApprovedBy = "manager1",
-            ApprovedAt = DateTime.UtcNow
-        };
-
-        context.PurchaseOrders.Add(purchaseOrder);
-        await context.SaveChangesAsync();
+        // Arrange
+        SetupManagerAuthentication("manager2");
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(OrderType.Internal, OrderStatus.Approved);
 
         var approvalRequest = new ApprovePurchaseOrderRequest
         {
@@ -152,23 +78,13 @@ public class ApprovalWorkflowTests : IClassFixture<WebApplicationFactory<Program
             ApprovedBy = "manager2"
         };
 
-        var json = JsonSerializer.Serialize(approvalRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/purchaseorders/api/purchase-orders/{purchaseOrder.Id}/approve", content);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/approve", approvalRequest);
 
         // Assert
-        response.StatusCode.Should().Be(System.Net.HttpStatusCode.Conflict);
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var errorResponse = JsonSerializer.Deserialize<ErrorResponse>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var errorResponse = await DeserializeResponseAsync<ErrorResponse>(response);
 
         errorResponse.Should().NotBeNull();
         errorResponse!.Error.Message.Should().Contain("already approved");
@@ -178,53 +94,26 @@ public class ApprovalWorkflowTests : IClassFixture<WebApplicationFactory<Program
     public async Task ApprovePurchaseOrder_NonExistentOrder_ShouldReturnNotFound()
     {
         // Arrange
+        SetupManagerAuthentication("manager1");
         var approvalRequest = new ApprovePurchaseOrderRequest
         {
             Comments = "Approval for non-existent order",
             ApprovedBy = "manager1"
         };
 
-        var json = JsonSerializer.Serialize(approvalRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync("/purchaseorders/api/purchase-orders/99999/approve", content);
+        var response = await PostAsJsonAsync("/v1/purchase-orders/99999/approve", approvalRequest);
 
         // Assert
-        response.StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
     public async Task ApprovePurchaseOrder_ShouldTriggerDomainEvent()
     {
-        // Arrange - Create a purchase order
-        using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
-
-        var purchaseOrder = new PurchaseOrder
-        {
-            OrderNumber = "PO-2025-003",
-            SupplierID = 1,
-            OrderID = 1,
-            CurrencyID = 1,
-            SupplierName = "Test Supplier",
-            CurrencyCode = "THB",
-            CurrencySymbol = "฿",
-            Currency = "THB",
-            OrderDate = DateTime.UtcNow,
-            Status = OrderStatus.Pending,
-            OrderType = OrderType.Internal,
-            SubtotalAmount = 10000m,
-            TotalAmount = 9700m,
-            CreatedBy = "employee1",
-            CreatedAt = DateTime.UtcNow
-        };
-
-        context.PurchaseOrders.Add(purchaseOrder);
-        await context.SaveChangesAsync();
+        // Arrange
+        SetupManagerAuthentication("manager1");
+        var seededPurchaseOrder = await SeedPurchaseOrderAsync(OrderType.Internal, OrderStatus.Pending);
 
         var approvalRequest = new ApprovePurchaseOrderRequest
         {
@@ -232,27 +121,27 @@ public class ApprovalWorkflowTests : IClassFixture<WebApplicationFactory<Program
             ApprovedBy = "manager1"
         };
 
-        var json = JsonSerializer.Serialize(approvalRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync($"/purchaseorders/api/purchase-orders/{purchaseOrder.Id}/approve", content);
+        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/approve", approvalRequest);
 
         // Assert
-        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Give time for domain event processing
         await Task.Delay(500);
 
         // Verify domain event was created
-        var domainEvents = await context.DomainEvents
-            .Where(e => e.AggregateId == purchaseOrder.Id.ToString() && e.EventType == "PurchaseOrderApproved")
-            .ToListAsync();
+        await ExecuteInDbContextAsync(async dbContext =>
+        {
+            var domainEvents = await dbContext.DomainEvents
+                .Where(e => e.AggregateId == seededPurchaseOrder.Id.ToString() && e.EventType == "PurchaseOrderApproved")
+                .ToListAsync();
 
-        domainEvents.Should().HaveCount(1);
-        domainEvents[0].UserId.Should().Be("manager1");
+            domainEvents.Should().HaveCount(1);
+            domainEvents[0].UserId.Should().Be("manager1");
+
+            // Verify domain event service was called
+            MockDomainEventService.Verify(x => x.PublishEventAsync(It.IsAny<DomainEventDto>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        });
     }
 }

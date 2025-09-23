@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -49,10 +50,13 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
             if (genericDbContextDescriptor != null)
                 services.Remove(genericDbContextDescriptor);
 
-            // Add InMemory database for testing
+            // Add PostgreSQL database for testing
+            var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__PurchaseOrderDbContext")
+                ?? "Host=localhost;Port=5432;Database=test_db;Username=postgres;Password=postgres;";
+
             services.AddDbContext<PurchaseOrderContext>(options =>
             {
-                options.UseInMemoryDatabase(_databaseName);
+                options.UseNpgsql(connectionString);
                 options.EnableSensitiveDataLogging();
                 options.EnableDetailedErrors();
             });
@@ -145,5 +149,18 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
             services.Remove(descriptor);
         }
         services.AddSingleton(implementation);
+    }
+
+    /// <summary>
+    /// Clean up resources after tests
+    /// </summary>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // SQLite in-memory databases are automatically cleaned up
+            // No file cleanup needed
+        }
+        base.Dispose(disposing);
     }
 }

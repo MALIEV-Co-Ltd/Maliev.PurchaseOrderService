@@ -38,10 +38,14 @@ public class CurrencyManagementTests : IClassFixture<WebApplicationFactory<Progr
                 if (descriptor != null)
                     services.Remove(descriptor);
 
-                // Add InMemory database for testing
+                // Add PostgreSQL database for testing
                 services.AddDbContext<PurchaseOrderContext>(options =>
                 {
-                    options.UseInMemoryDatabase("TestDatabase_CurrencyManagement");
+                    var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__PurchaseOrderDbContext")
+                        ?? "Host=localhost;Port=5432;Database=test_db;Username=postgres;Password=postgres;";
+                    options.UseNpgsql(connectionString);
+                    options.EnableSensitiveDataLogging();
+                    options.EnableDetailedErrors();
                 });
 
                 // Replace external service clients with mocks

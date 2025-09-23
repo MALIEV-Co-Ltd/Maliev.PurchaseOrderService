@@ -15,8 +15,9 @@ public static class TestConfiguration
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                // Database - Uses InMemory database for testing, no real credentials needed
-                ["ConnectionStrings:PurchaseOrderDbContext"] = "InMemory",
+                // Database - Uses PostgreSQL database for testing, supports all features
+                ["ConnectionStrings:PurchaseOrderDbContext"] = Environment.GetEnvironmentVariable("ConnectionStrings__PurchaseOrderDbContext")
+                    ?? "Host=localhost;Port=5432;Database=test_db;Username=postgres;Password=postgres;",
 
                 // External Services using structured configuration
                 ["ExternalServices:SupplierService:BaseUrl"] = "https://test.api.maliev.com/suppliers",
