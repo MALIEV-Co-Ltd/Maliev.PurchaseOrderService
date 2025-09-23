@@ -10,7 +10,7 @@ git clone <repository-url>
 cd Maliev.PurchaseOrderService
 
 # Set environment variables (see Development Setup)
-export ConnectionStrings__PurchaseOrderDbContext="Server=localhost;Port=5432;Database=purchaseorder_dev_db;Username=postgres;Password=your_password"
+export ConnectionStrings__PurchaseOrderDbContext="Server=localhost;Port=5432;Database=purchaseorder_app_db;Username=postgres;Password=your_password"
 export Jwt__SecurityKey="your-jwt-signing-key-minimum-256-bits"
 
 # Run database migrations
@@ -118,7 +118,7 @@ PurchaseOrder (Aggregate Root)
 **Required for Development:**
 ```bash
 # Database (single connection string)
-ConnectionStrings__PurchaseOrderDbContext="Server=localhost;Port=5432;Database=purchaseorder_dev_db;Username=postgres;Password=your_password"
+ConnectionStrings__PurchaseOrderDbContext="Server=localhost;Port=5432;Database=purchaseorder_app_db;Username=postgres;Password=your_password"
 
 # External Services
 SUPPLIER_SERVICE_URL=https://dev.api.maliev.com/suppliers
@@ -140,15 +140,15 @@ CORS_ALLOWED_ORIGINS=https://dev.intranet.maliev.com,https://dev.api.maliev.com,
 
 **Option 1: Local PostgreSQL**
 ```sql
-CREATE DATABASE purchaseorder_dev_db;
+CREATE DATABASE purchaseorder_app_db;
 CREATE USER dev_user WITH PASSWORD 'dev_password';
-GRANT ALL PRIVILEGES ON DATABASE purchaseorder_dev_db TO dev_user;
+GRANT ALL PRIVILEGES ON DATABASE purchaseorder_app_db TO dev_user;
 ```
 
 **Option 2: Docker**
 ```bash
 docker run --name postgres-dev \
-  -e POSTGRES_DB=purchaseorder_dev_db \
+  -e POSTGRES_DB=purchaseorder_app_db \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD=your_password \
   -p 5432:5432 -d postgres:14
@@ -293,7 +293,7 @@ data:
 ### Environment Configuration
 
 **Development:**
-- Database: `purchaseorder_dev_db`
+- Database: `purchaseorder_app_db`
 - Image Registry: `asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-dev/`
 - CORS: `https://dev.intranet.maliev.com`
 

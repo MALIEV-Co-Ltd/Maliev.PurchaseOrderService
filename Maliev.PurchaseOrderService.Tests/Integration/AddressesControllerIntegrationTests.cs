@@ -320,7 +320,7 @@ public class AddressesControllerIntegrationTests : IntegrationTestBase
                 .Where(a => a.EntityId == seededPurchaseOrder.Id.ToString() && a.Action == AuditAction.Update)
                 .ToListAsync();
 
-            auditLogs.Should().Contain(log => log.ChangeReason.Contains("Address updated"));
+            auditLogs.Should().Contain(log => log.ChangeReason != null && log.ChangeReason.Contains("Address updated"));
         });
     }
 

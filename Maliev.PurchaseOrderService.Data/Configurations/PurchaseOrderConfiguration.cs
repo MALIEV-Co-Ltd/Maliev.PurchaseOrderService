@@ -76,6 +76,12 @@ public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder
         builder.Property(po => po.PdfGeneratedBy)
             .HasMaxLength(50);
 
+        builder.Property(po => po.CancelledBy)
+            .HasMaxLength(50);
+
+        builder.Property(po => po.DeletedBy)
+            .HasMaxLength(50);
+
         // Required foreign key properties
         builder.Property(po => po.SupplierID)
             .IsRequired();

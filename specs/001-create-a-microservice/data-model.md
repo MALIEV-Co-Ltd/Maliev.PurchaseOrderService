@@ -38,6 +38,8 @@ The PurchaseOrderService manages six core entities with clear relationships and 
 - `Notes` (string, 1000 chars, nullable): Additional notes or comments
 - `RowVersion` (byte[], Timestamp): Optimistic concurrency control token
 - `IsDeleted` (bool): Soft delete flag
+- `DeletedBy` (string, 50 chars, nullable): User ID who deleted the order
+- `DeletedAt` (DateTime, nullable): Deletion timestamp
 
 **Business Rules**:
 - OrderNumber must be unique and auto-generated

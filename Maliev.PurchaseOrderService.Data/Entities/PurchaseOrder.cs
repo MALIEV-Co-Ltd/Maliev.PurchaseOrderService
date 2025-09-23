@@ -223,6 +223,17 @@ public class PurchaseOrder
     [Required]
     public bool IsDeleted { get; set; } = false;
 
+    /// <summary>
+    /// User ID who deleted the order
+    /// </summary>
+    [StringLength(50)]
+    public string? DeletedBy { get; set; }
+
+    /// <summary>
+    /// Deletion timestamp
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
+
     // Navigation Properties
 
     /// <summary>
