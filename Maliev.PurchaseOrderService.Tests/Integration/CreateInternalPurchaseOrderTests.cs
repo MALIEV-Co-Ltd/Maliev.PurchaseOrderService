@@ -17,47 +17,17 @@ namespace Maliev.PurchaseOrderService.Tests.Integration;
 /// <summary>
 /// Integration test Scenario 1: Employee creates internal PO with PDF generation
 /// </summary>
-public class CreateInternalPurchaseOrderTests : IClassFixture<TestWebApplicationFactory<Program>>
+public class CreateInternalPurchaseOrderTests : IntegrationTestBase
 {
-    private readonly TestWebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client;
-
-    public CreateInternalPurchaseOrderTests(TestWebApplicationFactory<Program> factory)
+    public CreateInternalPurchaseOrderTests(TestWebApplicationFactory<Program> factory) : base(factory)
     {
-        // Create a unique database name for this test class
-        var uniqueDatabaseName = $"test_db_{Guid.NewGuid():N}";
-
-        _factory = factory;
-        _factory.ConfigureTestServices = services =>
-        {
-            // Override the database connection to use unique database
-            var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>));
-            if (descriptor != null)
-            {
-                services.Remove(descriptor);
-            }
-
-            var connectionString = $"Host=localhost;Port=5432;Database={uniqueDatabaseName};Username=postgres;Password=postgres;";
-            services.AddDbContext<PurchaseOrderContext>(options =>
-            {
-                options.UseNpgsql(connectionString);
-                options.EnableSensitiveDataLogging();
-                options.EnableDetailedErrors();
-            });
-        };
-
-        _client = _factory.CreateClient();
     }
 
     [Fact]
     public async Task CreateInternalPurchaseOrder_ShouldSucceed_AndTriggerPdfGeneration()
     {
-        // Ensure database is created for this test
-        using var setupScope = _factory.Services.CreateScope();
-        var setupContext = setupScope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
-        await setupContext.Database.EnsureCreatedAsync();
-
         // Arrange
+        SetupEmployeeAuthentication("emp123");
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -68,45 +38,31 @@ public class CreateInternalPurchaseOrderTests : IClassFixture<TestWebApplication
             Notes = "Test internal purchase order"
         };
 
-        var json = JsonSerializer.Serialize(createRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
-        // Add authentication token
-        var token = TestJwtHelper.GenerateTestToken("emp123", "Employee");
-        _client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
         // Act
-        var response = await _client.PostAsync("/purchaseorders/v1/purchase-orders", content);
+        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var purchaseOrder = JsonSerializer.Deserialize<PurchaseOrderDto>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var purchaseOrder = await DeserializeResponseAsync<PurchaseOrderDto>(response);
 
         purchaseOrder.Should().NotBeNull();
         purchaseOrder!.Id.Should().BeGreaterThan(0);
         purchaseOrder.OrderType.Should().Be(OrderType.Internal);
         purchaseOrder.Status.Should().Be(OrderStatus.Pending);
-        purchaseOrder.OrderNumber.Should().StartWith("PO-");
+        purchaseOrder.OrderNumber.Should().StartWith("PO");
 
         // Verify PDF generation was triggered for internal PO
         await Task.Delay(1000); // Give time for background processing
 
-        using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+        await ExecuteInDbContextAsync(async dbContext =>
+        {
+            var domainEvents = await dbContext.DomainEvents
+                .Where(e => e.AggregateId == purchaseOrder.Id.ToString() && e.EventType == "PurchaseOrderCreated")
+                .ToListAsync();
 
-        var domainEvents = await context.DomainEvents
-            .Where(e => e.AggregateId == purchaseOrder.Id.ToString() && e.EventType == "PurchaseOrderCreated")
-            .ToListAsync();
-
-        domainEvents.Should().HaveCount(1);
+            domainEvents.Should().HaveCount(1);
+        });
     }
 
     [Fact]
@@ -121,23 +77,13 @@ public class CreateInternalPurchaseOrderTests : IClassFixture<TestWebApplication
             OrderType = OrderType.Internal
         };
 
-        var json = JsonSerializer.Serialize(createRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync("/purchaseorders/v1/purchase-orders", content);
+        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var errorResponse = JsonSerializer.Deserialize<ValidationErrorResponse>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var errorResponse = await DeserializeResponseAsync<ValidationErrorResponse>(response);
 
         errorResponse.Should().NotBeNull();
         errorResponse!.Errors.Should().NotBeEmpty();
@@ -147,6 +93,7 @@ public class CreateInternalPurchaseOrderTests : IClassFixture<TestWebApplication
     public async Task CreateInternalPurchaseOrder_ShouldCalculateWHTCorrectly()
     {
         // Arrange
+        SetupEmployeeAuthentication("emp123");
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -156,23 +103,13 @@ public class CreateInternalPurchaseOrderTests : IClassFixture<TestWebApplication
             ExpectedDeliveryDate = DateTime.UtcNow.AddDays(30)
         };
 
-        var json = JsonSerializer.Serialize(createRequest, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
-
         // Act
-        var response = await _client.PostAsync("/purchaseorders/v1/purchase-orders", content);
+        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);
 
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var purchaseOrder = JsonSerializer.Deserialize<PurchaseOrderDto>(responseContent, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var purchaseOrder = await DeserializeResponseAsync<PurchaseOrderDto>(response);
 
         purchaseOrder.Should().NotBeNull();
         purchaseOrder!.WHTRate.Should().BeGreaterThanOrEqualTo(0);

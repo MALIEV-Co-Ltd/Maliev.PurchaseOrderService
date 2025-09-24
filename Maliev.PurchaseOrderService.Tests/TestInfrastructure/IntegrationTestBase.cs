@@ -25,7 +25,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     protected readonly Mock<ISupplierServiceClient> MockSupplierService;
     protected readonly Mock<IOrderServiceClient> MockOrderService;
     protected readonly Mock<ICurrencyServiceClient> MockCurrencyService;
-    protected readonly Mock<IDomainEventService> MockDomainEventService;
+    // MockDomainEventService removed - using real service for database persistence
     protected readonly Mock<IUploadServiceClient> MockUploadService;
     protected readonly Mock<IPdfGenerationService> MockPdfService;
     protected readonly Mock<IWHTCalculationService> MockWHTService;
@@ -36,7 +36,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         MockSupplierService = new Mock<ISupplierServiceClient>();
         MockOrderService = new Mock<IOrderServiceClient>();
         MockCurrencyService = new Mock<ICurrencyServiceClient>();
-        MockDomainEventService = new Mock<IDomainEventService>();
+        // MockDomainEventService initialization removed - using real service
         MockUploadService = new Mock<IUploadServiceClient>();
         MockPdfService = new Mock<IPdfGenerationService>();
         MockWHTService = new Mock<IWHTCalculationService>();
@@ -46,11 +46,10 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         {
             ConfigureTestServices = services =>
             {
-                // Replace external service clients with mocks
+                // Replace external service clients with mocks (keep domain event service real for database persistence)
                 TestWebApplicationFactory<Program>.ReplaceService(services, MockSupplierService.Object);
                 TestWebApplicationFactory<Program>.ReplaceService(services, MockOrderService.Object);
                 TestWebApplicationFactory<Program>.ReplaceService(services, MockCurrencyService.Object);
-                TestWebApplicationFactory<Program>.ReplaceService(services, MockDomainEventService.Object);
                 TestWebApplicationFactory<Program>.ReplaceService(services, MockUploadService.Object);
                 TestWebApplicationFactory<Program>.ReplaceService(services, MockPdfService.Object);
                 TestWebApplicationFactory<Program>.ReplaceService(services, MockWHTService.Object);
@@ -129,6 +128,11 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             .Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestDataFactory.CreateSupplierDto());
 
+        // Default supplier lookup
+        MockSupplierService
+            .Setup(x => x.GetSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(TestDataFactory.CreateSupplierDto());
+
         // Default currency validation
         MockCurrencyService
             .Setup(x => x.ValidateCurrencyAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -148,10 +152,12 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
                 }
             });
 
-        // Default domain event publishing
-        MockDomainEventService
-            .Setup(x => x.PublishEventAsync(It.IsAny<DomainEventDto>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1L);
+        // Order validation (missing from IntegrationTestBase)
+        MockOrderService
+            .Setup(x => x.ValidateOrderForPurchaseOrderAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // Use real domain event service for database persistence (no mock setup needed)
 
         // Default WHT calculation
         MockWHTService

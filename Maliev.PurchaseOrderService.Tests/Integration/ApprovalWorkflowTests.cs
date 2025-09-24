@@ -140,8 +140,8 @@ public class ApprovalWorkflowTests : IntegrationTestBase
             domainEvents.Should().HaveCount(1);
             domainEvents[0].UserId.Should().Be("manager1");
 
-            // Verify domain event service was called
-            MockDomainEventService.Verify(x => x.PublishEventAsync(It.IsAny<DomainEventDto>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+            // Verify domain event service was called by checking database
+            // MockDomainEventService.Verify removed - using real service that persists to database
         });
     }
 }

@@ -191,7 +191,8 @@ public class PurchaseOrderService : IPurchaseOrderService
                 CreatedAt = DateTime.UtcNow,
                 OrderDate = DateTime.UtcNow,
                 ExpectedDeliveryDate = request.ExpectedDeliveryDate,
-                WHTRate = request.WhtRate ?? 0m,
+                WHTRate = request.WhtRate, // Nullable - allow null for no WHT scenario
+                WHTAmount = null, // Initialize as null for PostgreSQL compatibility
                 CurrencyCode = currencyCode,
                 CurrencySymbol = currencySymbol,
                 Currency = currencyCode,
@@ -615,14 +616,16 @@ public class PurchaseOrderService : IPurchaseOrderService
                     purchaseOrder.CurrencyCode,
                     cancellationToken);
 
+                // Ensure proper nullable decimal assignment for PostgreSQL compatibility
                 purchaseOrder.WHTAmount = whtResult.WHTAmount;
                 purchaseOrder.WHTRate = whtResult.WHTRate;
                 purchaseOrder.TotalAmount = whtResult.NetAmount;
             }
             else
             {
-                purchaseOrder.WHTAmount = 0;
-                purchaseOrder.WHTRate = 0;
+                // Set to null for no WHT scenario
+                purchaseOrder.WHTAmount = null;
+                purchaseOrder.WHTRate = null;
                 purchaseOrder.TotalAmount = purchaseOrder.SubtotalAmount;
             }
 
@@ -636,9 +639,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             _logger.LogWarning(ex, "Failed to calculate WHT for purchase order {PurchaseOrderId}", purchaseOrder.Id);
 
-            // Fallback to no WHT
-            purchaseOrder.WHTAmount = 0;
-            purchaseOrder.WHTRate = 0;
+            // Fallback to no WHT - use null for nullable fields
+            purchaseOrder.WHTAmount = null;
+            purchaseOrder.WHTRate = null;
             purchaseOrder.TotalAmount = purchaseOrder.SubtotalAmount;
 
             // Only save changes if requested and we have changes
