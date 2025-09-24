@@ -5,6 +5,8 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
+using Maliev.PurchaseOrderService.Data;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration.Contracts;
 
@@ -59,6 +61,8 @@ public class GetPurchaseOrderFilesContractTests : IClassFixture<TestWebApplicati
         var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
+        // Seed a purchase order first
+        await SeedPurchaseOrderAsync(1);
         var purchaseOrderId = 1;
 
         // Act
@@ -452,6 +456,40 @@ public class GetPurchaseOrderFilesContractTests : IClassFixture<TestWebApplicati
             // Note: DownloadUrl would be generated separately, not part of DTO
             firstFile.ObjectName.Should().NotBeNullOrEmpty();
         }
+    }
+
+    /// <summary>
+    /// Seeds a purchase order in the test database
+    /// </summary>
+    private async Task SeedPurchaseOrderAsync(int id)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        var purchaseOrder = new Data.Entities.PurchaseOrder
+        {
+            Id = id,
+            OrderNumber = $"PO-TEST-{id:D6}",
+            SupplierID = 1001,
+            OrderID = 2001,
+            CurrencyID = 1,
+            Currency = "THB",
+            CurrencySymbol = "฿",
+            OrderType = Data.Enums.OrderType.Internal,
+            Status = Data.Enums.OrderStatus.Pending,
+            SubtotalAmount = 1000.00m,
+            TotalAmount = 1000.00m,
+            OrderDate = DateTime.UtcNow,
+            ExpectedDeliveryDate = DateTime.UtcNow.AddDays(30),
+            Notes = "Test purchase order for contract tests",
+            CreatedBy = "test-user",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            IsDeleted = false
+        };
+
+        context.PurchaseOrders.Add(purchaseOrder);
+        await context.SaveChangesAsync();
     }
 
 }

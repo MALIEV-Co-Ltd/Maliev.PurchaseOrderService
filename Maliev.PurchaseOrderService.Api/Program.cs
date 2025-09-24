@@ -433,8 +433,7 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
-// Configure route prefix for all controllers FIRST
-app.UsePathBase("/purchaseorders");
+// Remove UsePathBase - controllers already have their own routing
 
 // Middleware Pipeline (EXACT ORDER)
 if (app.Environment.IsDevelopment())

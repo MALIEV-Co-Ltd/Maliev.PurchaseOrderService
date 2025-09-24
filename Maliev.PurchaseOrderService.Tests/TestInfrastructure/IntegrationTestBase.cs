@@ -328,16 +328,16 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         // Ensure database is created and clean
         await dbContext.Database.EnsureCreatedAsync();
 
-        // Use a single transaction for better performance
-        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        // Don't seed if data already exists
+        if (await dbContext.PurchaseOrders.AnyAsync())
+        {
+            return;
+        }
+
+        // For InMemory database, we don't need transactions (they're ignored anyway)
+        // We'll rely on the fact that InMemory is single-threaded and atomic per SaveChanges
         try
         {
-            // Don't seed if data already exists
-            if (await dbContext.PurchaseOrders.AnyAsync())
-            {
-                await transaction.CommitAsync();
-                return;
-            }
 
             // Create test data
             var (purchaseOrder1, orderItems1, shippingAddress1, billingAddress1) =
@@ -397,11 +397,20 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             await dbContext.OrderItems.AddRangeAsync(allOrderItems);
             await dbContext.SaveChangesAsync();
 
-            await transaction.CommitAsync();
+            // InMemory database doesn't need explicit commits
         }
         catch
         {
-            await transaction.RollbackAsync();
+            // For InMemory database, we can't rollback, so we'll clear any partial data
+            // This is a best-effort cleanup in case of errors
+            try
+            {
+                ClearAllTestData(dbContext);
+            }
+            catch
+            {
+                // Ignore cleanup errors - the database will be recreated for each test anyway
+            }
             throw;
         }
     }
@@ -419,7 +428,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
         await dbContext.Database.EnsureCreatedAsync();
 
-        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        // For InMemory database, we don't need transactions (they're ignored anyway)
         try
         {
             var (purchaseOrder, orderItems, shippingAddress, billingAddress) =
@@ -455,12 +464,19 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             await dbContext.OrderItems.AddRangeAsync(orderItems);
             await dbContext.SaveChangesAsync();
 
-            await transaction.CommitAsync();
             return purchaseOrder;
         }
         catch
         {
-            await transaction.RollbackAsync();
+            // For InMemory database, we can't rollback, so we'll clear any partial data
+            try
+            {
+                ClearAllTestData(dbContext);
+            }
+            catch
+            {
+                // Ignore cleanup errors - the database will be recreated for each test anyway
+            }
             throw;
         }
     }
@@ -473,7 +489,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
-        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        // For InMemory database, we don't need transactions (they're ignored anyway)
         try
         {
             // Use IgnoreQueryFilters to get soft-deleted entities too
@@ -499,11 +515,11 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
                 dbContext.DomainEvents.RemoveRange(domainEvents);
 
             await dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
         }
         catch
         {
-            await transaction.RollbackAsync();
+            // For InMemory database, we can't rollback
+            // Since this is already a cleanup method, we'll just let the exception propagate
             throw;
         }
     }

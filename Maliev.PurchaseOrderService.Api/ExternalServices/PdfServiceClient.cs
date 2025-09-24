@@ -597,6 +597,193 @@ public class PdfServiceClient : IPdfServiceClient
         }
     }
 
+    /// <inheritdoc />
+    public async Task<PdfTemplateValidationResultDto> ValidateTemplateDataAsync(
+        string templateId,
+        Dictionary<string, object> templateData,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(templateId))
+            {
+                throw new ArgumentException("Template ID cannot be null or empty", nameof(templateId));
+            }
+
+            _logger.LogInformation("Validating template data for template: {TemplateId}", templateId);
+
+            var request = new
+            {
+                TemplateId = templateId,
+                Data = templateData
+            };
+
+            var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync("/templates/validate", content, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return new PdfTemplateValidationResultDto
+                {
+                    IsValid = false,
+                    ValidationErrors = new List<string> { $"Template not found: {templateId}" },
+                    ValidatedAt = DateTime.UtcNow
+                };
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            var result = JsonSerializer.Deserialize<PdfTemplateValidationResultDto>(responseContent, _jsonOptions) ??
+                        new PdfTemplateValidationResultDto
+                        {
+                            IsValid = false,
+                            ValidationErrors = new List<string> { "Invalid response" },
+                            ValidatedAt = DateTime.UtcNow
+                        };
+
+            result.ValidatedAt = DateTime.UtcNow;
+            _logger.LogInformation("Template data validation completed for {TemplateId}, IsValid: {IsValid}", templateId, result.IsValid);
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error occurred while validating template data {TemplateId}", templateId);
+            throw new ExternalServiceException($"Failed to validate template data {templateId}: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Timeout occurred while validating template data {TemplateId}", templateId);
+            throw new ExternalServiceException($"Timeout while validating template data {templateId}", ex);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON error while validating template data {TemplateId}", templateId);
+            throw new InvalidDataException($"Invalid data format while validating template data {templateId}", ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<PdfDownloadResultDto?> DownloadPdfAsync(Guid jobId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Downloading PDF for job ID: {JobId}", jobId);
+
+            var response = await _httpClient.GetAsync($"/jobs/{jobId}/download", cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("PDF job not found for download, Job ID: {JobId}", jobId);
+                return null;
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var result = new PdfDownloadResultDto
+            {
+                JobId = jobId,
+                FileName = GetHeaderValue(response.Headers, "X-File-Name") ?? $"pdf-{jobId}.pdf",
+                ContentType = response.Content.Headers.ContentType?.MediaType ?? "application/pdf",
+                PdfContent = await response.Content.ReadAsStreamAsync(cancellationToken),
+                FileSize = response.Content.Headers.ContentLength ?? 0,
+                DownloadedAt = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("Successfully downloaded PDF for job ID: {JobId}", jobId);
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error occurred while downloading PDF for job {JobId}", jobId);
+            throw new ExternalServiceException($"Failed to download PDF for job {jobId}: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Timeout occurred while downloading PDF for job {JobId}", jobId);
+            throw new ExternalServiceException($"Timeout while downloading PDF for job {jobId}", ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<PdfJobStatusDto?> GetPdfJobStatusAsync(Guid jobId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting PDF job status for job ID: {JobId}", jobId);
+
+            var response = await _httpClient.GetAsync($"/jobs/{jobId}/status", cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("PDF job status not found for job ID: {JobId}", jobId);
+                throw new InvalidOperationException($"PDF job not found for job ID: {jobId}");
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            var result = JsonSerializer.Deserialize<PdfJobStatusDto>(responseContent, _jsonOptions);
+
+            _logger.LogInformation("Successfully retrieved PDF job status for job ID: {JobId}, Status: {Status}",
+                jobId, result?.Status ?? "Unknown");
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error occurred while getting PDF job status {JobId}", jobId);
+            throw new ExternalServiceException($"Failed to get PDF job status {jobId}: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Timeout occurred while getting PDF job status {JobId}", jobId);
+            throw new ExternalServiceException($"Timeout while getting PDF job status {jobId}", ex);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON deserialization error while getting PDF job status {JobId}", jobId);
+            throw new ExternalServiceException($"Invalid response format while getting PDF job status {jobId}", ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> CancelPdfJobAsync(Guid jobId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Canceling PDF job with ID: {JobId}", jobId);
+
+            var response = await _httpClient.DeleteAsync($"/jobs/{jobId}/cancel", cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("PDF job not found for cancellation, Job ID: {JobId}", jobId);
+                return false;
+            }
+
+            if (response.StatusCode == HttpStatusCode.NoContent || response.StatusCode == HttpStatusCode.OK)
+            {
+                _logger.LogInformation("Successfully canceled PDF job with ID: {JobId}", jobId);
+                return true;
+            }
+
+            response.EnsureSuccessStatusCode();
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error occurred while canceling PDF job {JobId}", jobId);
+            throw new ExternalServiceException($"Failed to cancel PDF job {jobId}: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Timeout occurred while canceling PDF job {JobId}", jobId);
+            throw new ExternalServiceException($"Timeout while canceling PDF job {jobId}", ex);
+        }
+    }
+
     private static string? GetHeaderValue(System.Net.Http.Headers.HttpResponseHeaders headers, string headerName)
     {
         return headers.TryGetValues(headerName, out var values) ? values.FirstOrDefault() : null;

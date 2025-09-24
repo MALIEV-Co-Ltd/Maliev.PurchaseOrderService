@@ -133,3 +133,18 @@ public class FileSearchResultDto
     public bool HasNextPage { get; set; }
     public bool HasPreviousPage { get; set; }
 }
+
+/// <summary>
+/// Data Transfer Object for Upload URL generation
+/// </summary>
+public class UploadDto
+{
+    public string UploadUrl { get; set; } = string.Empty;
+    public string FileId { get; set; } = string.Empty;
+    public Dictionary<string, string> Headers { get; set; } = new();
+    public Dictionary<string, string> FormFields { get; set; } = new();
+    public DateTime ExpiresAt { get; set; }
+    public int ExpirationMinutes { get; set; }
+    public long MaxFileSize { get; set; }
+    public List<string> AllowedContentTypes { get; set; } = new();
+}

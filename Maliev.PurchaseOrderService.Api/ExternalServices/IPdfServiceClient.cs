@@ -118,4 +118,40 @@ public interface IPdfServiceClient
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Template download result</returns>
     Task<PdfTemplateDownloadDto?> DownloadTemplateAsync(string templateId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates template data before generating PDF
+    /// </summary>
+    /// <param name="templateId">Template ID</param>
+    /// <param name="templateData">Data to validate against template</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Template validation result</returns>
+    Task<PdfTemplateValidationResultDto> ValidateTemplateDataAsync(
+        string templateId,
+        Dictionary<string, object> templateData,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Downloads PDF by job ID after generation is complete
+    /// </summary>
+    /// <param name="jobId">PDF generation job ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>PDF download result</returns>
+    Task<PdfDownloadResultDto?> DownloadPdfAsync(Guid jobId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets PDF job status and information
+    /// </summary>
+    /// <param name="jobId">PDF generation job ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>PDF job status information</returns>
+    Task<PdfJobStatusDto?> GetPdfJobStatusAsync(Guid jobId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cancels a PDF generation job
+    /// </summary>
+    /// <param name="jobId">PDF generation job ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if cancellation was successful</returns>
+    Task<bool> CancelPdfJobAsync(Guid jobId, CancellationToken cancellationToken = default);
 }

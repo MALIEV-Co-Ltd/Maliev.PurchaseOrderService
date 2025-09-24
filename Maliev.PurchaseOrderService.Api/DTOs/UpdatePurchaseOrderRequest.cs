@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Maliev.PurchaseOrderService.Api.Attributes;
 
 namespace Maliev.PurchaseOrderService.Api.DTOs;
 
@@ -14,7 +15,7 @@ public class UpdatePurchaseOrderRequest
 
     public DateTime? ExpectedDeliveryDate { get; set; }
 
-    [Range(0.00, 99.99)]
+    [WHTRateValidation]
     public decimal? WhtRate { get; set; }
 
     [MaxLength(1000)]

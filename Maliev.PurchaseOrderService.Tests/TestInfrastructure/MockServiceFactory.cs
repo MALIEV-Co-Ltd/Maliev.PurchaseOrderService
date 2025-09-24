@@ -2,6 +2,7 @@ using Moq;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Api.DTOs;
+using Maliev.PurchaseOrderService.Data.Enums;
 
 namespace Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
@@ -286,6 +287,59 @@ public static class MockServiceFactory
         mock.Setup(x => x.DeleteDocumentAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
+        // Get documents for purchase order
+        mock.Setup(x => x.GetDocumentsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int purchaseOrderId, CancellationToken _) =>
+                new List<PurchaseOrderFileDto>
+                {
+                    new()
+                    {
+                        Id = 1,
+                        PurchaseOrderId = purchaseOrderId,
+                        FileName = "test-document-1.pdf",
+                        ContentType = "application/pdf",
+                        FileSize = 2048,
+                        ObjectName = "test-obj-1",
+                        DocumentType = DocumentType.Invoice,
+                        UploadedBy = "test-user",
+                        UploadedAt = DateTime.UtcNow.AddDays(-1),
+                        Description = "Test invoice document",
+                        IsDeleted = false
+                    },
+                    new()
+                    {
+                        Id = 2,
+                        PurchaseOrderId = purchaseOrderId,
+                        FileName = "test-document-2.pdf",
+                        ContentType = "application/pdf",
+                        FileSize = 1536,
+                        ObjectName = "test-obj-2",
+                        DocumentType = DocumentType.Reference,
+                        UploadedBy = "test-user",
+                        UploadedAt = DateTime.UtcNow.AddHours(-2),
+                        Description = "Test reference document",
+                        IsDeleted = false
+                    }
+                });
+
+        // Get document metadata
+        mock.Setup(x => x.GetDocumentMetadataAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int fileId, CancellationToken _) =>
+                new PurchaseOrderFileDto
+                {
+                    Id = fileId,
+                    PurchaseOrderId = 1,
+                    FileName = $"test-document-{fileId}.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 2048,
+                    ObjectName = $"test-obj-{fileId}",
+                    DocumentType = DocumentType.Invoice,
+                    UploadedBy = "test-user",
+                    UploadedAt = DateTime.UtcNow,
+                    Description = "Test document",
+                    IsDeleted = false
+                });
+
         // Download document
         mock.Setup(x => x.DownloadDocumentAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((int documentId, CancellationToken _) =>
@@ -296,6 +350,47 @@ public static class MockServiceFactory
                     ContentType = "application/pdf",
                     FileSize = 1024
                 });
+
+        // Update document
+        mock.Setup(x => x.UpdateDocumentAsync(It.IsAny<int>(), It.IsAny<UpdateDocumentRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int fileId, UpdateDocumentRequest request, string updatedBy, CancellationToken _) =>
+                new PurchaseOrderFileDto
+                {
+                    Id = fileId,
+                    PurchaseOrderId = 1,
+                    FileName = request.FileName ?? $"updated-document-{fileId}.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 2048,
+                    ObjectName = $"test-obj-{fileId}",
+                    DocumentType = request.DocumentType ?? DocumentType.Invoice,
+                    UploadedBy = "test-user",
+                    UploadedAt = DateTime.UtcNow,
+                    Description = request.Description ?? "Updated test document",
+                    IsDeleted = false
+                });
+
+        // Validate file
+        mock.Setup(x => x.ValidateFile(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>()))
+            .Returns((string fileName, string contentType, long fileSize) =>
+                new DocumentValidationResult
+                {
+                    IsValid = true,
+                    FileSize = fileSize,
+                    MaxFileSize = 50 * 1024 * 1024,
+                    AllowedExtensions = new[] { ".pdf", ".doc", ".docx", ".jpg", ".png" },
+                    DetectedFileType = contentType,
+                    IsFileTypeAllowed = true,
+                    IsSizeValid = fileSize <= 50 * 1024 * 1024
+                });
+
+        // Generate preview URL
+        mock.Setup(x => x.GeneratePreviewUrlAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int fileId, CancellationToken _) =>
+                $"https://preview.example.com/file/{fileId}");
+
+        // Archive old documents
+        mock.Setup(x => x.ArchiveOldDocumentsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
 
         return mock;
     }

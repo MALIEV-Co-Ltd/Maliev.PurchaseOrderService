@@ -14,6 +14,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/files")]
+[Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/purchaseorderfiles")]
 [ApiVersion("1.0")]
 [Authorize]
 [Produces("application/json")]

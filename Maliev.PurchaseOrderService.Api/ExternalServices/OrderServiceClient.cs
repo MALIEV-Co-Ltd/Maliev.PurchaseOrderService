@@ -313,4 +313,142 @@ public class OrderServiceClient : IOrderServiceClient
             throw new ExternalServiceException($"Timeout while linking purchase order to order {orderId}", ex);
         }
     }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<OrderDto>> GetOrdersByCustomerAsync(int customerId, string? status = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting orders by customer ID: {CustomerId}, Status: {Status}", customerId, status ?? "All");
+
+            var queryParams = new List<string> { $"customerId={customerId}" };
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                queryParams.Add($"status={Uri.EscapeDataString(status)}");
+            }
+
+            var queryString = string.Join("&", queryParams);
+            var response = await _httpClient.GetAsync($"/orders?{queryString}", cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("No orders found for customer ID: {CustomerId}", customerId);
+                return Enumerable.Empty<OrderDto>();
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var ordersResponse = JsonSerializer.Deserialize<OrderListResponseDto>(content, _jsonOptions);
+            var orders = ordersResponse?.Orders ?? Enumerable.Empty<OrderDto>();
+
+            _logger.LogInformation("Successfully retrieved {OrderCount} orders for customer ID: {CustomerId}",
+                orders.Count(), customerId);
+            return orders;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error occurred while getting orders by customer {CustomerId}", customerId);
+            throw new ExternalServiceException($"Failed to get orders by customer {customerId}: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Timeout occurred while getting orders by customer {CustomerId}", customerId);
+            throw new ExternalServiceException($"Timeout while getting orders by customer {customerId}", ex);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON deserialization error while getting orders by customer {CustomerId}", customerId);
+            throw new ExternalServiceException($"Invalid response format while getting orders by customer {customerId}", ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<OrderDto?> CreateOrderAsync(CreateOrderRequest createRequest, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (createRequest == null)
+            {
+                throw new ArgumentNullException(nameof(createRequest));
+            }
+
+            _logger.LogInformation("Creating order for customer ID: {CustomerId}", createRequest.CustomerId);
+
+            var jsonContent = JsonSerializer.Serialize(createRequest, _jsonOptions);
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync("/orders", content, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Bad request while creating order: {ErrorContent}", errorContent);
+                throw new ExternalServiceException($"Bad request while creating order: {errorContent}");
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            var createdOrder = JsonSerializer.Deserialize<OrderDto>(responseContent, _jsonOptions);
+
+            _logger.LogInformation("Successfully created order with ID: {OrderId}", createdOrder?.Id);
+            return createdOrder;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error occurred while creating order");
+            throw new ExternalServiceException($"Failed to create order: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Timeout occurred while creating order");
+            throw new ExternalServiceException("Timeout while creating order", ex);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON error while creating order");
+            throw new ExternalServiceException("Invalid request format while creating order", ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> CancelOrderAsync(int orderId, string reason, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Canceling order ID: {OrderId}, Reason: {Reason}", orderId, reason);
+
+            var requestBody = new { Reason = reason, CancelledBy = "system" };
+            var jsonContent = JsonSerializer.Serialize(requestBody, _jsonOptions);
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync($"/orders/{orderId}/cancel", content, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("Order not found for cancellation, ID: {OrderId}", orderId);
+                return false;
+            }
+
+            if (response.StatusCode == HttpStatusCode.NoContent || response.StatusCode == HttpStatusCode.OK)
+            {
+                _logger.LogInformation("Successfully canceled order ID: {OrderId}", orderId);
+                return true;
+            }
+
+            response.EnsureSuccessStatusCode();
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error occurred while canceling order {OrderId}", orderId);
+            throw new ExternalServiceException($"Failed to cancel order {orderId}: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Timeout occurred while canceling order {OrderId}", orderId);
+            throw new ExternalServiceException($"Timeout while canceling order {orderId}", ex);
+        }
+    }
 }

@@ -522,6 +522,106 @@ public class UploadServiceClient : IUploadServiceClient
         }
     }
 
+    /// <inheritdoc />
+    public async Task<IEnumerable<FileInfoDto>> GetFilesByTagsAsync(
+        string[] tags,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (tags == null || tags.Length == 0)
+            {
+                throw new ArgumentException("Tags array cannot be null or empty", nameof(tags));
+            }
+
+            _logger.LogInformation("Getting files by tags: {Tags}", string.Join(", ", tags));
+
+            var tagsParam = string.Join(",", tags.Select(Uri.EscapeDataString));
+            var response = await _httpClient.GetAsync($"/files/search?tags={tagsParam}", cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var searchResult = JsonSerializer.Deserialize<FileSearchResultDto>(content, _jsonOptions);
+            var files = searchResult?.Files ?? Enumerable.Empty<FileInfoDto>();
+
+            _logger.LogInformation("Successfully retrieved {FileCount} files for tags: {Tags}",
+                files.Count(), string.Join(", ", tags));
+            return files;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error occurred while getting files by tags {Tags}", string.Join(", ", tags));
+            throw new ExternalServiceException($"Failed to get files by tags {string.Join(", ", tags)}: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Timeout occurred while getting files by tags {Tags}", string.Join(", ", tags));
+            throw new ExternalServiceException($"Timeout while getting files by tags {string.Join(", ", tags)}", ex);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON deserialization error while getting files by tags {Tags}", string.Join(", ", tags));
+            throw new ExternalServiceException($"Invalid response format while getting files by tags {string.Join(", ", tags)}", ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<FileInfoDto?> UpdateFileMetadataAsync(
+        string fileId,
+        Dictionary<string, string> metadata,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(fileId))
+            {
+                throw new ArgumentException("File ID cannot be null or empty", nameof(fileId));
+            }
+
+            if (metadata == null || !metadata.Any())
+            {
+                throw new ArgumentException("Metadata cannot be null or empty", nameof(metadata));
+            }
+
+            _logger.LogInformation("Updating metadata for file ID: {FileId}", fileId);
+
+            var requestBody = new { Metadata = metadata };
+            var jsonContent = JsonSerializer.Serialize(requestBody, _jsonOptions);
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PatchAsync($"/files/{fileId}/metadata", content, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("File not found for metadata update, ID: {FileId}", fileId);
+                throw new InvalidOperationException($"File not found for metadata update, ID: {fileId}");
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            var updatedFileInfo = JsonSerializer.Deserialize<FileInfoDto>(responseContent, _jsonOptions);
+
+            _logger.LogInformation("Successfully updated metadata for file ID: {FileId}", fileId);
+            return updatedFileInfo;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error occurred while updating metadata for file {FileId}", fileId);
+            throw new ExternalServiceException($"Failed to update metadata for file {fileId}: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Timeout occurred while updating metadata for file {FileId}", fileId);
+            throw new ExternalServiceException($"Timeout while updating metadata for file {fileId}", ex);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON error while updating metadata for file {FileId}", fileId);
+            throw new ExternalServiceException($"Invalid response format while updating metadata for file {fileId}", ex);
+        }
+    }
+
     private static string? GetHeaderValue(System.Net.Http.Headers.HttpResponseHeaders headers, string headerName)
     {
         return headers.TryGetValues(headerName, out var values) ? values.FirstOrDefault() : null;

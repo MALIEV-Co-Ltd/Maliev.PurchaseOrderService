@@ -29,6 +29,20 @@ public interface IPurchaseOrderService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets a purchase order by ID with role-based access control
+    /// </summary>
+    /// <param name="id">Purchase order ID</param>
+    /// <param name="userId">Current user ID</param>
+    /// <param name="userRoles">Current user roles</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Purchase order or null if not found or access denied</returns>
+    Task<PurchaseOrderDto?> GetPurchaseOrderByIdAsync(
+        int id,
+        string userId,
+        List<string> userRoles,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Creates a new purchase order
     /// </summary>
     /// <param name="request">Create purchase order request</param>

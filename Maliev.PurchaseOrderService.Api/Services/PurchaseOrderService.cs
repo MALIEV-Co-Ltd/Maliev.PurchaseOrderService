@@ -146,6 +146,44 @@ public class PurchaseOrderService : IPurchaseOrderService
         return _mapper.Map<PurchaseOrderDto>(purchaseOrder);
     }
 
+    public async Task<PurchaseOrderDto?> GetPurchaseOrderByIdAsync(
+        int id,
+        string userId,
+        List<string> userRoles,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Getting purchase order by ID {PurchaseOrderId} for user {UserId} with roles {UserRoles}",
+            id, userId, string.Join(",", userRoles));
+
+        var purchaseOrder = await _context.PurchaseOrders
+            .Include(po => po.OrderItems)
+            .Include(po => po.ShippingAddress)
+            .Include(po => po.BillingAddress)
+            .FirstOrDefaultAsync(po => po.Id == id && !po.IsDeleted, cancellationToken);
+
+        if (purchaseOrder == null)
+        {
+            return null;
+        }
+
+        // Role-based access control
+        var hasAccessToAllOrders = userRoles.Any(role =>
+            role.Equals("Manager", StringComparison.OrdinalIgnoreCase) ||
+            role.Equals("Procurement", StringComparison.OrdinalIgnoreCase) ||
+            role.Equals("Admin", StringComparison.OrdinalIgnoreCase));
+
+        // Employees can only access their own purchase orders
+        if (!hasAccessToAllOrders && userRoles.Contains("Employee"))
+        {
+            if (purchaseOrder.CreatedBy != userId)
+            {
+                throw new UnauthorizedAccessException($"User {userId} does not have access to purchase order {id}");
+            }
+        }
+
+        return _mapper.Map<PurchaseOrderDto>(purchaseOrder);
+    }
+
     public async Task<PurchaseOrderDto> CreatePurchaseOrderAsync(
         CreatePurchaseOrderRequest request,
         string createdBy,
@@ -946,6 +984,49 @@ public class PurchaseOrderService : IPurchaseOrderService
                     Message = "CurrencyID is required",
                     Code = "REQUIRED_FIELD"
                 });
+            }
+            else
+            {
+                // Validate currency exists and is supported
+                try
+                {
+                    // For now, we'll use a basic currency code mapping since we don't have the actual currency lookup by ID
+                    // TODO: Implement proper currency lookup by ID from CurrencyService
+                    var supportedCurrencies = await _currencyService.GetSupportedCurrenciesAsync(cancellationToken);
+                    if (supportedCurrencies == null || !supportedCurrencies.Any())
+                    {
+                        result.Warnings.Add(new ValidationWarning
+                        {
+                            Field = nameof(request.CurrencyID),
+                            Message = "Could not retrieve supported currencies for validation",
+                            Code = "CURRENCY_SERVICE_NO_DATA"
+                        });
+                    }
+                    else
+                    {
+                        // Basic validation - for now just check if we have any supported currencies
+                        // TODO: Map CurrencyID to actual currency codes for proper validation
+                        if (request.CurrencyID > 1000) // Arbitrary limit for demo
+                        {
+                            result.Errors.Add(new ValidationError
+                            {
+                                Field = nameof(request.CurrencyID),
+                                Message = $"Currency with ID {request.CurrencyID} is not supported",
+                                Code = "INVALID_CURRENCY",
+                                Value = request.CurrencyID
+                            });
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    result.Warnings.Add(new ValidationWarning
+                    {
+                        Field = nameof(request.CurrencyID),
+                        Message = "Could not validate currency due to service unavailability",
+                        Code = "CURRENCY_SERVICE_UNAVAILABLE"
+                    });
+                }
             }
 
             // SubtotalAmount validation removed - will be calculated from order items

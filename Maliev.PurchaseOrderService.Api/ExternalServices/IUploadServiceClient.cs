@@ -120,4 +120,26 @@ public interface IUploadServiceClient
     Task<string> GenerateDownloadUrlAsync(
         string fileId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets files by tags (alternative method for tests)
+    /// </summary>
+    /// <param name="tags">File tags to search for</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of files matching the tags</returns>
+    Task<IEnumerable<FileInfoDto>> GetFilesByTagsAsync(
+        string[] tags,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates file metadata
+    /// </summary>
+    /// <param name="fileId">File ID</param>
+    /// <param name="metadata">Updated metadata</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Updated file information</returns>
+    Task<FileInfoDto?> UpdateFileMetadataAsync(
+        string fileId,
+        Dictionary<string, string> metadata,
+        CancellationToken cancellationToken = default);
 }

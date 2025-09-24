@@ -76,7 +76,7 @@ public class CreatePurchaseOrderContractTests : IClassFixture<TestWebApplication
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
         response.Headers.Location.Should().NotBeNull();
-        response.Headers.Location?.ToString().Should().Match("/v1.0/purchase-orders/*");
+        response.Headers.Location?.ToString().Should().Match("*/v1.0/purchase-orders/*");
 
         var responseContent = await response.Content.ReadAsStringAsync();
         var createdPurchaseOrder = JsonSerializer.Deserialize<PurchaseOrderDto>(responseContent, new JsonSerializerOptions

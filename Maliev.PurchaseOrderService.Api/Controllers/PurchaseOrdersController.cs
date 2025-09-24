@@ -5,6 +5,7 @@ using AutoMapper;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.Services;
 using System.Net;
+using System.Security.Claims;
 
 namespace Maliev.PurchaseOrderService.Api.Controllers;
 
@@ -114,8 +115,10 @@ public class PurchaseOrdersController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Purchase order details</returns>
     [HttpGet("{id:int}")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(PurchaseOrderDto), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.Forbidden)]
     public async Task<ActionResult<PurchaseOrderDto>> GetPurchaseOrder(
         int id,
         CancellationToken cancellationToken = default)
@@ -124,7 +127,11 @@ public class PurchaseOrdersController : ControllerBase
         {
             _logger.LogInformation("Getting purchase order {PurchaseOrderId}", id);
 
-            var purchaseOrder = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, cancellationToken);
+            // Get current user context for role-based access
+            var userId = User.Identity?.Name ?? "unknown";
+            var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+
+            var purchaseOrder = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, userId, userRoles, cancellationToken);
 
             if (purchaseOrder == null)
             {
@@ -138,7 +145,26 @@ public class PurchaseOrdersController : ControllerBase
                 });
             }
 
+            // Add ETag header for caching support
+            var etag = $"\"{purchaseOrder.Id}-{purchaseOrder.UpdatedAt?.Ticks ?? DateTime.UtcNow.Ticks}\"";
+            Response.Headers.ETag = etag;
+
+            // Add Cache-Control header
+            Response.Headers.CacheControl = "private, max-age=300"; // 5 minutes cache
+
+            // Handle If-None-Match header for conditional requests
+            var ifNoneMatch = Request.Headers["If-None-Match"].ToString();
+            if (!string.IsNullOrEmpty(ifNoneMatch) && ifNoneMatch == etag)
+            {
+                return StatusCode(304); // Not Modified
+            }
+
             return Ok(purchaseOrder);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to purchase order {PurchaseOrderId} by user {UserId}", id, User.Identity?.Name);
+            return Forbid(); // Returns 403
         }
         catch (Exception ex)
         {

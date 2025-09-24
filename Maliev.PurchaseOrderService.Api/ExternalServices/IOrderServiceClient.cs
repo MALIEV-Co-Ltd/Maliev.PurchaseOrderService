@@ -64,4 +64,30 @@ public interface IOrderServiceClient
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if linking was successful</returns>
     Task<bool> LinkPurchaseOrderAsync(int orderId, int purchaseOrderId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets orders by customer ID with optional filtering
+    /// </summary>
+    /// <param name="customerId">The customer ID</param>
+    /// <param name="status">Optional status filter</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of orders for the customer</returns>
+    Task<IEnumerable<OrderDto>> GetOrdersByCustomerAsync(int customerId, string? status = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new order
+    /// </summary>
+    /// <param name="createRequest">Order creation request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Created order information</returns>
+    Task<OrderDto?> CreateOrderAsync(CreateOrderRequest createRequest, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cancels an order
+    /// </summary>
+    /// <param name="orderId">The order ID</param>
+    /// <param name="reason">Cancellation reason</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if cancellation was successful</returns>
+    Task<bool> CancelOrderAsync(int orderId, string reason, CancellationToken cancellationToken = default);
 }

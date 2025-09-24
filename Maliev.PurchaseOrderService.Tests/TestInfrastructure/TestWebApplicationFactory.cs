@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -56,6 +57,11 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
                 options.UseInMemoryDatabase(_databaseName);
                 options.EnableSensitiveDataLogging();
                 options.EnableDetailedErrors();
+
+                // Suppress transaction warnings for InMemory database
+                // InMemory database doesn't support transactions, but we can safely ignore this warning
+                options.ConfigureWarnings(warnings =>
+                    warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning));
             });
 
             // Replace external service clients with mocks
