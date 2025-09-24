@@ -46,7 +46,7 @@ public class ExternalServiceTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -68,7 +68,7 @@ public class ExternalServiceTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -103,7 +103,7 @@ public class ExternalServiceTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", createRequest);
 
         // Assert - Should return appropriate error
         response.StatusCode.Should().BeOneOf(
@@ -126,7 +126,7 @@ public class ExternalServiceTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -156,7 +156,7 @@ public class ExternalServiceTests : IntegrationTestBase
 
         // Act - Make multiple concurrent requests
         var tasks = Enumerable.Range(1, 5).Select(_ =>
-            PostAsJsonAsync("/v1/purchase-orders", createRequest));
+            PostAsJsonAsync("/v1.0/purchase-orders", createRequest));
 
         var responses = await Task.WhenAll(tasks);
 
@@ -187,12 +187,12 @@ public class ExternalServiceTests : IntegrationTestBase
 
         // Act - First request (cache miss)
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var response1 = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
+        var response1 = await PostAsJsonAsync("/v1.0/purchase-orders", createRequest);
         var firstRequestTime = sw.ElapsedMilliseconds;
 
         // Second request for same supplier (cache hit - if caching is implemented)
         sw.Restart();
-        var response2 = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
+        var response2 = await PostAsJsonAsync("/v1.0/purchase-orders", createRequest);
         var secondRequestTime = sw.ElapsedMilliseconds;
 
         // Assert
@@ -218,7 +218,7 @@ public class ExternalServiceTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", createRequest);
 
         // Assert - Should eventually succeed despite potential transient failures
         response.StatusCode.Should().BeOneOf(

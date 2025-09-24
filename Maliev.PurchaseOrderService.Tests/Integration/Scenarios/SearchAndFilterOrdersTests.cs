@@ -467,7 +467,7 @@ public class SearchAndFilterOrdersTests : IntegrationTestBase
         SetupManagerAuthentication();
 
         // Act
-        var response = await Client.GetAsync("/api/purchaseorders/statistics");
+        var response = await Client.GetAsync("/v1.0/purchase-orders/statistics");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

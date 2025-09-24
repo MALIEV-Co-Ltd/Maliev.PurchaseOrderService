@@ -134,7 +134,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             });
     }
 
-    #region GET /v1/purchase-orders/{purchaseOrderId}/files Tests
+    #region GET /v1.0/purchase-orders/{purchaseOrderId}/files Tests
 
     [Fact]
     public async Task GetFiles_WithValidPurchaseOrderId_ShouldReturnFiles()
@@ -144,7 +144,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -164,7 +164,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         SetupEmployeeAuthentication();
 
         // Act
-        var response = await Client.GetAsync("/v1/purchase-orders/99999/files");
+        var response = await Client.GetAsync("/v1.0/purchase-orders/99999/files");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -184,7 +184,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -192,7 +192,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region GET /v1/purchase-orders/{purchaseOrderId}/files/{fileId} Tests
+    #region GET /v1.0/purchase-orders/{purchaseOrderId}/files/{fileId} Tests
 
     [Fact]
     public async Task GetFile_WithValidIds_ShouldReturnFileMetadata()
@@ -202,7 +202,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/1");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/1");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -230,7 +230,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             .ReturnsAsync((PurchaseOrderFileDto?)null);
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/99999");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/99999");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -244,7 +244,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region POST /v1/purchase-orders/{purchaseOrderId}/files Tests
+    #region POST /v1.0/purchase-orders/{purchaseOrderId}/files Tests
 
     [Fact]
     public async Task UploadFile_WithValidFile_ShouldUploadSuccessfully()
@@ -263,7 +263,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         form.Add(fileUploadContent, "file", "test-upload.pdf");
 
         // Act
-        var response = await Client.PostAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files", form);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files", form);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -277,7 +277,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
 
         // Verify location header
         response.Headers.Location.Should().NotBeNull();
-        response.Headers.Location!.ToString().Should().Contain($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/{result.FileId}");
+        response.Headers.Location!.ToString().Should().Contain($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/{result.FileId}");
     }
 
     [Fact]
@@ -290,7 +290,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         using var form = new MultipartFormDataContent();
 
         // Act
-        var response = await Client.PostAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files", form);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files", form);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -315,7 +315,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         form.Add(emptyContent, "file", "empty.pdf");
 
         // Act
-        var response = await Client.PostAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files", form);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files", form);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -342,7 +342,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         form.Add(fileUploadContent, "file", "test.pdf");
 
         // Act
-        var response = await Client.PostAsync("/v1/purchase-orders/99999/files", form);
+        var response = await Client.PostAsync("/v1.0/purchase-orders/99999/files", form);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -380,7 +380,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         form.Add(fileUploadContent, "file", "malware.exe");
 
         // Act
-        var response = await Client.PostAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files", form);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files", form);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -394,7 +394,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region GET /v1/purchase-orders/{purchaseOrderId}/files/{fileId}/download Tests
+    #region GET /v1.0/purchase-orders/{purchaseOrderId}/files/{fileId}/download Tests
 
     [Fact]
     public async Task DownloadFile_WithValidIds_ShouldReturnFileContent()
@@ -404,7 +404,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/1/download");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/1/download");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -428,7 +428,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             .ReturnsAsync((PurchaseOrderFileDto?)null);
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/99999/download");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/99999/download");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -458,7 +458,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             });
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/1/download");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/1/download");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -472,7 +472,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region DELETE /v1/purchase-orders/{purchaseOrderId}/files/{fileId} Tests
+    #region DELETE /v1.0/purchase-orders/{purchaseOrderId}/files/{fileId} Tests
 
     [Fact]
     public async Task DeleteFile_WithValidIds_ShouldDeleteSuccessfully()
@@ -482,7 +482,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.DeleteAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/1");
+        var response = await Client.DeleteAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/1");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -502,7 +502,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             .ReturnsAsync((PurchaseOrderFileDto?)null);
 
         // Act
-        var response = await Client.DeleteAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/99999");
+        var response = await Client.DeleteAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/99999");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -528,7 +528,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             .ReturnsAsync(false);
 
         // Act
-        var response = await Client.DeleteAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/1");
+        var response = await Client.DeleteAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/1");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -542,7 +542,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region PUT /v1/purchase-orders/{purchaseOrderId}/files/{fileId} Tests
+    #region PUT /v1.0/purchase-orders/{purchaseOrderId}/files/{fileId} Tests
 
     [Fact]
     public async Task UpdateFile_WithValidRequest_ShouldUpdateSuccessfully()
@@ -558,7 +558,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PutAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/1", updateRequest);
+        var response = await PutAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/1", updateRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -580,7 +580,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var invalidRequest = new object(); // Invalid request object
 
         // Act
-        var response = await PutAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/1", invalidRequest);
+        var response = await PutAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/1", invalidRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -605,7 +605,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PutAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/99999", updateRequest);
+        var response = await PutAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/99999", updateRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -619,7 +619,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region POST /v1/purchase-orders/{purchaseOrderId}/files/generate-pdf Tests
+    #region POST /v1.0/purchase-orders/{purchaseOrderId}/files/generate-pdf Tests
 
     [Fact]
     public async Task GeneratePdf_WithEmployeeAuth_ShouldGenerateSuccessfully()
@@ -629,7 +629,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.PostAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/generate-pdf", null);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/generate-pdf", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -649,7 +649,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         SetupEmployeeAuthentication();
 
         // Act
-        var response = await Client.PostAsync("/v1/purchase-orders/99999/files/generate-pdf", null);
+        var response = await Client.PostAsync("/v1.0/purchase-orders/99999/files/generate-pdf", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -679,7 +679,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             });
 
         // Act
-        var response = await Client.PostAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/generate-pdf", null);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/generate-pdf", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -718,7 +718,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.PostAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/generate-pdf", null);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/generate-pdf", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -726,7 +726,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region GET /v1/purchase-orders/{purchaseOrderId}/files/pdf-status Tests
+    #region GET /v1.0/purchase-orders/{purchaseOrderId}/files/pdf-status Tests
 
     [Fact]
     public async Task GetPdfStatus_WithValidPurchaseOrderId_ShouldReturnStatus()
@@ -736,7 +736,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/pdf-status");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/pdf-status");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -755,7 +755,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         SetupEmployeeAuthentication();
 
         // Act
-        var response = await Client.GetAsync("/v1/purchase-orders/99999/files/pdf-status");
+        var response = await Client.GetAsync("/v1.0/purchase-orders/99999/files/pdf-status");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -769,7 +769,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region GET /v1/purchase-orders/{purchaseOrderId}/files/{fileId}/preview Tests
+    #region GET /v1.0/purchase-orders/{purchaseOrderId}/files/{fileId}/preview Tests
 
     [Fact]
     public async Task GetFilePreview_WithValidIds_ShouldReturnPreviewInfo()
@@ -779,7 +779,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/1/preview");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/1/preview");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -808,7 +808,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             .ReturnsAsync((PurchaseOrderFileDto?)null);
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/99999/preview");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/99999/preview");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -825,11 +825,11 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
     #region Authorization Tests
 
     [Theory]
-    [InlineData("/v1/purchase-orders/1/files")]
-    [InlineData("/v1/purchase-orders/1/files/1")]
-    [InlineData("/v1/purchase-orders/1/files/1/download")]
-    [InlineData("/v1/purchase-orders/1/files/pdf-status")]
-    [InlineData("/v1/purchase-orders/1/files/1/preview")]
+    [InlineData("/v1.0/purchase-orders/1/files")]
+    [InlineData("/v1.0/purchase-orders/1/files/1")]
+    [InlineData("/v1.0/purchase-orders/1/files/1/download")]
+    [InlineData("/v1.0/purchase-orders/1/files/pdf-status")]
+    [InlineData("/v1.0/purchase-orders/1/files/1/preview")]
     public async Task GetEndpoints_WithoutAuthentication_ShouldReturnUnauthorized(string endpoint)
     {
         // Arrange
@@ -869,7 +869,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -894,7 +894,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         form.Add(fileUploadContent, "file", "test.pdf");
 
         // Act
-        var response = await Client.PostAsync("/v1/purchase-orders/-1/files", form);
+        var response = await Client.PostAsync("/v1.0/purchase-orders/-1/files", form);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -911,7 +911,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var content = new StringContent(malformedJson, Encoding.UTF8, "application/json");
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files/1", content);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files/1", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -940,7 +940,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         // Act & Assert
         // This test might timeout or fail due to size restrictions
         // The exact behavior depends on server configuration
-        var response = await Client.PostAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files", form);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files", form);
 
         // Should either succeed or return appropriate error
         response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.BadRequest, HttpStatusCode.RequestEntityTooLarge);
@@ -972,7 +972,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             form.Add(fileUploadContent, "file", fileName);
 
             // Act
-            var response = await Client.PostAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/files", form);
+            var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files", form);
 
             // Assert
             // Should either succeed or fail based on file type validation

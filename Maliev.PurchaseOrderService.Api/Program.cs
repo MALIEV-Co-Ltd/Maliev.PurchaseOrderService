@@ -85,7 +85,7 @@ builder.Services.AddAutoMapper(typeof(PurchaseOrderMappingProfile));
 builder.Services.AddMemoryCache();
 
 // HTTP Client Handler for JWT Authentication
-builder.Services.AddTransient<AuthenticatedHttpClientHandler>();
+builder.Services.AddTransient<Maliev.PurchaseOrderService.Api.Clients.AuthenticatedHttpClientHandler>();
 
 // Helper methods for HTTP client policies with configuration support
 static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy(ServiceEndpoint serviceConfig)
@@ -148,7 +148,7 @@ builder.Services.AddHttpClient<ISupplierServiceClient, SupplierServiceClient>((s
     client.DefaultRequestHeaders.Add("User-Agent", "PurchaseOrderService/1.0");
     client.Timeout = serviceConfig.Timeout;
 })
-.AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+.AddHttpMessageHandler<Maliev.PurchaseOrderService.Api.Clients.AuthenticatedHttpClientHandler>()
 .AddPolicyHandler(request => GetRetryPolicy(externalServiceOptions.SupplierService))
 .AddPolicyHandler(request => GetCircuitBreakerPolicy(externalServiceOptions.SupplierService, "SupplierService"));
 
@@ -162,7 +162,7 @@ builder.Services.AddHttpClient<IOrderServiceClient, OrderServiceClient>((service
     client.DefaultRequestHeaders.Add("User-Agent", "PurchaseOrderService/1.0");
     client.Timeout = serviceConfig.Timeout;
 })
-.AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+.AddHttpMessageHandler<Maliev.PurchaseOrderService.Api.Clients.AuthenticatedHttpClientHandler>()
 .AddPolicyHandler(request => GetRetryPolicy(externalServiceOptions.OrderService))
 .AddPolicyHandler(request => GetCircuitBreakerPolicy(externalServiceOptions.OrderService, "OrderService"));
 

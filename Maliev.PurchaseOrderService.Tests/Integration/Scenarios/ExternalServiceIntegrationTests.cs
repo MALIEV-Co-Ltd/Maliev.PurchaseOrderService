@@ -204,7 +204,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         content.Add(new StringContent("application/pdf"), "ContentType");
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/documents", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/documents", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -239,7 +239,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         var documentId = await GetFirstDocumentIdFromOrder(purchaseOrderId);
 
         // Act
-        var response = await _client.GetAsync($"/api/purchaseorders/{purchaseOrderId}/documents/{documentId}/download");
+        var response = await _client.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}/documents/{documentId}/download");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -278,7 +278,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -384,7 +384,7 @@ public class ExternalServiceIntegrationTests : IClassFixture<WebApplicationFacto
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/refresh-items", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/refresh-items", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

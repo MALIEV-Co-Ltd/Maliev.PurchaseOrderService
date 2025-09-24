@@ -28,7 +28,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
     {
     }
 
-    #region GET /v1/purchase-orders/{purchaseOrderId}/items Tests
+    #region GET /v1.0/purchase-orders/{purchaseOrderId}/items Tests
 
     [Fact]
     public async Task GetOrderItems_WithValidPurchaseOrderId_ShouldReturnItems()
@@ -38,7 +38,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -58,7 +58,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         SetupEmployeeAuthentication();
 
         // Act
-        var response = await Client.GetAsync("/v1/purchase-orders/99999/items");
+        var response = await Client.GetAsync("/v1.0/purchase-orders/99999/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -78,7 +78,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -105,7 +105,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         });
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -113,7 +113,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region GET /v1/purchase-orders/{purchaseOrderId}/items/{itemId} Tests
+    #region GET /v1.0/purchase-orders/{purchaseOrderId}/items/{itemId} Tests
 
     [Fact]
     public async Task GetOrderItem_WithValidIds_ShouldReturnItem()
@@ -130,7 +130,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         });
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/{orderItem.Id}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/{orderItem.Id}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -151,7 +151,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/99999");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/99999");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -179,7 +179,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         });
 
         // Act - Try to access the item with wrong purchase order ID
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder2.Id}/items/{orderItem.Id}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder2.Id}/items/{orderItem.Id}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -187,7 +187,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region PUT /v1/purchase-orders/{purchaseOrderId}/items/refresh Tests
+    #region PUT /v1.0/purchase-orders/{purchaseOrderId}/items/refresh Tests
 
     [Fact]
     public async Task RefreshOrderItems_WithValidPurchaseOrder_ShouldRefreshSuccessfully()
@@ -226,7 +226,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
             .ReturnsAsync(updatedOrderItems);
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -261,7 +261,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         SetupEmployeeAuthentication();
 
         // Act
-        var response = await Client.PutAsync("/v1/purchase-orders/99999/items/refresh", null);
+        var response = await Client.PutAsync("/v1.0/purchase-orders/99999/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -306,7 +306,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         });
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{purchaseOrderWithoutOrderId.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderWithoutOrderId.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -331,7 +331,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
             .ThrowsAsync(new HttpRequestException("External service unavailable"));
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -352,7 +352,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -366,7 +366,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -399,7 +399,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
             .ReturnsAsync(updatedOrderItems);
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -422,7 +422,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region GET /v1/purchase-orders/{purchaseOrderId}/items/summary Tests
+    #region GET /v1.0/purchase-orders/{purchaseOrderId}/items/summary Tests
 
     [Fact]
     public async Task GetOrderItemsSummary_WithValidPurchaseOrderId_ShouldReturnSummary()
@@ -432,7 +432,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/summary");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/summary");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -455,7 +455,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         SetupEmployeeAuthentication();
 
         // Act
-        var response = await Client.GetAsync("/v1/purchase-orders/99999/items/summary");
+        var response = await Client.GetAsync("/v1.0/purchase-orders/99999/items/summary");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -500,7 +500,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         });
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{emptyPurchaseOrder.Id}/items/summary");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{emptyPurchaseOrder.Id}/items/summary");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -545,16 +545,16 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Theory]
-    [InlineData("/v1/purchase-orders/1/items")]
-    [InlineData("/v1/purchase-orders/1/items/1")]
-    [InlineData("/v1/purchase-orders/1/items/summary")]
+    [InlineData("/v1.0/purchase-orders/1/items")]
+    [InlineData("/v1.0/purchase-orders/1/items/1")]
+    [InlineData("/v1.0/purchase-orders/1/items/summary")]
     public async Task GetEndpoints_WithoutAuthentication_ShouldReturnUnauthorized(string endpoint)
     {
         // Arrange
@@ -578,7 +578,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         SetupEmployeeAuthentication();
 
         // Act
-        var response = await Client.GetAsync("/v1/purchase-orders/-1/items");
+        var response = await Client.GetAsync("/v1.0/purchase-orders/-1/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -592,7 +592,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Act
-        var response = await Client.GetAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/-1");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/-1");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -629,7 +629,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
         // Act & Assert
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -652,7 +652,7 @@ public class OrderItemsControllerIntegrationTests : IntegrationTestBase
         });
 
         // Act
-        var response = await Client.PutAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/items/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

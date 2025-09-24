@@ -39,7 +39,7 @@ public class CreateInternalPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);
@@ -78,7 +78,7 @@ public class CreateInternalPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
@@ -104,7 +104,7 @@ public class CreateInternalPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders", createRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", createRequest);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);

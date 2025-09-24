@@ -85,7 +85,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -134,7 +134,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -177,7 +177,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -210,7 +210,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -236,7 +236,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -262,7 +262,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -285,7 +285,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{nonexistentOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{nonexistentOrderId}/cancel", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -308,7 +308,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -331,7 +331,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         await CancelPurchaseOrderDirectly(order2Id, "Second cancellation");
 
         // Act
-        var response = await _client.GetAsync("/api/purchaseorders/cancelled");
+        var response = await _client.GetAsync("/v1.0/purchase-orders/cancelled");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -369,7 +369,7 @@ public class CancelPurchaseOrderTests : IClassFixture<WebApplicationFactory<Prog
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act
-        var response = await _client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

@@ -526,8 +526,9 @@ public class PdfServiceClient : IPdfServiceClient
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var templates = JsonSerializer.Deserialize<IEnumerable<PdfTemplateDto>>(content, _jsonOptions) ??
-                           Enumerable.Empty<PdfTemplateDto>();
+            var templateResponse = JsonSerializer.Deserialize<PdfTemplateListDto>(content, _jsonOptions);
+
+            var templates = templateResponse?.Templates ?? Enumerable.Empty<PdfTemplateDto>();
 
             _logger.LogInformation("Successfully retrieved {TemplateCount} PDF templates", templates.Count());
             return templates;

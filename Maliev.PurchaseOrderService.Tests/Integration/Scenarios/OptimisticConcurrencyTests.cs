@@ -34,8 +34,8 @@ public class OptimisticConcurrencyTests : IntegrationTestBase
         SetupSecondClientAuthentication("emp456", "department1");
 
         // Both clients get the same purchase order
-        var getResponse1 = await Client.GetAsync($"/api/purchaseorders/{purchaseOrderId}");
-        var getResponse2 = await _client2.GetAsync($"/api/purchaseorders/{purchaseOrderId}");
+        var getResponse1 = await Client.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
+        var getResponse2 = await _client2.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
 
         getResponse1.StatusCode.Should().Be(HttpStatusCode.OK);
         getResponse2.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -65,10 +65,10 @@ public class OptimisticConcurrencyTests : IntegrationTestBase
         var content2 = new StringContent(json2, Encoding.UTF8, "application/json");
 
         // Act - First update should succeed
-        var response1 = await Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content1);
+        var response1 = await Client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content1);
 
         // Act - Second update should fail due to optimistic concurrency
-        var response2 = await _client2.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content2);
+        var response2 = await _client2.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content2);
 
         // Assert
         response1.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -97,7 +97,7 @@ public class OptimisticConcurrencyTests : IntegrationTestBase
         SetupExternalServiceMocks();
 
         // Both get the current order state
-        var getResponse = await Client.GetAsync($"/api/purchaseorders/{purchaseOrderId}");
+        var getResponse = await Client.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
         var order = await DeserializeResponseAsync<PurchaseOrderDetailResponse>(getResponse);
 
         // Employee prepares update
@@ -115,11 +115,11 @@ public class OptimisticConcurrencyTests : IntegrationTestBase
         };
 
         // Act - Employee updates first
-        var updateResponse = await PutAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}", updateRequest);
+        var updateResponse = await PutAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}", updateRequest);
 
         // Act - Manager tries to approve with stale version
         var approveContent = new StringContent(JsonSerializer.Serialize(approveRequest), Encoding.UTF8, "application/json");
-        var approveResponse = await _client2.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveContent);
+        var approveResponse = await _client2.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", approveContent);
 
         // Assert
         updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -163,8 +163,8 @@ public class OptimisticConcurrencyTests : IntegrationTestBase
         var content2 = new StringContent(JsonSerializer.Serialize(approveRequest2), Encoding.UTF8, "application/json");
 
         // Act - Both managers try to approve simultaneously
-        var task1 = Client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content1);
-        var task2 = _client2.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", content2);
+        var task1 = Client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", content1);
+        var task2 = _client2.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", content2);
 
         var responses = await Task.WhenAll(task1, task2);
 
@@ -208,7 +208,7 @@ public class OptimisticConcurrencyTests : IntegrationTestBase
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         // Act
-        var response = await Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -229,7 +229,7 @@ public class OptimisticConcurrencyTests : IntegrationTestBase
 
         // Try to delete with original version (now stale)
         // Act
-        var response = await Client.DeleteAsync($"/api/purchaseorders/{purchaseOrderId}?version=1");
+        var response = await Client.DeleteAsync($"/v1.0/purchase-orders/{purchaseOrderId}?version=1");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -271,8 +271,8 @@ public class OptimisticConcurrencyTests : IntegrationTestBase
         var approveContent = new StringContent(approveJson, Encoding.UTF8, "application/json");
 
         // Act - Simultaneous cancel and approve operations
-        var cancelTask = Client.PostAsync($"/api/purchaseorders/{purchaseOrderId}/cancel", cancelContent);
-        var approveTask = _client2.PostAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveContent);
+        var cancelTask = Client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", cancelContent);
+        var approveTask = _client2.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", approveContent);
 
         var responses = await Task.WhenAll(cancelTask, approveTask);
 
@@ -332,8 +332,8 @@ public class OptimisticConcurrencyTests : IntegrationTestBase
         var refreshContent = new StringContent(refreshJson, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act - Concurrent update and refresh operations
-        var updateTask = Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", updateContent);
-        var refreshTask = _client2.PostAsync($"/api/purchaseorders/{purchaseOrderId}/refresh-items", refreshContent);
+        var updateTask = Client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", updateContent);
+        var refreshTask = _client2.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/refresh-items", refreshContent);
 
         var responses = await Task.WhenAll(updateTask, refreshTask);
 

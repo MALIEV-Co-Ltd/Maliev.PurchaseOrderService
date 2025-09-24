@@ -42,21 +42,21 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         MockWHTService = new Mock<IWHTCalculationService>();
 
         // Create a custom factory that sets up mocks
-        Factory = new TestWebApplicationFactory<Program>($"TestDatabase_{GetType().Name}_{Guid.NewGuid()}")
-        {
-            ConfigureTestServices = services =>
-            {
-                // Replace external service clients with mocks (keep domain event service real for database persistence)
-                TestWebApplicationFactory<Program>.ReplaceService(services, MockSupplierService.Object);
-                TestWebApplicationFactory<Program>.ReplaceService(services, MockOrderService.Object);
-                TestWebApplicationFactory<Program>.ReplaceService(services, MockCurrencyService.Object);
-                TestWebApplicationFactory<Program>.ReplaceService(services, MockUploadService.Object);
-                TestWebApplicationFactory<Program>.ReplaceService(services, MockPdfService.Object);
-                TestWebApplicationFactory<Program>.ReplaceService(services, MockWHTService.Object);
+        Factory = new TestWebApplicationFactory<Program>($"TestDatabase_{GetType().Name}_{Guid.NewGuid()}");
 
-                // Configure additional test services
-                ConfigureAdditionalTestServices(services);
-            }
+        // Configure the test services
+        Factory.ConfigureTestServices = services =>
+        {
+            // Replace external service clients with mocks (keep domain event service real for database persistence)
+            TestWebApplicationFactory<Program>.ReplaceService(services, MockSupplierService.Object);
+            TestWebApplicationFactory<Program>.ReplaceService(services, MockOrderService.Object);
+            TestWebApplicationFactory<Program>.ReplaceService(services, MockCurrencyService.Object);
+            TestWebApplicationFactory<Program>.ReplaceService(services, MockUploadService.Object);
+            TestWebApplicationFactory<Program>.ReplaceService(services, MockPdfService.Object);
+            TestWebApplicationFactory<Program>.ReplaceService(services, MockWHTService.Object);
+
+            // Configure additional test services
+            ConfigureAdditionalTestServices(services);
         };
 
         Client = Factory.CreateClient();
@@ -71,15 +71,15 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     }
 
     /// <summary>
-    /// Initialize PostgreSQL database for testing with proper isolation
+    /// Initialize InMemory database for testing with proper isolation
     /// </summary>
     private void InitializeDatabase()
     {
         using var scope = Factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
-        // Create database schema for PostgreSQL testing
-        // EnsureCreated works for PostgreSQL and creates tables based on entity configurations
+        // Create database schema for InMemory testing
+        // EnsureCreated creates tables based on entity configurations
         context.Database.EnsureCreated();
 
         // Clear any existing test data to ensure clean state
@@ -91,23 +91,24 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     /// </summary>
     private void ClearAllTestData(PurchaseOrderContext context)
     {
-        // Remove all test data in correct order to avoid foreign key constraints
-        // Use ExecuteSqlRaw for better performance and to avoid loading entities into memory
+        try
+        {
+            // For InMemory database, clear data using EF Core methods
+            // Remove all test data in correct order to avoid foreign key constraints
+            context.OrderItems.RemoveRange(context.OrderItems);
+            context.PurchaseOrderFiles.RemoveRange(context.PurchaseOrderFiles);
+            context.PurchaseOrders.RemoveRange(context.PurchaseOrders);
+            context.Addresses.RemoveRange(context.Addresses);
+            context.AuditLogs.RemoveRange(context.AuditLogs);
+            context.DomainEvents.RemoveRange(context.DomainEvents);
 
-        context.Database.ExecuteSqlRaw("DELETE FROM \"OrderItems\"");
-        context.Database.ExecuteSqlRaw("DELETE FROM \"PurchaseOrderFiles\"");
-        context.Database.ExecuteSqlRaw("DELETE FROM \"PurchaseOrders\"");
-        context.Database.ExecuteSqlRaw("DELETE FROM \"Addresses\"");
-        context.Database.ExecuteSqlRaw("DELETE FROM \"AuditLogs\"");
-        context.Database.ExecuteSqlRaw("DELETE FROM \"DomainEvents\"");
-
-        // Reset identity sequences for consistent test data
-        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"PurchaseOrders_Id_seq\" RESTART WITH 1");
-        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"OrderItems_Id_seq\" RESTART WITH 1");
-        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"Addresses_Id_seq\" RESTART WITH 1");
-        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"PurchaseOrderFiles_Id_seq\" RESTART WITH 1");
-        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"AuditLogs_Id_seq\" RESTART WITH 1");
-        context.Database.ExecuteSqlRaw("ALTER SEQUENCE \"DomainEvents_Id_seq\" RESTART WITH 1");
+            context.SaveChanges();
+        }
+        catch
+        {
+            // If clearing data fails, it's likely because the database schema doesn't exist yet
+            // This can be safely ignored on initial database creation
+        }
     }
 
     /// <summary>

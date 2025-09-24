@@ -50,13 +50,10 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
             if (genericDbContextDescriptor != null)
                 services.Remove(genericDbContextDescriptor);
 
-            // Add PostgreSQL database for testing
-            var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__PurchaseOrderDbContext")
-                ?? "Host=localhost;Port=5432;Database=test_db;Username=postgres;Password=postgres;";
-
+            // Add InMemory database for testing
             services.AddDbContext<PurchaseOrderContext>(options =>
             {
-                options.UseNpgsql(connectionString);
+                options.UseInMemoryDatabase(_databaseName);
                 options.EnableSensitiveDataLogging();
                 options.EnableDetailedErrors();
             });

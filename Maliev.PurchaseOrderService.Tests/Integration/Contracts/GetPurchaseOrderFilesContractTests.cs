@@ -9,14 +9,14 @@ using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 namespace Maliev.PurchaseOrderService.Tests.Integration.Contracts;
 
 /// <summary>
-/// Contract tests for GET /purchaseorders/v1/purchase-orders/{id}/purchaseorderfiles endpoint
+/// Contract tests for GET /purchaseorders/v1.0/purchase-orders/{id}/purchaseorderfiles endpoint
 /// These tests MUST FAIL before implementation - following TDD principles
 /// </summary>
 public class GetPurchaseOrderFilesContractTests : IClassFixture<TestWebApplicationFactory<Program>>
 {
     private readonly TestWebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
-    private readonly string _baseUrl = "/purchaseorders/v1/purchase-orders";
+    private readonly string _baseUrl = "/purchaseorders/v1.0/purchase-orders";
 
     public GetPurchaseOrderFilesContractTests(TestWebApplicationFactory<Program> factory)
     {
@@ -369,7 +369,7 @@ public class GetPurchaseOrderFilesContractTests : IClassFixture<TestWebApplicati
 
         // Assert
         // This test verifies that the /v1/ path is correctly handled
-        response.RequestMessage?.RequestUri?.PathAndQuery.Should().Contain("/v1/");
+        response.RequestMessage?.RequestUri?.PathAndQuery.Should().Contain("/v1.0/");
     }
 
     [Fact]

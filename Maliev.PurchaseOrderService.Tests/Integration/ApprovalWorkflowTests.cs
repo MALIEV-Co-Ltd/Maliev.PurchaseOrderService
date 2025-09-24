@@ -40,7 +40,7 @@ public class ApprovalWorkflowTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/approve", approvalRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/approve", approvalRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -79,7 +79,7 @@ public class ApprovalWorkflowTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/approve", approvalRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/approve", approvalRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -102,7 +102,7 @@ public class ApprovalWorkflowTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders/99999/approve", approvalRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders/99999/approve", approvalRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -122,7 +122,7 @@ public class ApprovalWorkflowTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/approve", approvalRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/approve", approvalRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

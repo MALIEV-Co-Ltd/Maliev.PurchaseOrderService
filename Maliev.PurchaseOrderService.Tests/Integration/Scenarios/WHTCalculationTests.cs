@@ -195,7 +195,7 @@ public class WHTCalculationTests : IntegrationTestBase
         var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
 
         // Act
-        var response = await Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -284,7 +284,7 @@ public class WHTCalculationTests : IntegrationTestBase
         var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
 
         // Act
-        var response = await Client.PutAsync($"/api/purchaseorders/{purchaseOrderId}", content);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);

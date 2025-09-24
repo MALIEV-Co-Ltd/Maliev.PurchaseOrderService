@@ -278,7 +278,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
 
         // Assert
         // This test verifies that the /v1/ path is correctly handled
-        response.RequestMessage?.RequestUri?.PathAndQuery.Should().Contain("/v1/");
+        response.RequestMessage?.RequestUri?.PathAndQuery.Should().Contain("/v1.0/");
     }
 
     [Fact]

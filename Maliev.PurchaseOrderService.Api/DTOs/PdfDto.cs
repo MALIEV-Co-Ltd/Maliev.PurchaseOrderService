@@ -347,6 +347,8 @@ public class PdfTemplateDto
     public DateTime UpdatedAt { get; set; }
     public bool IsActive { get; set; }
     public string PreviewUrl { get; set; } = string.Empty;
+    public List<string> SupportedPageSizes { get; set; } = new();
+    public List<string> SupportedOrientations { get; set; } = new();
 }
 
 /// <summary>
@@ -365,4 +367,13 @@ public class PdfTemplateDownloadDto : IDisposable
     {
         TemplateContent?.Dispose();
     }
+}
+
+/// <summary>
+/// Data Transfer Object for PDF Template List Response
+/// </summary>
+public class PdfTemplateListDto
+{
+    public IEnumerable<PdfTemplateDto> Templates { get; set; } = Enumerable.Empty<PdfTemplateDto>();
+    public int TotalCount { get; set; }
 }

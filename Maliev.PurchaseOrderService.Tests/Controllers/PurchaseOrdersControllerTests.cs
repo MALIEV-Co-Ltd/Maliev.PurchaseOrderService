@@ -49,7 +49,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders");
+        var response = await _client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return OK once API versioning is fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -63,7 +63,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders");
+        var response = await _client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return OK once API versioning is fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -77,7 +77,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders");
+        var response = await _client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return OK once API versioning is fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -91,7 +91,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders");
+        var response = await _client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return OK once API versioning is fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -103,7 +103,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         // Arrange - No authorization header
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders");
+        var response = await _client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return 401 Unauthorized when no token provided
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -116,7 +116,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", "invalid-token");
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders");
+        var response = await _client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return 401 Unauthorized for invalid token
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -130,7 +130,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders?page=1&pageSize=10");
+        var response = await _client.GetAsync("/v1.0/purchase-orders?page=1&pageSize=10");
 
         // Assert - Should return OK with pagination
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -144,7 +144,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders?page=0&pageSize=101");
+        var response = await _client.GetAsync("/v1.0/purchase-orders?page=0&pageSize=101");
 
         // Assert - Should return BadRequest for invalid pagination
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -158,7 +158,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders?status=Pending");
+        var response = await _client.GetAsync("/v1.0/purchase-orders?status=Pending");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -172,7 +172,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders?orderType=External");
+        var response = await _client.GetAsync("/v1.0/purchase-orders?orderType=External");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -188,7 +188,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         var toDate = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
         // Act
-        var response = await _client.GetAsync($"/v1/purchase-orders?createdFrom={fromDate}&createdTo={toDate}");
+        var response = await _client.GetAsync($"/v1.0/purchase-orders?createdFrom={fromDate}&createdTo={toDate}");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -202,7 +202,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders?sortBy=totalAmount&sortDirection=desc");
+        var response = await _client.GetAsync("/v1.0/purchase-orders?sortBy=totalAmount&sortDirection=desc");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -216,7 +216,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders?supplierID=123");
+        var response = await _client.GetAsync("/v1.0/purchase-orders?supplierID=123");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -230,7 +230,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1/purchase-orders?orderID=456");
+        var response = await _client.GetAsync("/v1.0/purchase-orders?orderID=456");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -281,7 +281,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/v1/purchase-orders", content);
+        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -303,7 +303,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/v1/purchase-orders", content);
+        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -325,7 +325,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/v1/purchase-orders", content);
+        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -344,7 +344,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"/v1/purchase-orders/{purchaseOrderId}");
+        var response = await _client.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -359,7 +359,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         var purchaseOrderId = 99999;
 
         // Act
-        var response = await _client.GetAsync($"/v1/purchase-orders/{purchaseOrderId}");
+        var response = await _client.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -390,7 +390,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PutAsync($"/v1/purchase-orders/{purchaseOrderId}", content);
+        var response = await _client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -414,7 +414,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PutAsync($"/v1/purchase-orders/{purchaseOrderId}", content);
+        var response = await _client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -433,7 +433,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         var purchaseOrderId = 1; // Assuming this is employee's own pending order
 
         // Act
-        var response = await _client.DeleteAsync($"/v1/purchase-orders/{purchaseOrderId}");
+        var response = await _client.DeleteAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -448,7 +448,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         var purchaseOrderId = 99999;
 
         // Act
-        var response = await _client.DeleteAsync($"/v1/purchase-orders/{purchaseOrderId}");
+        var response = await _client.DeleteAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -471,7 +471,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync($"/v1/purchase-orders/{purchaseOrderId}/approve", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -490,7 +490,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync($"/v1/purchase-orders/{purchaseOrderId}/approve", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -513,7 +513,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync($"/v1/purchase-orders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -532,7 +532,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync($"/v1/purchase-orders/{purchaseOrderId}/cancel", content);
+        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);

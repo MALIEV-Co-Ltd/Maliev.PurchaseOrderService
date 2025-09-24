@@ -45,7 +45,7 @@ public class CancellationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -71,7 +71,7 @@ public class CancellationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
@@ -92,7 +92,7 @@ public class CancellationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -118,7 +118,7 @@ public class CancellationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict,
@@ -141,7 +141,7 @@ public class CancellationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
@@ -162,7 +162,7 @@ public class CancellationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
@@ -181,7 +181,7 @@ public class CancellationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders/99999/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders/99999/cancel", cancellationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -209,7 +209,7 @@ public class CancellationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/v1/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/cancel", cancellationRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -250,7 +250,7 @@ public class CancellationTests : IntegrationTestBase
         SetupManagerAuthentication("mgr_67890");
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders/12345/cancel", cancellationRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -273,7 +273,7 @@ public class CancellationTests : IntegrationTestBase
         SetupAdminAuthentication("admin_99999");
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders/bulk-cancel", bulkCancellationRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders/bulk-cancel", bulkCancellationRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -289,7 +289,7 @@ public class CancellationTests : IntegrationTestBase
         SetupManagerAuthentication();
 
         // Act
-        var response = await Client.GetAsync("/v1/purchase-orders?status=Cancelled&page=1&pageSize=20");
+        var response = await Client.GetAsync("/v1.0/purchase-orders?status=Cancelled&page=1&pageSize=20");
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -312,7 +312,7 @@ public class CancellationTests : IntegrationTestBase
         SetupManagerAuthentication();
 
         // Act
-        var response = await PostAsJsonAsync("/v1/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders/12345/cancel", cancellationRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -337,7 +337,7 @@ public class CancellationTests : IntegrationTestBase
         SetupManagerAuthentication("mgr_engineering");
 
         // Act - Attempting to cancel order from different department
-        var response = await PostAsJsonAsync("/v1/purchase-orders/12345/cancel", cancellationRequest);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders/12345/cancel", cancellationRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -372,7 +372,7 @@ public class CancellationTests : IntegrationTestBase
             }
         };
 
-        var response = await PostAsJsonAsync("/v1/purchase-orders", request);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", request);
         response.EnsureSuccessStatusCode();
 
         var content = await response.Content.ReadAsStringAsync();

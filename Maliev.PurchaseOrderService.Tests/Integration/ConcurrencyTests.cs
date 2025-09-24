@@ -103,7 +103,7 @@ public class ConcurrencyTests : IClassFixture<WebApplicationFactory<Program>>
         });
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
-        var response = await _client.PutAsync($"/purchaseorders/v1/purchase-orders/{purchaseOrder.Id}", content);
+        var response = await _client.PutAsync($"/purchaseorders/v1.0/purchase-orders/{purchaseOrder.Id}", content);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Conflict);
@@ -164,7 +164,7 @@ public class ConcurrencyTests : IClassFixture<WebApplicationFactory<Program>>
         });
         var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
-        var response = await _client.PutAsync($"/purchaseorders/v1/purchase-orders/{purchaseOrder.Id}", content);
+        var response = await _client.PutAsync($"/purchaseorders/v1.0/purchase-orders/{purchaseOrder.Id}", content);
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -238,8 +238,8 @@ public class ConcurrencyTests : IClassFixture<WebApplicationFactory<Program>>
         var cancellationContent = new StringContent(cancellationJson, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
         // Act - Simulate simultaneous approval and cancellation
-        var approvalTask = client1.PostAsync($"/purchaseorders/v1/purchase-orders/{purchaseOrder.Id}/approve", approvalContent);
-        var cancellationTask = client2.PostAsync($"/purchaseorders/v1/purchase-orders/{purchaseOrder.Id}/cancel", cancellationContent);
+        var approvalTask = client1.PostAsync($"/purchaseorders/v1.0/purchase-orders/{purchaseOrder.Id}/approve", approvalContent);
+        var cancellationTask = client2.PostAsync($"/purchaseorders/v1.0/purchase-orders/{purchaseOrder.Id}/cancel", cancellationContent);
 
         var results = await Task.WhenAll(approvalTask, cancellationTask);
 
@@ -305,7 +305,7 @@ public class ConcurrencyTests : IClassFixture<WebApplicationFactory<Program>>
             });
             var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
 
-            return await _client.PutAsync($"/purchaseorders/v1/purchase-orders/{po.Id}", content);
+            return await _client.PutAsync($"/purchaseorders/v1.0/purchase-orders/{po.Id}", content);
         });
 
         var responses = await Task.WhenAll(updateTasks);

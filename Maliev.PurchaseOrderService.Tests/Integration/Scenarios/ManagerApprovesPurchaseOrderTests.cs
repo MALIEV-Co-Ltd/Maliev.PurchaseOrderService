@@ -38,7 +38,7 @@ public class ManagerApprovesPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -85,7 +85,7 @@ public class ManagerApprovesPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -119,7 +119,7 @@ public class ManagerApprovesPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -142,7 +142,7 @@ public class ManagerApprovesPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -165,7 +165,7 @@ public class ManagerApprovesPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -197,7 +197,7 @@ public class ManagerApprovesPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -221,7 +221,7 @@ public class ManagerApprovesPurchaseOrderTests : IntegrationTestBase
         };
 
         // Act
-        var response = await PostAsJsonAsync($"/api/purchaseorders/{purchaseOrderId}/approve", approveRequest);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", approveRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
