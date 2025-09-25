@@ -6,6 +6,9 @@ using System.Text;
 using System.Text.Json;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using Maliev.PurchaseOrderService.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration.Contracts;
 
@@ -23,6 +26,57 @@ public class ApprovePurchaseOrderContractTests : IClassFixture<TestWebApplicatio
     {
         _factory = factory;
         _client = _factory.CreateClient();
+        SeedTestData().Wait();
+    }
+
+    private async Task SeedTestData()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        // Ensure database is created
+        await dbContext.Database.EnsureCreatedAsync();
+
+        // Check if data already exists
+        if (await dbContext.PurchaseOrders.AnyAsync())
+        {
+            return;
+        }
+
+        // Create a test purchase order for approval tests (must be in pending status)
+        var (purchaseOrder, orderItems, shippingAddress, billingAddress) =
+            TestDataFactory.CreateCompletePurchaseOrderWithEntities(Data.Enums.OrderType.Internal, 2, "emp123");
+
+        // Set status to pending for approval tests
+        purchaseOrder.Status = Data.Enums.OrderStatus.Pending;
+
+        // Add addresses first
+        var addresses = new List<Data.Entities.Address>();
+        if (shippingAddress != null) addresses.Add(shippingAddress);
+        if (billingAddress != null) addresses.Add(billingAddress);
+
+        if (addresses.Count > 0)
+        {
+            await dbContext.Addresses.AddRangeAsync(addresses);
+            await dbContext.SaveChangesAsync();
+        }
+
+        // Set address foreign keys
+        if (shippingAddress != null)
+            purchaseOrder.ShippingAddressId = shippingAddress.Id;
+        if (billingAddress != null)
+            purchaseOrder.BillingAddressId = billingAddress.Id;
+
+        // Add purchase order
+        await dbContext.PurchaseOrders.AddAsync(purchaseOrder);
+        await dbContext.SaveChangesAsync();
+
+        // Set order item foreign keys and add them
+        foreach (var item in orderItems)
+            item.PurchaseOrderId = purchaseOrder.Id;
+
+        await dbContext.OrderItems.AddRangeAsync(orderItems);
+        await dbContext.SaveChangesAsync();
     }
 
     [Fact]

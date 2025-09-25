@@ -37,6 +37,7 @@ public class WHTCalculationTests : IntegrationTestBase
             SupplierID = 1234,
             CurrencyCode = "THB",
             OrderType = OrderType.Internal,
+            SubtotalAmount = 10000.00m,
             TotalAmount = 10000.00m,
             WHTRate = 0.03m // 3% WHT for Thailand
         };
@@ -93,6 +94,7 @@ public class WHTCalculationTests : IntegrationTestBase
             SupplierID = 1234,
             CurrencyCode = "USD",
             OrderType = OrderType.External,
+            SubtotalAmount = 10000.00m,
             TotalAmount = 10000.00m,
             WHTRate = 0.00m // No WHT for foreign suppliers
         };
@@ -141,6 +143,7 @@ public class WHTCalculationTests : IntegrationTestBase
             SupplierID = 1234,
             CurrencyCode = "THB",
             OrderType = OrderType.Internal,
+            SubtotalAmount = 10000.00m,
             TotalAmount = 10000.00m,
             WHTRate = 0.05m, // 5% WHT for services
             ServiceType = "Professional Services"
@@ -223,6 +226,7 @@ public class WHTCalculationTests : IntegrationTestBase
             SupplierID = 1234,
             CurrencyCode = "THB",
             OrderType = OrderType.Internal,
+            SubtotalAmount = 10000.00m,
             TotalAmount = 10000.00m,
             WHTRate = 0.03m
         };
@@ -251,8 +255,9 @@ public class WHTCalculationTests : IntegrationTestBase
             SupplierID = 1234,
             CurrencyCode = "THB",
             OrderType = OrderType.Internal,
+            SubtotalAmount = 10000.00m,
             TotalAmount = 10000.00m,
-            WHTRate = 1.5m // Invalid rate > 100%
+            WHTRate = 25.0m // Invalid rate > 15% Thailand limit
         };
 
         // Act
@@ -262,7 +267,7 @@ public class WHTCalculationTests : IntegrationTestBase
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        responseContent.Should().Contain("Invalid WHT rate");
+        responseContent.Should().Contain("WHT rate cannot exceed 15% as per Thailand tax regulations");
     }
 
     [Fact]

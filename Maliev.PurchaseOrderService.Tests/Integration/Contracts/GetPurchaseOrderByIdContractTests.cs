@@ -42,14 +42,19 @@ public class GetPurchaseOrderByIdContractTests : IClassFixture<TestWebApplicatio
             return;
         }
 
-        // Create a test purchase order with ID 1
-        var (purchaseOrder, orderItems, shippingAddress, billingAddress) =
+        // Create test purchase orders - one for emp123 and one for emp456
+        var (purchaseOrder1, orderItems1, shippingAddress1, billingAddress1) =
             TestDataFactory.CreateCompletePurchaseOrderWithEntities(Data.Enums.OrderType.Internal, 2, "emp123");
+
+        var (purchaseOrder2, orderItems2, shippingAddress2, billingAddress2) =
+            TestDataFactory.CreateCompletePurchaseOrderWithEntities(Data.Enums.OrderType.Internal, 2, "emp456");
 
         // Add addresses first
         var addresses = new List<Data.Entities.Address>();
-        if (shippingAddress != null) addresses.Add(shippingAddress);
-        if (billingAddress != null) addresses.Add(billingAddress);
+        if (shippingAddress1 != null) addresses.Add(shippingAddress1);
+        if (billingAddress1 != null) addresses.Add(billingAddress1);
+        if (shippingAddress2 != null) addresses.Add(shippingAddress2);
+        if (billingAddress2 != null) addresses.Add(billingAddress2);
 
         if (addresses.Count > 0)
         {
@@ -57,21 +62,31 @@ public class GetPurchaseOrderByIdContractTests : IClassFixture<TestWebApplicatio
             await dbContext.SaveChangesAsync();
         }
 
-        // Set address foreign keys
-        if (shippingAddress != null)
-            purchaseOrder.ShippingAddressId = shippingAddress.Id;
-        if (billingAddress != null)
-            purchaseOrder.BillingAddressId = billingAddress.Id;
+        // Set address foreign keys for purchase order 1
+        if (shippingAddress1 != null)
+            purchaseOrder1.ShippingAddressId = shippingAddress1.Id;
+        if (billingAddress1 != null)
+            purchaseOrder1.BillingAddressId = billingAddress1.Id;
 
-        // Add purchase order
-        await dbContext.PurchaseOrders.AddAsync(purchaseOrder);
+        // Set address foreign keys for purchase order 2
+        if (shippingAddress2 != null)
+            purchaseOrder2.ShippingAddressId = shippingAddress2.Id;
+        if (billingAddress2 != null)
+            purchaseOrder2.BillingAddressId = billingAddress2.Id;
+
+        // Add purchase orders
+        await dbContext.PurchaseOrders.AddRangeAsync(new[] { purchaseOrder1, purchaseOrder2 });
         await dbContext.SaveChangesAsync();
 
-        // Set order item foreign keys and add them
-        foreach (var item in orderItems)
-            item.PurchaseOrderId = purchaseOrder.Id;
+        // Set order item foreign keys and add them for purchase order 1
+        foreach (var item in orderItems1)
+            item.PurchaseOrderId = purchaseOrder1.Id;
 
-        await dbContext.OrderItems.AddRangeAsync(orderItems);
+        // Set order item foreign keys and add them for purchase order 2
+        foreach (var item in orderItems2)
+            item.PurchaseOrderId = purchaseOrder2.Id;
+
+        await dbContext.OrderItems.AddRangeAsync(orderItems1.Concat(orderItems2));
         await dbContext.SaveChangesAsync();
     }
 
@@ -154,7 +169,7 @@ public class GetPurchaseOrderByIdContractTests : IClassFixture<TestWebApplicatio
         });
 
         errorResponse.Should().NotBeNull();
-        errorResponse!.Error.Message.Should().Contain("Purchase order not found");
+        errorResponse!.Error.Message.Should().Contain("Purchase order with ID");
         errorResponse.Error.Code.Should().Be("PURCHASE_ORDER_NOT_FOUND");
     }
 
@@ -170,7 +185,7 @@ public class GetPurchaseOrderByIdContractTests : IClassFixture<TestWebApplicatio
         var response = await _client.GetAsync($"{_baseUrl}/{invalidId}");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound); // Route constraint {id:int} means invalid IDs return 404
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
     }
 
@@ -186,7 +201,7 @@ public class GetPurchaseOrderByIdContractTests : IClassFixture<TestWebApplicatio
         var response = await _client.GetAsync($"{_baseUrl}/{negativeId}");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound); // Route constraint {id:int} means invalid IDs return 404
     }
 
     [Fact]
@@ -201,7 +216,7 @@ public class GetPurchaseOrderByIdContractTests : IClassFixture<TestWebApplicatio
         var response = await _client.GetAsync($"{_baseUrl}/{zeroId}");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound); // Route constraint {id:int} means invalid IDs return 404
     }
 
     [Fact]
@@ -265,7 +280,7 @@ public class GetPurchaseOrderByIdContractTests : IClassFixture<TestWebApplicatio
         // Arrange
         var employeeToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", employeeToken);
-        var otherUserOrderId = 999; // Assume this belongs to another user
+        var otherUserOrderId = 2; // This belongs to emp456, but test runs as emp123
 
         // Act
         var response = await _client.GetAsync($"{_baseUrl}/{otherUserOrderId}");

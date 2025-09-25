@@ -7,8 +7,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Maliev.PurchaseOrderService.Api.DTOs;
-using Maliev.PurchaseOrderService.Api.Models;
 using Maliev.PurchaseOrderService.Data;
+using Maliev.PurchaseOrderService.Data.Entities;
+using Maliev.PurchaseOrderService.Data.Enums;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration;
 
@@ -22,21 +24,10 @@ namespace Maliev.PurchaseOrderService.Tests.Integration;
 /// - Subtotal and total amount recalculation
 /// - Thailand tax compliance
 /// </summary>
-public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
+public class WHTCalculationTests : IntegrationTestBase
 {
-    private readonly WebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client;
-    private readonly ILogger<WHTCalculationTests> _logger;
-
-    public WHTCalculationTests(WebApplicationFactory<Program> factory)
+    public WHTCalculationTests(TestWebApplicationFactory<Program> factory) : base(factory)
     {
-        _factory = factory;
-        _client = _factory.CreateClient();
-
-        // Configure test logging
-        using var scope = _factory.Services.CreateScope();
-        var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-        _logger = loggerFactory.CreateLogger<WHTCalculationTests>();
     }
 
     [Fact]
@@ -48,14 +39,14 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             SupplierID = 1234,
             OrderID = 5678,
             CurrencyID = 1, // USD
-            OrderType = (Data.Enums.OrderType)OrderType.External,
+            OrderType = Data.Enums.OrderType.External,
             CustomerPO = "CUST-PO-2025-5678",
             ExpectedDeliveryDate = DateTime.UtcNow.AddDays(30),
             WhtRate = 3.0m, // 3% WHT as per Thailand tax regulations
             Notes = "Test order with 3% WHT calculation",
             ShippingAddress = new CreateAddressRequest
             {
-                AddressType = (Data.Enums.AddressType)AddressType.Shipping,
+                AddressType = Data.Enums.AddressType.Shipping,
                 ContactName = "Test Manufacturing",
                 AddressLine1 = "123 Test Street",
                 City = "Bangkok",
@@ -67,17 +58,26 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase orders controller endpoint is not implemented yet");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var createdOrder = JsonSerializer.Deserialize<PurchaseOrderResponse>(responseContent, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        createdOrder.Should().NotBeNull();
+        createdOrder!.WhtRate.Should().Be(3.0m);
+        createdOrder.OrderType.Should().Be(Data.Enums.OrderType.External);
     }
 
     [Fact]
     public async Task UpdatePurchaseOrder_WithValidWHTRate_ShouldRecalculateAmounts()
     {
-        // Arrange - This test should fail as we don't have implementation yet
+        // Arrange
         var updateRequest = new UpdatePurchaseOrderRequest
         {
             WhtRate = 5.0m, // Update to 5% WHT
@@ -86,11 +86,19 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync("/purchase-orders/12345", updateRequest);
+        var response = await Client.PutAsJsonAsync("/purchase-orders/12345", updateRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase orders update endpoint is not implemented yet");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var updatedOrder = JsonSerializer.Deserialize<PurchaseOrderResponse>(responseContent, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        updatedOrder.Should().NotBeNull();
+        updatedOrder!.WhtRate.Should().Be(5.0m);
     }
 
     [Theory]
@@ -101,22 +109,34 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task UpdatePurchaseOrder_WithInvalidWHTRate_ShouldReturnValidationError(
         decimal invalidWHTRate, string expectedErrorMessage)
     {
-        // Arrange
+        // Arrange - Set up authentication
+        SetupEmployeeAuthentication("emp123", "test");
+
+        // Seed a purchase order using the test infrastructure
+        var testPO = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending, "emp123");
+
         var updateRequest = new UpdatePurchaseOrderRequest
         {
             WhtRate = invalidWHTRate,
             Notes = "Testing invalid WHT rate validation",
-            RowVersion = "AAAAAAAAB9F="
+            RowVersion = Convert.ToBase64String(testPO.RowVersion ?? new byte[] { 1, 2, 3, 4 })
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync("/purchase-orders/12345", updateRequest);
+        var requestUrl = $"/v1.0/purchase-orders/{testPO.Id}";
+        var response = await PutAsJsonAsync(requestUrl, updateRequest);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase orders update endpoint is not implemented yet");
+        // Assert
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            var debugContent = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"Purchase order not found. ID: {testPO.Id}, URL: {requestUrl}, Response: {debugContent}");
+        }
 
-        // When implemented, this should return BadRequest with proper validation message
+        // Should return BadRequest with validation error
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+            "because the WHT rate validation should fail");
+
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain(expectedErrorMessage);
     }
@@ -130,13 +150,13 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             SupplierID = 7890, // Thailand supplier
             OrderID = 9012,
             CurrencyID = 2, // THB (Thai Baht)
-            OrderType = (Data.Enums.OrderType)OrderType.External,
+            OrderType = Data.Enums.OrderType.External,
             ExpectedDeliveryDate = DateTime.UtcNow.AddDays(45),
             WhtRate = 3.0m, // Standard WHT rate for Thailand
             Notes = "Thailand supplier order with local WHT compliance",
             ShippingAddress = new CreateAddressRequest
             {
-                AddressType = (Data.Enums.AddressType)AddressType.Shipping,
+                AddressType = Data.Enums.AddressType.Shipping,
                 ContactName = "Bangkok Manufacturing Hub",
                 AddressLine1 = "456 Industrial Road",
                 City = "Bangkok",
@@ -148,11 +168,21 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase orders controller endpoint is not implemented yet");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var createdOrder = JsonSerializer.Deserialize<PurchaseOrderResponse>(responseContent, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        createdOrder.Should().NotBeNull();
+        createdOrder!.SupplierID.Should().Be(7890);
+        createdOrder.WhtRate.Should().Be(3.0m);
+        createdOrder.CurrencyID.Should().Be(2); // THB
     }
 
     [Fact]
@@ -172,12 +202,12 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             SupplierID = 1234,
             OrderID = 5678,
             CurrencyID = 2, // THB
-            OrderType = (Data.Enums.OrderType)OrderType.External,
+            OrderType = Data.Enums.OrderType.External,
             WhtRate = 3.0m,
             Notes = "Multi-item order for WHT calculation testing",
             ShippingAddress = new CreateAddressRequest
             {
-                AddressType = (Data.Enums.AddressType)AddressType.Shipping,
+                AddressType = Data.Enums.AddressType.Shipping,
                 ContactName = "Test Contact",
                 AddressLine1 = "Test Address",
                 City = "Bangkok",
@@ -189,11 +219,20 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase orders controller endpoint is not implemented yet");
+        // Assert - Multi-item WHT calculation
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var createdOrder = JsonSerializer.Deserialize<PurchaseOrderResponse>(responseContent, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        createdOrder.Should().NotBeNull();
+        createdOrder!.WhtRate.Should().Be(3.0m);
+        createdOrder.CurrencyID.Should().Be(2); // THB
     }
 
     [Fact]
@@ -212,7 +251,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync("/purchase-orders/12349", updateRequest);
+        var response = await Client.PutAsJsonAsync("/purchase-orders/12349", updateRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -228,12 +267,12 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             SupplierID = 1234,
             OrderID = 5678,
             CurrencyID = 1,
-            OrderType = (Data.Enums.OrderType)OrderType.External,
+            OrderType = Data.Enums.OrderType.External,
             WhtRate = 0.0m, // No WHT
             Notes = "Supplier exempt from WHT",
             ShippingAddress = new CreateAddressRequest
             {
-                AddressType = (Data.Enums.AddressType)AddressType.Shipping,
+                AddressType = Data.Enums.AddressType.Shipping,
                 ContactName = "Test Contact",
                 AddressLine1 = "Test Address",
                 City = "Bangkok",
@@ -245,7 +284,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -261,12 +300,12 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             SupplierID = 1234,
             OrderID = 5678,
             CurrencyID = 1,
-            OrderType = (Data.Enums.OrderType)OrderType.External,
+            OrderType = Data.Enums.OrderType.External,
             WhtRate = 15.0m, // Maximum allowed rate
             Notes = "Maximum WHT rate for specific supplier type",
             ShippingAddress = new CreateAddressRequest
             {
-                AddressType = (Data.Enums.AddressType)AddressType.Shipping,
+                AddressType = Data.Enums.AddressType.Shipping,
                 ContactName = "Test Contact",
                 AddressLine1 = "Test Address",
                 City = "Bangkok",
@@ -278,7 +317,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -302,7 +341,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync("/purchase-orders/12345", updateRequest);
+        var response = await Client.PutAsJsonAsync("/purchase-orders/12345", updateRequest);
 
         // Assert - Should fail because implementation doesn't exist yet (TDD)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -318,12 +357,12 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             SupplierID = 1234,
             OrderID = 5678,
             CurrencyID = 1,
-            OrderType = (Data.Enums.OrderType)OrderType.External,
+            OrderType = Data.Enums.OrderType.External,
             WhtRate = whtRate,
             Notes = "Test order for WHT calculations",
             ShippingAddress = new CreateAddressRequest
             {
-                AddressType = (Data.Enums.AddressType)AddressType.Shipping,
+                AddressType = Data.Enums.AddressType.Shipping,
                 ContactName = "Test Contact",
                 AddressLine1 = "Test Address",
                 City = "Bangkok",
@@ -334,7 +373,7 @@ public class WHTCalculationTests : IClassFixture<WebApplicationFactory<Program>>
             }
         };
 
-        var response = await _client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
         response.EnsureSuccessStatusCode();
 
         var content = await response.Content.ReadAsStringAsync();

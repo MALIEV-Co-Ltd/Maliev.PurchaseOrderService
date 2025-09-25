@@ -27,30 +27,15 @@ public class EmployeeCreatesPurchaseOrderTests : IntegrationTestBase
         // Arrange
         SetupEmployeeAuthentication("emp123", "department1");
 
-        var createRequest = new CreatePurchaseOrderRequest
+        var (createRequest, supplier, currency, orderItems) = CreateCompletePurchaseOrderScenario(OrderType.Internal, "emp123");
+        SetupMocksForScenario(supplier, currency, orderItems);
+
+        // Override with specific test values for validation
+        createRequest.Notes = "Test internal purchase order";
+        createRequest.OrderItems = new List<CreateOrderItemRequest>
         {
-            OrderType = OrderType.Internal,
-            SupplierID = 1234,
-            OrderID = 5678,
-            CurrencyID = 1,  // "THB",
-            Notes = "Test internal purchase order",
-            OrderItems = new List<CreateOrderItemRequest>
-            {
-                new()
-                {
-                    ProductName = "Test Product",
-                    Quantity = 10,
-                    UnitPrice = 100.00m,
-                    Notes = "Test item 1"
-                },
-                new()
-                {
-                    ProductName = "Test Product",
-                    Quantity = 5,
-                    UnitPrice = 200.00m,
-                    Notes = "Test item 2"
-                }
-            }
+            TestDataFactory.CreateOrderItemRequest(quantity: 10, unitPrice: 100.00m),
+            TestDataFactory.CreateOrderItemRequest(quantity: 5, unitPrice: 200.00m)
         };
 
         // Act
@@ -70,7 +55,7 @@ public class EmployeeCreatesPurchaseOrderTests : IntegrationTestBase
 
         // Verify external service calls
         MockSupplierService.Verify(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
-        MockCurrencyService.Verify(x => x.ValidateCurrencyAsync("THB", It.IsAny<CancellationToken>()), Times.Once);
+        MockCurrencyService.Verify(x => x.ValidateCurrencyAsync(currency.Code, It.IsAny<CancellationToken>()), Times.Once);
         MockOrderService.Verify(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
 
         // Verify data persistence
@@ -89,26 +74,16 @@ public class EmployeeCreatesPurchaseOrderTests : IntegrationTestBase
     {
         // Arrange
         SetupEmployeeAuthentication("emp123", "department1");
-        SetupExternalServiceMocks();
 
-        var createRequest = new CreatePurchaseOrderRequest
+        var (createRequest, supplier, currency, orderItems) = CreateCompletePurchaseOrderScenario(OrderType.External);
+        SetupMocksForScenario(supplier, currency, orderItems);
+
+        // Override with specific test values for validation
+        createRequest.CustomerPO = "CUST-PO-2024-001";
+        createRequest.Notes = "External order with customer PO";
+        createRequest.OrderItems = new List<CreateOrderItemRequest>
         {
-            OrderType = OrderType.External,
-            SupplierID = 1234,
-            OrderID = 5678,
-            CurrencyID = 1,  // "USD",
-            CustomerPO = "CUST-PO-2024-001",
-            Notes = "External order with customer PO",
-            OrderItems = new List<CreateOrderItemRequest>
-            {
-                new()
-                {
-                    ProductName = "Test Product",
-                    Quantity = 1,
-                    UnitPrice = 1500.00m,
-                    Notes = "External item"
-                }
-            }
+            TestDataFactory.CreateOrderItemRequest(quantity: 1, unitPrice: 1500.00m)
         };
 
         // Act

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Maliev.PurchaseOrderService.Api.Attributes;
 
 namespace Maliev.PurchaseOrderService.Api.DTOs;
 
@@ -37,7 +38,7 @@ public class WHTCalculationRequest
     /// <summary>
     /// Optional explicit WHT rate to apply (overrides system calculation)
     /// </summary>
-    [Range(0.00, 99.99, ErrorMessage = "WHT rate must be between 0 and 99.99")]
+    [WHTRateValidation]
     public decimal? WHTRate { get; set; }
 
     /// <summary>

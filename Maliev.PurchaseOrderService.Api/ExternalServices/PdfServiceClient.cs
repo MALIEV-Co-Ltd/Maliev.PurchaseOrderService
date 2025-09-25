@@ -91,7 +91,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while generating PDF from HTML");
             throw new ExternalServiceException($"Failed to generate PDF from HTML: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while generating PDF from HTML");
             throw new ExternalServiceException("Timeout while generating PDF from HTML", ex);
@@ -158,7 +158,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while generating PDF from template {TemplateId}", templateId);
             throw new ExternalServiceException($"Failed to generate PDF from template {templateId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while generating PDF from template {TemplateId}", templateId);
             throw new ExternalServiceException($"Timeout while generating PDF from template {templateId}", ex);
@@ -229,7 +229,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while merging PDF files");
             throw new ExternalServiceException($"Failed to merge PDF files: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while merging PDF files");
             throw new ExternalServiceException("Timeout while merging PDF files", ex);
@@ -282,7 +282,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while converting PDF to images");
             throw new ExternalServiceException($"Failed to convert PDF to images: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while converting PDF to images");
             throw new ExternalServiceException("Timeout while converting PDF to images", ex);
@@ -334,7 +334,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while extracting text from PDF");
             throw new ExternalServiceException($"Failed to extract text from PDF: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while extracting text from PDF");
             throw new ExternalServiceException("Timeout while extracting text from PDF", ex);
@@ -398,7 +398,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while adding watermark to PDF");
             throw new ExternalServiceException($"Failed to add watermark to PDF: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while adding watermark to PDF");
             throw new ExternalServiceException("Timeout while adding watermark to PDF", ex);
@@ -424,6 +424,20 @@ public class PdfServiceClient : IPdfServiceClient
             multipartContent.Add(pdfContent, "pdf", "document.pdf");
 
             var response = await _httpClient.PostAsync("/pdfs/info", multipartContent, cancellationToken);
+
+            // Handle specific status codes before EnsureSuccessStatusCode
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("PDF job not found");
+                throw new InvalidOperationException("PDF job not found");
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogWarning("Authentication failed for PDF information request");
+                throw new UnauthorizedAccessException("Failed to authenticate with PDF service");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -437,7 +451,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting PDF information");
             throw new ExternalServiceException($"Failed to get PDF information: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while getting PDF information");
             throw new ExternalServiceException("Timeout while getting PDF information", ex);
@@ -495,7 +509,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while validating PDF");
             throw new ExternalServiceException($"Failed to validate PDF: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while validating PDF");
             throw new ExternalServiceException("Timeout while validating PDF", ex);
@@ -538,7 +552,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting PDF templates");
             throw new ExternalServiceException($"Failed to get PDF templates: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while getting PDF templates");
             throw new ExternalServiceException("Timeout while getting PDF templates", ex);
@@ -546,7 +560,7 @@ public class PdfServiceClient : IPdfServiceClient
         catch (JsonException ex)
         {
             _logger.LogError(ex, "JSON deserialization error while getting PDF templates");
-            throw new ExternalServiceException("Invalid response format while getting PDF templates", ex);
+            throw new InvalidDataException("Failed to parse PDF templates response", ex);
         }
     }
 
@@ -590,7 +604,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while downloading PDF template {TemplateId}", templateId);
             throw new ExternalServiceException($"Failed to download PDF template {templateId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while downloading PDF template {TemplateId}", templateId);
             throw new ExternalServiceException($"Timeout while downloading PDF template {templateId}", ex);
@@ -653,7 +667,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while validating template data {TemplateId}", templateId);
             throw new ExternalServiceException($"Failed to validate template data {templateId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while validating template data {TemplateId}", templateId);
             throw new ExternalServiceException($"Timeout while validating template data {templateId}", ex);
@@ -700,7 +714,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while downloading PDF for job {JobId}", jobId);
             throw new ExternalServiceException($"Failed to download PDF for job {jobId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while downloading PDF for job {JobId}", jobId);
             throw new ExternalServiceException($"Timeout while downloading PDF for job {jobId}", ex);
@@ -736,7 +750,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting PDF job status {JobId}", jobId);
             throw new ExternalServiceException($"Failed to get PDF job status {jobId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while getting PDF job status {JobId}", jobId);
             throw new ExternalServiceException($"Timeout while getting PDF job status {jobId}", ex);
@@ -777,7 +791,7 @@ public class PdfServiceClient : IPdfServiceClient
             _logger.LogError(ex, "HTTP error occurred while canceling PDF job {JobId}", jobId);
             throw new ExternalServiceException($"Failed to cancel PDF job {jobId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Timeout occurred while canceling PDF job {JobId}", jobId);
             throw new ExternalServiceException($"Timeout while canceling PDF job {jobId}", ex);

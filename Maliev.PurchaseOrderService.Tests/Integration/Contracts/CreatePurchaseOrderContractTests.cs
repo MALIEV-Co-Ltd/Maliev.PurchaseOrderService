@@ -7,6 +7,9 @@ using System.Text.Json;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Data.Enums;
 using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using Maliev.PurchaseOrderService.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration.Contracts;
 
@@ -24,6 +27,19 @@ public class CreatePurchaseOrderContractTests : IClassFixture<TestWebApplication
     {
         _factory = factory;
         _client = _factory.CreateClient();
+        SeedTestData().Wait();
+    }
+
+    private async Task SeedTestData()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        // Ensure database is created
+        await dbContext.Database.EnsureCreatedAsync();
+
+        // For create tests, we don't need existing data, just ensure database is ready
+        // But we might need some reference data like addresses for foreign key validation
     }
 
     [Fact]

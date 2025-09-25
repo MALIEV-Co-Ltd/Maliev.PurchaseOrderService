@@ -146,7 +146,8 @@ public class PurchaseOrdersController : ControllerBase
             }
 
             // Add ETag header for caching support
-            var etag = $"\"{purchaseOrder.Id}-{purchaseOrder.UpdatedAt?.Ticks ?? DateTime.UtcNow.Ticks}\"";
+            var timestamp = purchaseOrder.UpdatedAt?.Ticks ?? purchaseOrder.CreatedAt.Ticks;
+            var etag = $"\"{purchaseOrder.Id}-{timestamp}\"";
             Response.Headers.ETag = etag;
 
             // Add Cache-Control header
@@ -164,7 +165,14 @@ public class PurchaseOrdersController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex, "Unauthorized access to purchase order {PurchaseOrderId} by user {UserId}", id, User.Identity?.Name);
-            return Forbid(); // Returns 403
+            return StatusCode(403, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "Access denied. You do not have permission to view this purchase order",
+                    Code = "ACCESS_DENIED"
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -294,7 +302,15 @@ public class PurchaseOrdersController : ControllerBase
                     Error = new ErrorInfo
                     {
                         Message = "Invalid request data",
-                        Code = "INVALID_REQUEST"
+                        Code = "INVALID_REQUEST",
+                        Details = ModelState.ToDictionary(
+                            kvp => kvp.Key,
+                            kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray() ?? Array.Empty<string>()
+                        ).Select(kvp => new ErrorDetail
+                        {
+                            Field = kvp.Key,
+                            Message = string.Join(", ", kvp.Value)
+                        }).ToList()
                     }
                 });
             }
@@ -646,6 +662,26 @@ public class PurchaseOrdersController : ControllerBase
         try
         {
             _logger.LogInformation("Calculating WHT for purchase order {PurchaseOrderId}", id);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = "Invalid request data",
+                        Code = "INVALID_REQUEST",
+                        Details = ModelState.ToDictionary(
+                            kvp => kvp.Key,
+                            kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray() ?? Array.Empty<string>()
+                        ).Select(kvp => new ErrorDetail
+                        {
+                            Field = kvp.Key,
+                            Message = string.Join(", ", kvp.Value)
+                        }).ToList()
+                    }
+                });
+            }
 
             var result = await _purchaseOrderService.CalculateWHTAsync(id, request, cancellationToken);
 

@@ -17,26 +17,17 @@ using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.Models;
 using Maliev.PurchaseOrderService.Data;
+using Maliev.PurchaseOrderService.Data.Enums;
 using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 using Moq;
 
 namespace Maliev.PurchaseOrderService.Tests.Controllers;
 
-public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFactory<Program>>
+public class PurchaseOrdersControllerTests : IntegrationTestBase
 {
-    private readonly TestWebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client;
-    private readonly JsonSerializerOptions _jsonOptions;
-
-    public PurchaseOrdersControllerTests(TestWebApplicationFactory<Program> factory)
+    public PurchaseOrdersControllerTests(TestWebApplicationFactory<Program> factory) : base(factory)
     {
-        _factory = factory;
-        _client = _factory.CreateClient();
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = true
-        };
+        // Setup is handled by base class
     }
 
     #region T008: Contract test GET /purchase-orders
@@ -45,11 +36,11 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     public async Task GetPurchaseOrders_WithValidEmployeeToken_ShouldReturnOwnOrdersOnly()
     {
         // Arrange
-        var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        await SeedTestDataAsync();
+        SetupEmployeeAuthentication("emp123", "department1");
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders");
+        var response = await Client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return OK once API versioning is fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -60,10 +51,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateManagerToken("mgr123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders");
+        var response = await Client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return OK once API versioning is fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -74,10 +65,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders");
+        var response = await Client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return OK once API versioning is fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -88,10 +79,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateAdminToken("admin123", "admin");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders");
+        var response = await Client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return OK once API versioning is fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -103,7 +94,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
         // Arrange - No authorization header
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders");
+        var response = await Client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return 401 Unauthorized when no token provided
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -113,10 +104,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     public async Task GetPurchaseOrders_WithInvalidToken_ShouldReturn401()
     {
         // Arrange
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", "invalid-token");
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", "invalid-token");
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders");
+        var response = await Client.GetAsync("/v1.0/purchase-orders");
 
         // Assert - Should return 401 Unauthorized for invalid token
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -127,10 +118,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders?page=1&pageSize=10");
+        var response = await Client.GetAsync("/v1.0/purchase-orders?page=1&pageSize=10");
 
         // Assert - Should return OK with pagination
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -141,10 +132,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders?page=0&pageSize=101");
+        var response = await Client.GetAsync("/v1.0/purchase-orders?page=0&pageSize=101");
 
         // Assert - Should return BadRequest for invalid pagination
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -155,10 +146,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders?status=Pending");
+        var response = await Client.GetAsync("/v1.0/purchase-orders?status=Pending");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -169,10 +160,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders?orderType=External");
+        var response = await Client.GetAsync("/v1.0/purchase-orders?orderType=External");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -183,12 +174,12 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
         var fromDate = DateTime.UtcNow.AddDays(-30).ToString("yyyy-MM-ddTHH:mm:ssZ");
         var toDate = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
         // Act
-        var response = await _client.GetAsync($"/v1.0/purchase-orders?createdFrom={fromDate}&createdTo={toDate}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders?createdFrom={fromDate}&createdTo={toDate}");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -199,10 +190,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders?sortBy=totalAmount&sortDirection=desc");
+        var response = await Client.GetAsync("/v1.0/purchase-orders?sortBy=totalAmount&sortDirection=desc");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -213,10 +204,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders?supplierID=123");
+        var response = await Client.GetAsync("/v1.0/purchase-orders?supplierID=123");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -227,10 +218,10 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         // Act
-        var response = await _client.GetAsync("/v1.0/purchase-orders?orderID=456");
+        var response = await Client.GetAsync("/v1.0/purchase-orders?orderID=456");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -245,21 +236,21 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         var request = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
             OrderID = 100,
             CurrencyID = 1,
-            OrderType = (Data.Enums.OrderType)OrderType.External,
+            OrderType = Data.Enums.OrderType.External,
             CustomerPO = "CUST-PO-001",
             ExpectedDeliveryDate = DateTime.UtcNow.AddDays(14),
             WhtRate = 3.0m,
             Notes = "Test purchase order",
             ShippingAddress = new CreateAddressRequest
             {
-                AddressType = (Data.Enums.AddressType)AddressType.Shipping,
+                AddressType = (Data.Enums.AddressType)Data.Enums.AddressType.Shipping,
                 ContactName = "John Doe",
                 AddressLine1 = "123 Main St",
                 City = "Bangkok",
@@ -268,7 +259,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             },
             BillingAddress = new CreateAddressRequest
             {
-                AddressType = (Data.Enums.AddressType)AddressType.Billing,
+                AddressType = (Data.Enums.AddressType)Data.Enums.AddressType.Billing,
                 ContactName = "Jane Smith",
                 AddressLine1 = "456 Business Ave",
                 City = "Bangkok",
@@ -277,11 +268,11 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             }
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(request, _jsonOptions),
+        var content = new StringContent(JsonSerializer.Serialize(request, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }),
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
+        var response = await Client.PostAsync("/v1.0/purchase-orders", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -292,18 +283,18 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
 
         var request = new CreatePurchaseOrderRequest
         {
             // Missing required fields: SupplierID, OrderID, CurrencyID, OrderType
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(request, _jsonOptions),
+        var content = new StringContent(JsonSerializer.Serialize(request, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }),
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
+        var response = await Client.PostAsync("/v1.0/purchase-orders", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -312,23 +303,16 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     [Fact]
     public async Task CreatePurchaseOrder_WithoutAuthToken_ShouldReturn401()
     {
-        // Arrange - No authorization header
-        var request = new CreatePurchaseOrderRequest
-        {
-            SupplierID = 1,
-            OrderID = 100,
-            CurrencyID = 1,
-            OrderType = (Data.Enums.OrderType)OrderType.External
-        };
-
-        var content = new StringContent(JsonSerializer.Serialize(request, _jsonOptions),
-            System.Text.Encoding.UTF8, "application/json");
+        // Arrange - No authentication token
+        ClearAuthentication(); // Ensure no auth token
+        var (request, supplier, currency, orderItems) = CreateCompletePurchaseOrderScenario(Data.Enums.OrderType.External);
+        SetupMocksForScenario(supplier, currency, orderItems);
 
         // Act
-        var response = await _client.PostAsync("/v1.0/purchase-orders", content);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", request);
 
-        // Assert - Should return expected response once tests are fixed
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert - Should return 401 for missing authentication
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     #endregion
@@ -340,11 +324,11 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -354,15 +338,15 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     public async Task GetPurchaseOrderById_WithNonExistentId_ShouldReturn404()
     {
         // Arrange
-        var jwtToken = TestJwtHelper.GenerateProcurementToken("proc123", "procurement");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
-        var purchaseOrderId = 99999;
+        await SeedTestDataAsync();
+        SetupProcurementAuthentication("proc123", "procurement");
+        var nonExistentId = 999999; // Use a clearly non-existent ID
 
         // Act
-        var response = await _client.GetAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
+        var response = await Client.GetAsync($"/v1.0/purchase-orders/{nonExistentId}");
 
-        // Assert - Should return expected response once tests are fixed
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert - Should return 404 for non-existent entity
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     #endregion
@@ -374,7 +358,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
         var purchaseOrderId = 1;
 
         var request = new UpdatePurchaseOrderRequest
@@ -386,11 +370,11 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             Notes = "Updated notes"
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(request, _jsonOptions),
+        var content = new StringContent(JsonSerializer.Serialize(request, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }),
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -401,7 +385,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
         var purchaseOrderId = 1;
 
         var request = new UpdatePurchaseOrderRequest
@@ -410,11 +394,11 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
             Notes = "Updated notes"
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(request, _jsonOptions),
+        var content = new StringContent(JsonSerializer.Serialize(request, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }),
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
+        var response = await Client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -429,11 +413,11 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
         var purchaseOrderId = 1; // Assuming this is employee's own pending order
 
         // Act
-        var response = await _client.DeleteAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
+        var response = await Client.DeleteAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -443,15 +427,15 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     public async Task DeletePurchaseOrder_WithNonExistentId_ShouldReturn404()
     {
         // Arrange
-        var jwtToken = TestJwtHelper.GenerateAdminToken("admin123", "admin");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
-        var purchaseOrderId = 99999;
+        await SeedTestDataAsync();
+        SetupAdminAuthentication("admin123", "admin");
+        var nonExistentId = 999999; // Use a clearly non-existent ID
 
         // Act
-        var response = await _client.DeleteAsync($"/v1.0/purchase-orders/{purchaseOrderId}");
+        var response = await Client.DeleteAsync($"/v1.0/purchase-orders/{nonExistentId}");
 
-        // Assert - Should return expected response once tests are fixed
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert - Should return 404 for non-existent entity
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     #endregion
@@ -462,18 +446,15 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     public async Task ApprovePurchaseOrder_WithValidIdAndManagerToken_ShouldReturn200()
     {
         // Arrange
-        var jwtToken = TestJwtHelper.GenerateManagerToken("mgr123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
-        var purchaseOrderId = 1;
+        var seededPO = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending, "emp123");
+        SetupManagerAuthentication("mgr123", "department1");
 
-        var request = new { notes = "Approved by manager" };
-        var content = new StringContent(JsonSerializer.Serialize(request, _jsonOptions),
-            System.Text.Encoding.UTF8, "application/json");
+        var request = TestDataFactory.CreateApprovePurchaseOrderRequest("mgr123", "Approved by manager");
 
         // Act
-        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", content);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPO.Id}/approve", request);
 
-        // Assert - Should return expected response once tests are fixed
+        // Assert - Should return expected response
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -481,19 +462,16 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     public async Task ApprovePurchaseOrder_WithEmployeeToken_ShouldReturn403()
     {
         // Arrange
-        var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
-        var purchaseOrderId = 1;
+        var seededPO = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending, "emp123");
+        SetupEmployeeAuthentication("emp123", "department1");
 
-        var request = new { notes = "Trying to approve" };
-        var content = new StringContent(JsonSerializer.Serialize(request, _jsonOptions),
-            System.Text.Encoding.UTF8, "application/json");
+        var request = TestDataFactory.CreateApprovePurchaseOrderRequest("emp123", "Trying to approve");
 
         // Act
-        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/approve", content);
+        var response = await PostAsJsonAsync($"/v1.0/purchase-orders/{seededPO.Id}/approve", request);
 
-        // Assert - Should return expected response once tests are fixed
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert - Should return 403 for insufficient permissions
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     #endregion
@@ -505,15 +483,15 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
         var purchaseOrderId = 1; // Assuming this is employee's own order
 
         var request = new { reason = "No longer needed" };
-        var content = new StringContent(JsonSerializer.Serialize(request, _jsonOptions),
+        var content = new StringContent(JsonSerializer.Serialize(request, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }),
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -524,15 +502,15 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     {
         // Arrange
         var jwtToken = TestJwtHelper.GenerateEmployeeToken("emp123", "department1");
-        _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
+        Client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
         var purchaseOrderId = 1;
 
         var request = new { }; // Missing required reason
-        var content = new StringContent(JsonSerializer.Serialize(request, _jsonOptions),
+        var content = new StringContent(JsonSerializer.Serialize(request, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }),
             System.Text.Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
+        var response = await Client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
         // Assert - Should return expected response once tests are fixed
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -546,7 +524,7 @@ public class PurchaseOrdersControllerTests : IClassFixture<TestWebApplicationFac
     private async Task<T?> DeserializeResponse<T>(HttpResponseMessage response)
     {
         var content = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<T>(content, _jsonOptions);
+        return JsonSerializer.Deserialize<T>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     #endregion

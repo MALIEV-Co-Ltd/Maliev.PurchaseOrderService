@@ -120,6 +120,14 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     }
 
     /// <summary>
+    /// Resets test data sequence for consistent test runs
+    /// </summary>
+    protected virtual void ResetTestDataSequence()
+    {
+        TestDataFactory.ResetIdSequence();
+    }
+
+    /// <summary>
     /// Setup common mock behaviors that most tests need
     /// </summary>
     protected virtual void SetupCommonMocks()
@@ -269,48 +277,87 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
     #endregion
 
-    #region Test Data Creation Helpers
+    #region Enhanced Test Data Creation Helpers
 
+    /// <summary>
+    /// Creates a purchase order request using enhanced TestDataFactory scenarios
+    /// </summary>
     protected CreatePurchaseOrderRequest CreateBasicPurchaseOrderRequest(
         OrderType orderType = OrderType.Internal,
-        string currencyCode = "THB")
+        string? userContext = null)
     {
-        return new CreatePurchaseOrderRequest
+        if (orderType == OrderType.Internal)
         {
-            SupplierID = 1234,
-            OrderID = 5678,
-            CurrencyID = 1,
-            OrderType = orderType,
-            CustomerPO = "CUST-PO-001",
-            ExpectedDeliveryDate = DateTime.UtcNow.AddDays(14),
-            Notes = "Test purchase order",
-            ShippingAddress = new CreateAddressRequest
-            {
-                AddressType = Data.Enums.AddressType.Shipping,
-                ContactName = "Test Contact",
-                AddressLine1 = "123 Test Street",
-                City = "Bangkok",
-                PostalCode = "10100",
-                Country = "Thailand",
-                PhoneNumber = "+66-2-555-0123",
-                EmailAddress = "test@maliev.com"
-            }
-        };
+            var (request, _, _, _) = TestDataFactory.CreateEmployeeInternalPOScenario(userContext ?? "test-employee");
+            return request;
+        }
+        else
+        {
+            var (request, _, _, _) = TestDataFactory.CreateExternalPOScenario();
+            return request;
+        }
     }
 
+    /// <summary>
+    /// Creates a complete purchase order request with all dependencies set up
+    /// </summary>
+    protected (CreatePurchaseOrderRequest request, SupplierDto supplier, CurrencyDto currency, List<OrderItemDto> orderItems)
+        CreateCompletePurchaseOrderScenario(OrderType orderType = OrderType.Internal, string? userContext = null)
+    {
+        return orderType == OrderType.Internal
+            ? TestDataFactory.CreateEmployeeInternalPOScenario(userContext ?? "test-employee")
+            : TestDataFactory.CreateExternalPOScenario();
+    }
+
+    /// <summary>
+    /// Creates an address request using the enhanced factory
+    /// </summary>
     protected CreateAddressRequest CreateBasicAddressRequest(Data.Enums.AddressType addressType = Data.Enums.AddressType.Shipping)
     {
-        return new CreateAddressRequest
+        return TestDataFactory.CreateAddressRequest(addressType);
+    }
+
+    /// <summary>
+    /// Sets up external service mocks for a complete purchase order scenario
+    /// </summary>
+    protected void SetupMocksForScenario(
+        SupplierDto supplier,
+        CurrencyDto currency,
+        List<OrderItemDto> orderItems,
+        bool includeWHTCalculation = true)
+    {
+        // Setup supplier service
+        MockSupplierService
+            .Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(supplier);
+        MockSupplierService
+            .Setup(x => x.GetSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(supplier);
+
+        // Setup currency service
+        MockCurrencyService
+            .Setup(x => x.ValidateCurrencyAsync(currency.Code, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(currency);
+
+        // Setup order service
+        MockOrderService
+            .Setup(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(orderItems);
+        MockOrderService
+            .Setup(x => x.ValidateOrderForPurchaseOrderAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // Setup WHT calculation if needed
+        if (includeWHTCalculation)
         {
-            AddressType = addressType,
-            ContactName = "Test Contact",
-            AddressLine1 = "123 Test Street",
-            City = "Bangkok",
-            PostalCode = "10100",
-            Country = "Thailand",
-            PhoneNumber = "+66-2-555-0123",
-            EmailAddress = "test@maliev.com"
-        };
+            var whtResult = TestDataFactory.CreateWHTCalculationResult(
+                orderItems.Sum(i => i.TotalPrice),
+                3.0m // 3%
+            );
+            MockWHTService
+                .Setup(x => x.CalculateWHTAsync(It.IsAny<SupplierDto>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(whtResult);
+        }
     }
 
     #endregion
@@ -318,7 +365,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     #region Database Seeding Helpers
 
     /// <summary>
-    /// Seeds the database with test data for scenarios that need existing purchase orders
+    /// Seeds the database with comprehensive test data for scenarios that need existing purchase orders
     /// </summary>
     protected async Task SeedTestDataAsync()
     {
@@ -334,38 +381,26 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             return;
         }
 
-        // For InMemory database, we don't need transactions (they're ignored anyway)
-        // We'll rely on the fact that InMemory is single-threaded and atomic per SaveChanges
         try
         {
+            // Use the enhanced TestDataFactory to create comprehensive scenarios
+            var (pendingPO, approvedPO, cancelledPO) = TestDataFactory.CreateMultiStatusPOScenarios("test-employee");
 
-            // Create test data
-            var (purchaseOrder1, orderItems1, shippingAddress1, billingAddress1) =
-                TestDataFactory.CreateCompletePurchaseOrderWithEntities(OrderType.Internal, 2, "emp123");
+            // Create comprehensive test scenarios with all dependencies
+            var scenarios = new[]
+            {
+                TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.Internal, OrderStatus.Pending, "emp123", 2),
+                TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.External, OrderStatus.Approved, "emp456", 1),
+                TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.Internal, OrderStatus.Cancelled, "emp789", 3)
+            };
 
-            var (purchaseOrder2, orderItems2, shippingAddress2, billingAddress2) =
-                TestDataFactory.CreateCompletePurchaseOrderWithEntities(OrderType.External, 1, "emp456");
-
-            var (purchaseOrder3, orderItems3, shippingAddress3, billingAddress3) =
-                TestDataFactory.CreateCompletePurchaseOrderWithEntities(OrderType.Internal, 3, "emp789");
-
-            // Set specific statuses for testing
-            purchaseOrder2.Status = OrderStatus.Approved;
-            purchaseOrder2.ApprovedBy = "mgr123";
-            purchaseOrder2.ApprovedAt = DateTime.UtcNow.AddDays(-1);
-
-            purchaseOrder3.Status = OrderStatus.Cancelled;
-            purchaseOrder3.CancelledBy = "mgr123";
-            purchaseOrder3.CancelledAt = DateTime.UtcNow.AddHours(-2);
-
-            // Add all data in a single batch to minimize database round trips
+            // Seed addresses first (all scenarios)
             var allAddresses = new List<Address>();
-            if (shippingAddress1 != null) allAddresses.Add(shippingAddress1);
-            if (billingAddress1 != null) allAddresses.Add(billingAddress1);
-            if (shippingAddress2 != null) allAddresses.Add(shippingAddress2);
-            if (billingAddress2 != null) allAddresses.Add(billingAddress2);
-            if (shippingAddress3 != null) allAddresses.Add(shippingAddress3);
-            if (billingAddress3 != null) allAddresses.Add(billingAddress3);
+            foreach (var (_, _, shippingAddr, billingAddr, _, _) in scenarios)
+            {
+                if (shippingAddr != null) allAddresses.Add(shippingAddr);
+                if (billingAddr != null) allAddresses.Add(billingAddr);
+            }
 
             if (allAddresses.Count > 0)
             {
@@ -373,85 +408,145 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
                 await dbContext.SaveChangesAsync();
             }
 
-            // Set address foreign keys
-            purchaseOrder1.ShippingAddressId = shippingAddress1?.Id;
-            purchaseOrder1.BillingAddressId = billingAddress1?.Id;
-            purchaseOrder2.ShippingAddressId = shippingAddress2?.Id;
-            purchaseOrder2.BillingAddressId = billingAddress2?.Id;
-            purchaseOrder3.ShippingAddressId = shippingAddress3?.Id;
-            purchaseOrder3.BillingAddressId = billingAddress3?.Id;
+            // Seed purchase orders with address relationships
+            var allPurchaseOrders = new List<PurchaseOrder>();
+            foreach (var (purchaseOrder, _, shippingAddr, billingAddr, _, _) in scenarios)
+            {
+                purchaseOrder.ShippingAddressId = shippingAddr?.Id;
+                purchaseOrder.BillingAddressId = billingAddr?.Id;
+                allPurchaseOrders.Add(purchaseOrder);
+            }
 
-            // Add purchase orders
-            await dbContext.PurchaseOrders.AddRangeAsync(purchaseOrder1, purchaseOrder2, purchaseOrder3);
+            await dbContext.PurchaseOrders.AddRangeAsync(allPurchaseOrders);
             await dbContext.SaveChangesAsync();
 
-            // Set order item foreign keys and add them in batches
-            foreach (var item in orderItems1)
-                item.PurchaseOrderId = purchaseOrder1.Id;
-            foreach (var item in orderItems2)
-                item.PurchaseOrderId = purchaseOrder2.Id;
-            foreach (var item in orderItems3)
-                item.PurchaseOrderId = purchaseOrder3.Id;
+            // Seed order items with proper foreign key relationships
+            var allOrderItems = new List<OrderItem>();
+            foreach (var (purchaseOrder, orderItems, _, _, _, _) in scenarios)
+            {
+                foreach (var item in orderItems)
+                {
+                    item.PurchaseOrderId = purchaseOrder.Id;
+                    allOrderItems.Add(item);
+                }
+            }
 
-            var allOrderItems = orderItems1.Concat(orderItems2).Concat(orderItems3).ToList();
             await dbContext.OrderItems.AddRangeAsync(allOrderItems);
             await dbContext.SaveChangesAsync();
 
-            // InMemory database doesn't need explicit commits
+            // Add some test files for document management scenarios
+            var testFiles = new List<PurchaseOrderFile>();
+            foreach (var (purchaseOrder, _, _, _, _, _) in scenarios.Take(2)) // Add files to first 2 POs
+            {
+                testFiles.Add(TestDataFactory.CreatePurchaseOrderFileEntity(
+                    purchaseOrderId: purchaseOrder.Id,
+                    fileName: $"test-document-{purchaseOrder.Id}.pdf",
+                    uploadedBy: purchaseOrder.CreatedBy
+                ));
+            }
+
+            if (testFiles.Count > 0)
+            {
+                await dbContext.PurchaseOrderFiles.AddRangeAsync(testFiles);
+                await dbContext.SaveChangesAsync();
+            }
         }
         catch
         {
-            // For InMemory database, we can't rollback, so we'll clear any partial data
-            // This is a best-effort cleanup in case of errors
+            // Clean up partial data on error
             try
             {
                 ClearAllTestData(dbContext);
             }
             catch
             {
-                // Ignore cleanup errors - the database will be recreated for each test anyway
+                // Ignore cleanup errors
             }
             throw;
         }
     }
 
     /// <summary>
-    /// Seeds a specific purchase order for tests that need a known entity
+    /// Seeds minimal test data with specific scenarios for focused tests
     /// </summary>
-    protected async Task<PurchaseOrder> SeedPurchaseOrderAsync(
-        OrderType orderType = OrderType.Internal,
-        OrderStatus status = OrderStatus.Pending,
-        string createdBy = "test-user")
+    protected async Task SeedMinimalTestDataAsync(params (OrderType orderType, OrderStatus status, string createdBy)[] scenarios)
     {
         using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
         await dbContext.Database.EnsureCreatedAsync();
 
-        // For InMemory database, we don't need transactions (they're ignored anyway)
         try
         {
-            var (purchaseOrder, orderItems, shippingAddress, billingAddress) =
-                TestDataFactory.CreateCompletePurchaseOrderWithEntities(orderType, 2, createdBy);
-
-            purchaseOrder.Status = status;
-
-            // Add addresses first in a batch
-            var addresses = new List<Address>();
-            if (shippingAddress != null) addresses.Add(shippingAddress);
-            if (billingAddress != null) addresses.Add(billingAddress);
-
-            if (addresses.Count > 0)
+            foreach (var (orderType, status, createdBy) in scenarios)
             {
-                await dbContext.Addresses.AddRangeAsync(addresses);
+                var (purchaseOrder, orderItems, shippingAddr, billingAddr, _, _) =
+                    TestDataFactory.CreateCompletePOScenarioForSeeding(orderType, status, createdBy, 2);
+
+                // Add addresses
+                var addresses = new List<Address>();
+                if (shippingAddr != null) addresses.Add(shippingAddr);
+                if (billingAddr != null) addresses.Add(billingAddr);
+
+                if (addresses.Count > 0)
+                {
+                    await dbContext.Addresses.AddRangeAsync(addresses);
+                    await dbContext.SaveChangesAsync();
+                }
+
+                // Set foreign keys and add purchase order
+                purchaseOrder.ShippingAddressId = shippingAddr?.Id;
+                purchaseOrder.BillingAddressId = billingAddr?.Id;
+                await dbContext.PurchaseOrders.AddAsync(purchaseOrder);
+                await dbContext.SaveChangesAsync();
+
+                // Add order items
+                foreach (var item in orderItems)
+                    item.PurchaseOrderId = purchaseOrder.Id;
+
+                await dbContext.OrderItems.AddRangeAsync(orderItems);
                 await dbContext.SaveChangesAsync();
             }
+        }
+        catch
+        {
+            try
+            {
+                ClearAllTestData(dbContext);
+            }
+            catch { }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Seeds a specific purchase order for tests that need a known entity with enhanced scenario support
+    /// </summary>
+    protected async Task<PurchaseOrder> SeedPurchaseOrderAsync(
+        OrderType orderType = OrderType.Internal,
+        OrderStatus status = OrderStatus.Pending,
+        string createdBy = "test-user",
+        int itemCount = 2)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        await dbContext.Database.EnsureCreatedAsync();
+
+        try
+        {
+            // Use the enhanced factory method
+            var (purchaseOrder, orderItems, shippingAddress, billingAddress, supplier, currency) =
+                TestDataFactory.CreateCompletePOScenarioForSeeding(orderType, status, createdBy, itemCount);
+
+            // Add addresses first
+            var addresses = new List<Address> { shippingAddress, billingAddress };
+            await dbContext.Addresses.AddRangeAsync(addresses);
+            await dbContext.SaveChangesAsync();
 
             // Set address foreign keys
-            if (shippingAddress != null)
-                purchaseOrder.ShippingAddressId = shippingAddress.Id;
-            if (billingAddress != null)
-                purchaseOrder.BillingAddressId = billingAddress.Id;
+            purchaseOrder.ShippingAddressId = shippingAddress.Id;
+            purchaseOrder.BillingAddressId = billingAddress.Id;
 
             // Add purchase order
             await dbContext.PurchaseOrders.AddAsync(purchaseOrder);
@@ -468,15 +563,78 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         }
         catch
         {
-            // For InMemory database, we can't rollback, so we'll clear any partial data
             try
             {
                 ClearAllTestData(dbContext);
             }
-            catch
+            catch { }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Seeds multiple purchase orders with different statuses for comprehensive testing
+    /// </summary>
+    protected async Task<(PurchaseOrder pending, PurchaseOrder approved, PurchaseOrder cancelled)> SeedMultiStatusPurchaseOrdersAsync(
+        string createdBy = "test-user")
+    {
+        using var scope = Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        await dbContext.Database.EnsureCreatedAsync();
+
+        try
+        {
+            // Create three purchase orders with different statuses
+            var scenarios = new[]
             {
-                // Ignore cleanup errors - the database will be recreated for each test anyway
+                TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.Internal, OrderStatus.Pending, createdBy, 2),
+                TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.External, OrderStatus.Approved, $"mgr-{createdBy}", 1),
+                TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.Internal, OrderStatus.Cancelled, createdBy, 3)
+            };
+
+            // Seed all addresses first
+            var allAddresses = new List<Address>();
+            foreach (var (_, _, shipping, billing, _, _) in scenarios)
+            {
+                allAddresses.AddRange(new[] { shipping, billing });
             }
+            await dbContext.Addresses.AddRangeAsync(allAddresses);
+            await dbContext.SaveChangesAsync();
+
+            // Seed all purchase orders
+            var purchaseOrders = new List<PurchaseOrder>();
+            foreach (var (po, _, shipping, billing, _, _) in scenarios)
+            {
+                po.ShippingAddressId = shipping.Id;
+                po.BillingAddressId = billing.Id;
+                purchaseOrders.Add(po);
+            }
+            await dbContext.PurchaseOrders.AddRangeAsync(purchaseOrders);
+            await dbContext.SaveChangesAsync();
+
+            // Seed all order items
+            var allOrderItems = new List<OrderItem>();
+            foreach (var (po, items, _, _, _, _) in scenarios)
+            {
+                foreach (var item in items)
+                {
+                    item.PurchaseOrderId = po.Id;
+                    allOrderItems.Add(item);
+                }
+            }
+            await dbContext.OrderItems.AddRangeAsync(allOrderItems);
+            await dbContext.SaveChangesAsync();
+
+            return (purchaseOrders[0], purchaseOrders[1], purchaseOrders[2]);
+        }
+        catch
+        {
+            try
+            {
+                ClearAllTestData(dbContext);
+            }
+            catch { }
             throw;
         }
     }
@@ -525,9 +683,9 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     }
 
     /// <summary>
-    /// Gets a seeded purchase order for testing
+    /// Gets a seeded purchase order for testing with comprehensive includes
     /// </summary>
-    protected async Task<PurchaseOrder?> GetSeededPurchaseOrderAsync(OrderStatus? status = null)
+    protected async Task<PurchaseOrder?> GetSeededPurchaseOrderAsync(OrderStatus? status = null, OrderType? orderType = null)
     {
         using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
@@ -536,12 +694,59 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             .Include(po => po.OrderItems)
             .Include(po => po.ShippingAddress)
             .Include(po => po.BillingAddress)
+            .Include(po => po.PurchaseOrderFiles)
             .AsQueryable();
 
         if (status.HasValue)
             query = query.Where(po => po.Status == status.Value);
+        if (orderType.HasValue)
+            query = query.Where(po => po.OrderType == orderType.Value);
 
         return await query.FirstOrDefaultAsync();
+    }
+
+    /// <summary>
+    /// Gets all seeded purchase orders with full data for comprehensive testing
+    /// </summary>
+    protected async Task<List<PurchaseOrder>> GetAllSeededPurchaseOrdersAsync()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        return await dbContext.PurchaseOrders
+            .Include(po => po.OrderItems)
+            .Include(po => po.ShippingAddress)
+            .Include(po => po.BillingAddress)
+            .Include(po => po.PurchaseOrderFiles)
+            .OrderBy(po => po.Id)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets a purchase order by ID with full includes for testing
+    /// </summary>
+    protected async Task<PurchaseOrder?> GetPurchaseOrderByIdAsync(int id)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        return await dbContext.PurchaseOrders
+            .Include(po => po.OrderItems)
+            .Include(po => po.ShippingAddress)
+            .Include(po => po.BillingAddress)
+            .Include(po => po.PurchaseOrderFiles)
+            .FirstOrDefaultAsync(po => po.Id == id);
+    }
+
+    /// <summary>
+    /// Gets purchase order count by status for validation
+    /// </summary>
+    protected async Task<int> GetPurchaseOrderCountByStatusAsync(OrderStatus status)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
+
+        return await dbContext.PurchaseOrders.CountAsync(po => po.Status == status);
     }
 
     #endregion

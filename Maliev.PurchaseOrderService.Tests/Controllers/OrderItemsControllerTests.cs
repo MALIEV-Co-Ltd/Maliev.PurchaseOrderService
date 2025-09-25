@@ -154,10 +154,10 @@ public class OrderItemsControllerTests : IClassFixture<WebApplicationFactory<Pro
         // Arrange
         var jwtToken = GenerateJwtToken("proc123", "procurement", "procurement");
         _client.DefaultRequestHeaders.Authorization = new("Bearer", jwtToken);
-        var purchaseOrderId = 99999; // Non-existent purchase order
+        var nonExistentPurchaseOrderId = 999999; // Non-existent purchase order
 
         // Act
-        var response = await _client.GetAsync($"/purchase-orders/{purchaseOrderId}/items");
+        var response = await _client.GetAsync($"/purchase-orders/{nonExistentPurchaseOrderId}/items");
 
         // Assert - Should fail initially as controller doesn't exist
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
