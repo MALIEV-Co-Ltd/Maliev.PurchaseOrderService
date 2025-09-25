@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.Services;
 using System.Net;
+using System.Security.Claims;
 
 namespace Maliev.PurchaseOrderService.Api.Controllers;
 
@@ -293,11 +294,12 @@ public class PurchaseOrdersCompatibilityController : ControllerBase
                 });
             }
 
-            // Set CanceledBy from current user context
-            var canceledBy = User.Identity?.Name ?? "unknown";
-            request.CanceledBy = canceledBy;
+            // Set user context from claims
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.Identity?.Name ?? "unknown";
+            request.CanceledBy = userId;
+            request.UserRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
-            var canceledPurchaseOrder = await _purchaseOrderService.CancelPurchaseOrderAsync(id, request, cancellationToken);
+            var canceledPurchaseOrder = await _purchaseOrderService.CancelPurchaseOrderAsync(id, request, userId, cancellationToken);
 
             if (canceledPurchaseOrder == null)
             {
@@ -376,11 +378,12 @@ public class PurchaseOrdersCompatibilityController : ControllerBase
                 });
             }
 
-            // Set ApprovedBy from current user context
-            var approvedBy = User.Identity?.Name ?? "unknown";
-            request.ApprovedBy = approvedBy;
+            // Set user context from claims
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.Identity?.Name ?? "unknown";
+            request.ApprovedBy = userId;
+            request.UserRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
-            var approvedPurchaseOrder = await _purchaseOrderService.ApprovePurchaseOrderAsync(id, request, cancellationToken);
+            var approvedPurchaseOrder = await _purchaseOrderService.ApprovePurchaseOrderAsync(id, request, userId, cancellationToken);
 
             if (approvedPurchaseOrder == null)
             {

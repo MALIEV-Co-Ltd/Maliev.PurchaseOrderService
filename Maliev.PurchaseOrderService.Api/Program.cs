@@ -9,6 +9,8 @@ using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Api.Services;
@@ -218,6 +220,12 @@ builder.Services.AddScoped<ExternalServicesHealthCheck>();
 
 // Controllers
 builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.WriteIndented = true;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    })
     .ConfigureApiBehaviorOptions(options =>
     {
         options.SuppressMapClientErrors = true;
@@ -233,6 +241,8 @@ builder.Services.AddApiVersioning(options =>
         new HeaderApiVersionReader("X-Api-Version"),
         new QueryStringApiVersionReader("version")
     );
+    // Configure version format to handle both v1 and v1.0 formats
+    options.ApiVersionSelector = new CurrentImplementationApiVersionSelector(options);
 });
 
 // MediatR - Comment out since package not referenced

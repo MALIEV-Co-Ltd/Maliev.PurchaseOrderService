@@ -16,6 +16,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 [Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/files")]
 [Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/purchaseorderfiles")]
 [ApiVersion("1.0")]
+[ApiVersion("1")]
 [Authorize]
 [Produces("application/json")]
 public class PurchaseOrderFilesController : ControllerBase
@@ -513,6 +514,27 @@ public class PurchaseOrderFilesController : ControllerBase
                     {
                         Message = "Invalid request data",
                         Code = "INVALID_REQUEST"
+                    }
+                });
+            }
+
+            // Validate that at least one field is provided for update
+            if (string.IsNullOrWhiteSpace(request.FileName) &&
+                string.IsNullOrWhiteSpace(request.Description) &&
+                request.DocumentType == null &&
+                string.IsNullOrWhiteSpace(request.Category) &&
+                (request.Tags == null || request.Tags.Count == 0) &&
+                string.IsNullOrWhiteSpace(request.AccessLevel) &&
+                (request.Metadata == null || request.Metadata.Count == 0) &&
+                request.IsArchived == null &&
+                request.ExpiresAt == null)
+            {
+                return BadRequest(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = "At least one field must be provided for update",
+                        Code = "EMPTY_UPDATE_REQUEST"
                     }
                 });
             }

@@ -6,6 +6,7 @@ using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.Services;
 using System.Net;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.PurchaseOrderService.Api.Controllers;
 
@@ -15,6 +16,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 [ApiController]
 [Route("v{version:apiVersion}/purchase-orders")]
 [ApiVersion("1.0")]
+[ApiVersion("1")]
 [Authorize]
 [Produces("application/json")]
 public class PurchaseOrdersController : ControllerBase
@@ -334,6 +336,18 @@ public class PurchaseOrdersController : ControllerBase
 
             return Ok(updatedPurchaseOrder);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrency conflict when updating purchase order {PurchaseOrderId}", id);
+            return Conflict(new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "CONCURRENCY_CONFLICT"
+                }
+            });
+        }
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning(ex, "Invalid operation when updating purchase order {PurchaseOrderId}", id);
@@ -454,10 +468,12 @@ public class PurchaseOrdersController : ControllerBase
                 });
             }
 
-            // Set ApprovedBy from current user context
-            request.ApprovedBy = User.Identity?.Name ?? "unknown";
+            // Set user context from claims
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.Identity?.Name ?? "unknown";
+            request.ApprovedBy = userId;
+            request.UserRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
-            var approvedPurchaseOrder = await _purchaseOrderService.ApprovePurchaseOrderAsync(id, request, cancellationToken);
+            var approvedPurchaseOrder = await _purchaseOrderService.ApprovePurchaseOrderAsync(id, request, userId, cancellationToken);
 
             if (approvedPurchaseOrder == null)
             {
@@ -472,6 +488,23 @@ public class PurchaseOrdersController : ControllerBase
             }
 
             return Ok(approvedPurchaseOrder);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrency conflict when approving purchase order {PurchaseOrderId}", id);
+            return Conflict(new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "CONCURRENCY_CONFLICT"
+                }
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access when approving purchase order {PurchaseOrderId}", id);
+            return Forbid(); // Returns 403 Forbidden
         }
         catch (InvalidOperationException ex)
         {
@@ -531,10 +564,12 @@ public class PurchaseOrdersController : ControllerBase
                 });
             }
 
-            // Set CanceledBy from current user context
-            request.CanceledBy = User.Identity?.Name ?? "unknown";
+            // Set user context from claims
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.Identity?.Name ?? "unknown";
+            request.CanceledBy = userId;
+            request.UserRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
-            var canceledPurchaseOrder = await _purchaseOrderService.CancelPurchaseOrderAsync(id, request, cancellationToken);
+            var canceledPurchaseOrder = await _purchaseOrderService.CancelPurchaseOrderAsync(id, request, userId, cancellationToken);
 
             if (canceledPurchaseOrder == null)
             {
@@ -549,6 +584,23 @@ public class PurchaseOrdersController : ControllerBase
             }
 
             return Ok(canceledPurchaseOrder);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrency conflict when canceling purchase order {PurchaseOrderId}", id);
+            return Conflict(new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "CONCURRENCY_CONFLICT"
+                }
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access when canceling purchase order {PurchaseOrderId}", id);
+            return Forbid(); // Returns 403 Forbidden
         }
         catch (InvalidOperationException ex)
         {

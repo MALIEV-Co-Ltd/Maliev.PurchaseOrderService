@@ -69,6 +69,13 @@ public class UploadServiceClient : IUploadServiceClient
             multipartContent.Add(new StringContent(contentType), "contentType");
 
             var response = await _httpClient.PostAsync("/files/upload", multipartContent, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while uploading file: {FileName}", fileName);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while uploading file {fileName}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -177,6 +184,12 @@ public class UploadServiceClient : IUploadServiceClient
             {
                 _logger.LogWarning("File information not found for ID: {FileId}", fileId);
                 return null;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting file info {FileId}", fileId);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while getting file info {fileId}");
             }
 
             response.EnsureSuccessStatusCode();

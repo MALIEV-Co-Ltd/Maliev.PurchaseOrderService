@@ -95,10 +95,10 @@ public static class MockServiceFactory
 
         // Default order items
         mock.Setup(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<OrderItemDto>
+            .ReturnsAsync((int orderId, CancellationToken _) => new List<OrderItemDto>
             {
-                TestDataFactory.CreateOrderItemDto(quantity: 1, unitPrice: 1000.00m),
-                TestDataFactory.CreateOrderItemDto(quantity: 2, unitPrice: 500.00m)
+                TestDataFactory.CreateOrderItemDto(id: 1, purchaseOrderId: 1, externalOrderItemId: 1, quantity: 1, unitPrice: 1000.00m),
+                TestDataFactory.CreateOrderItemDto(id: 2, purchaseOrderId: 1, externalOrderItemId: 2, quantity: 2, unitPrice: 500.00m)
             });
 
         // Validate order for purchase order creation

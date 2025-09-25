@@ -49,6 +49,12 @@ public class OrderServiceClient : IOrderServiceClient
                 return null;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting order {OrderId}", orderId);
+                throw new UnauthorizedAccessException($"Order service authentication failed while getting order {orderId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);

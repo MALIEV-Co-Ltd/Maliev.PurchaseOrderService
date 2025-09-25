@@ -285,6 +285,8 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         using var form = new MultipartFormDataContent();
+        // Add a dummy form field to make the multipart form valid (no file field means null file parameter)
+        form.Add(new StringContent("test"), "dummy");
 
         // Act
         var response = await Client.PostAsync($"/v1.0/purchase-orders/{seededPurchaseOrder.Id}/files", form);

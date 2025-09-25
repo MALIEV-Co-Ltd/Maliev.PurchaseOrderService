@@ -268,8 +268,8 @@ public static class TestDataFactory
         var currency = CreateCurrencyDto("THB", "Thai Baht");
         var orderItems = new List<OrderItemDto>
         {
-            CreateOrderItemDto(1, 2, 150.00m),
-            CreateOrderItemDto(2, 1, 300.00m)
+            CreateOrderItemDto(id: 1, purchaseOrderId: 1, externalOrderItemId: 1, quantity: 2, unitPrice: 150.00m),
+            CreateOrderItemDto(id: 2, purchaseOrderId: 1, externalOrderItemId: 2, quantity: 1, unitPrice: 300.00m)
         };
 
         var request = CreateCompletePurchaseOrderRequest(
@@ -292,7 +292,7 @@ public static class TestDataFactory
         var currency = CreateCurrencyDto("USD", "US Dollar");
         var orderItems = new List<OrderItemDto>
         {
-            CreateOrderItemDto(1, 1, 1500.00m)
+            CreateOrderItemDto(id: 1, purchaseOrderId: 1, externalOrderItemId: 1, quantity: 1, unitPrice: 1500.00m)
         };
 
         var request = CreateCompletePurchaseOrderRequest(
@@ -479,12 +479,15 @@ public static class TestDataFactory
     /// </summary>
     public static OrderItemDto CreateOrderItemDto(
         int? id = null,
+        int purchaseOrderId = 1,
+        int? externalOrderItemId = null,
         int quantity = 1,
         decimal unitPrice = 1000.00m,
         string? productName = null,
         string? currency = null)
     {
         var itemId = id ?? Random.Shared.Next(1, 9999);
+        var externalId = externalOrderItemId ?? itemId;
         var itemName = productName ?? $"Test Product {itemId}";
         var itemCode = $"PROD-{itemId:D4}";
         var itemCurrency = currency ?? "THB";
@@ -492,14 +495,19 @@ public static class TestDataFactory
         return new OrderItemDto
         {
             Id = itemId,
+            PurchaseOrderId = purchaseOrderId,
+            ExternalOrderItemId = externalId,
+            ProductCode = itemCode,
+            ProductName = itemName,
             Quantity = quantity,
+            UnitOfMeasure = "pcs",
             UnitPrice = unitPrice,
             TotalPrice = quantity * unitPrice,
-            ProductName = itemName,
-            ProductCode = itemCode,
-            UnitOfMeasure = "pcs",
-            Currency = itemCurrency
-            // Note: Description, Category, IsActive properties don't exist on OrderItemDto
+            Currency = itemCurrency,
+            DeliveryDate = DateTime.UtcNow.AddDays(14),
+            Notes = $"Test item notes for {itemName}",
+            CachedAt = DateTime.UtcNow,
+            ExternallyModified = false
         };
     }
 
@@ -508,6 +516,7 @@ public static class TestDataFactory
     /// </summary>
     public static List<OrderItemDto> CreateOrderItemDtoList(
         int count = 2,
+        int purchaseOrderId = 1,
         string currency = "THB")
     {
         var items = new List<OrderItemDto>();
@@ -515,6 +524,8 @@ public static class TestDataFactory
         {
             items.Add(CreateOrderItemDto(
                 id: i + 1,
+                purchaseOrderId: purchaseOrderId,
+                externalOrderItemId: i + 1,
                 quantity: i + 1,
                 unitPrice: (i + 1) * 100.00m,
                 currency: currency

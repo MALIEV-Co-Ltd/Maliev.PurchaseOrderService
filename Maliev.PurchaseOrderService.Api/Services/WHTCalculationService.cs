@@ -86,6 +86,7 @@ public class WHTCalculationService : IWHTCalculationService
             {
                 result.IsApplicable = false;
                 result.Reason = GetNonApplicableReason(supplierDto, subtotalAmount, currencyCode);
+                result.TaxRegulation = GetTaxRegulation(supplierDto);
                 _logger.LogInformation("WHT not applicable for supplier {SupplierId}: {Reason}",
                     supplierDto.Id, result.Reason);
                 return result;
@@ -94,6 +95,17 @@ public class WHTCalculationService : IWHTCalculationService
             // Get WHT rate
             var whtRate = GetWHTRate(supplierDto.SupplierType, supplierDto.ServiceCategory, supplierDto.IsThaiResident);
             result.WHTRate = whtRate;
+
+            // Handle zero rate case
+            if (whtRate == 0m)
+            {
+                result.IsApplicable = false;
+                result.WHTAmount = 0m;
+                result.NetAmount = subtotalAmount;
+                result.Reason = "WHT rate is zero for this supplier type";
+                result.TaxRegulation = GetTaxRegulation(supplierDto);
+                return result;
+            }
 
             // Calculate WHT amount
             result.WHTAmount = Math.Round(subtotalAmount * whtRate, 2, MidpointRounding.AwayFromZero);
@@ -158,7 +170,14 @@ public class WHTCalculationService : IWHTCalculationService
             return false;
         }
 
-        // WHT generally applies to services and certain goods
+        // Special case: Foreign suppliers (non-Thai residents) are typically NOT subject to WHT
+        // as they are governed by different tax treaties and withholding arrangements
+        if (!supplierDto.IsThaiResident)
+        {
+            return false; // Foreign suppliers are exempt from Thai WHT
+        }
+
+        // WHT generally applies to services and certain goods for Thai residents
         var applicableCategories = new[]
         {
             "professional_services", "technical_services", "construction",
@@ -166,8 +185,7 @@ public class WHTCalculationService : IWHTCalculationService
             "royalty", "interest", "dividend", "services", "goods"
         };
 
-        return applicableCategories.Contains(supplierDto.ServiceCategory) ||
-               !supplierDto.IsThaiResident; // Non-residents generally subject to WHT
+        return applicableCategories.Contains(supplierDto.ServiceCategory);
     }
 
     public async Task<decimal> ConvertToTHBAsync(decimal amount, string fromCurrency, CancellationToken cancellationToken = default)
@@ -212,6 +230,11 @@ public class WHTCalculationService : IWHTCalculationService
             return "Supplier is exempt from withholding tax";
         }
 
+        if (!supplierDto.IsThaiResident)
+        {
+            return "Not applicable for foreign suppliers";
+        }
+
         var amountInTHB = currencyCode == "THB" ? subtotalAmount : ConvertToTHBAsync(subtotalAmount, currencyCode).Result;
         var threshold = GetWHTThreshold(supplierDto.ServiceCategory);
 
@@ -221,6 +244,21 @@ public class WHTCalculationService : IWHTCalculationService
         }
 
         return "Transaction type not subject to withholding tax";
+    }
+
+    private string GetTaxRegulation(SupplierDto supplierDto)
+    {
+        if (!supplierDto.IsThaiResident)
+        {
+            return "Not applicable for foreign suppliers";
+        }
+
+        if (supplierDto.IsWHTExempt)
+        {
+            return "Exempt from withholding tax";
+        }
+
+        return "Thailand Revenue Code Section 3";
     }
 
     private static string GenerateWHTCertificateNumber()

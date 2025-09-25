@@ -304,10 +304,28 @@ public class PurchaseOrderService : IPurchaseOrderService
                 return null;
             }
 
+            // Concurrency control - validate RowVersion
+            var currentRowVersion = Convert.ToBase64String(purchaseOrder.RowVersion ?? Array.Empty<byte>());
+            if (request.RowVersion != currentRowVersion)
+            {
+                throw new DbUpdateConcurrencyException($"Concurrency conflict: Purchase order {id} has been modified by another user. Current version: {currentRowVersion}, provided version: {request.RowVersion}");
+            }
+
             // Check if order can be updated (business rules)
             if (purchaseOrder.Status == OrderStatus.Cancelled)
             {
                 throw new InvalidOperationException("Cannot update a canceled purchase order");
+            }
+
+            // Additional business rules for update authorization
+            if (purchaseOrder.Status == OrderStatus.Approved)
+            {
+                throw new InvalidOperationException("Cannot update an approved purchase order");
+            }
+
+            if (purchaseOrder.Status == OrderStatus.Delivered)
+            {
+                throw new InvalidOperationException("Cannot update a delivered purchase order");
             }
 
             // Store original values for audit
@@ -711,6 +729,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     public async Task<PurchaseOrderDto?> ApprovePurchaseOrderAsync(
         int id,
         ApprovePurchaseOrderRequest request,
+        string userId,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Approving purchase order {PurchaseOrderId} by {ApprovedBy}", id, request.ApprovedBy);
@@ -728,10 +747,59 @@ public class PurchaseOrderService : IPurchaseOrderService
                 return null;
             }
 
-            // Check if order can be approved
-            if (purchaseOrder.Status != OrderStatus.Pending && purchaseOrder.Status != OrderStatus.Pending)
+            // Concurrency control - validate RowVersion if provided
+            if (!string.IsNullOrEmpty(request.RowVersion))
             {
+                var currentRowVersion = Convert.ToBase64String(purchaseOrder.RowVersion ?? Array.Empty<byte>());
+                if (request.RowVersion != currentRowVersion)
+                {
+                    throw new DbUpdateConcurrencyException($"Concurrency conflict: Purchase order {id} has been modified by another user. Current version: {currentRowVersion}, provided version: {request.RowVersion}");
+                }
+            }
+
+            // Role-based authorization - check if user has permission to approve
+            var hasManagerialAccess = request.UserRoles?.Any(role =>
+                role.Equals("Manager", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Procurement", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Director", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+            if (!hasManagerialAccess)
+            {
+                throw new UnauthorizedAccessException($"User {userId} does not have permission to approve purchase orders");
+            }
+
+            // Business rule: Check approval limits by role
+            if (purchaseOrder.TotalAmount > 50000m)
+            {
+                var hasDirectorAccess = request.UserRoles?.Any(role =>
+                    role.Equals("Director", StringComparison.OrdinalIgnoreCase) ||
+                    role.Equals("Admin", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+                if (!hasDirectorAccess)
+                {
+                    throw new UnauthorizedAccessException($"Purchase order amount {purchaseOrder.TotalAmount:C} exceeds approval limit for user role");
+                }
+            }
+
+            // Business rule: Check if order can be approved based on current status
+            if (purchaseOrder.Status != OrderStatus.Pending)
+            {
+                if (purchaseOrder.Status == OrderStatus.Approved)
+                {
+                    throw new InvalidOperationException("Purchase order is already approved");
+                }
+                if (purchaseOrder.Status == OrderStatus.Cancelled)
+                {
+                    throw new InvalidOperationException("Cannot approve a cancelled purchase order");
+                }
                 throw new InvalidOperationException($"Cannot approve purchase order with status {purchaseOrder.Status}");
+            }
+
+            // Business rule: Validate purchase order has items and amounts
+            if (purchaseOrder.SubtotalAmount <= 0)
+            {
+                throw new InvalidOperationException("Cannot approve purchase order with zero or negative amount");
             }
 
             // Update status and approval information
@@ -792,6 +860,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     public async Task<PurchaseOrderDto?> CancelPurchaseOrderAsync(
         int id,
         CancelPurchaseOrderRequest request,
+        string userId,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Canceling purchase order {PurchaseOrderId} by {CanceledBy}", id, request.CanceledBy);
@@ -809,10 +878,48 @@ public class PurchaseOrderService : IPurchaseOrderService
                 return null;
             }
 
-            // Check if order can be canceled
+            // Concurrency control - validate RowVersion if provided
+            if (!string.IsNullOrEmpty(request.RowVersion))
+            {
+                var currentRowVersion = Convert.ToBase64String(purchaseOrder.RowVersion ?? Array.Empty<byte>());
+                if (request.RowVersion != currentRowVersion)
+                {
+                    throw new DbUpdateConcurrencyException($"Concurrency conflict: Purchase order {id} has been modified by another user. Current version: {currentRowVersion}, provided version: {request.RowVersion}");
+                }
+            }
+
+            // Role-based authorization - check if user has permission to cancel
+            var hasManagerialAccess = request.UserRoles?.Any(role =>
+                role.Equals("Manager", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Procurement", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Admin", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+            // Employees can only cancel their own orders
+            if (!hasManagerialAccess)
+            {
+                if (request.UserRoles?.Contains("Employee") == true)
+                {
+                    if (purchaseOrder.CreatedBy != userId)
+                    {
+                        throw new UnauthorizedAccessException($"Employee {userId} cannot cancel purchase order {id} created by another user");
+                    }
+                }
+                else
+                {
+                    throw new UnauthorizedAccessException($"User {userId} does not have permission to cancel purchase orders");
+                }
+            }
+
+            // Business rule: Check if order can be canceled based on current status
             if (purchaseOrder.Status == OrderStatus.Cancelled)
             {
                 throw new InvalidOperationException("Purchase order is already canceled");
+            }
+
+            // Business rule: Cannot cancel delivered or shipped orders
+            if (purchaseOrder.Status == OrderStatus.Delivered)
+            {
+                throw new InvalidOperationException("Cannot cancel a delivered purchase order");
             }
 
             // Update status and cancellation information

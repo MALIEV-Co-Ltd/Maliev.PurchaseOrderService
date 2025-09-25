@@ -18,6 +18,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 [Route("v{version:apiVersion}/addresses")]
 [Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/addresses")]
 [ApiVersion("1.0")]
+[ApiVersion("1")]
 [Authorize]
 [Produces("application/json")]
 public class AddressesController : ControllerBase

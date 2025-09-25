@@ -85,11 +85,13 @@ public interface IPurchaseOrderService
     /// </summary>
     /// <param name="id">Purchase order ID</param>
     /// <param name="request">Approval request</param>
+    /// <param name="userId">Current user ID for authorization</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated purchase order or null if not found</returns>
     Task<PurchaseOrderDto?> ApprovePurchaseOrderAsync(
         int id,
         ApprovePurchaseOrderRequest request,
+        string userId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -97,11 +99,13 @@ public interface IPurchaseOrderService
     /// </summary>
     /// <param name="id">Purchase order ID</param>
     /// <param name="request">Cancellation request</param>
+    /// <param name="userId">Current user ID for authorization</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated purchase order or null if not found</returns>
     Task<PurchaseOrderDto?> CancelPurchaseOrderAsync(
         int id,
         CancelPurchaseOrderRequest request,
+        string userId,
         CancellationToken cancellationToken = default);
 
     /// <summary>

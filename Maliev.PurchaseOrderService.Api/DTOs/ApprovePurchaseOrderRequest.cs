@@ -11,6 +11,16 @@ public class ApprovePurchaseOrderRequest
     public string ApprovedBy { get; set; } = string.Empty;
 
     /// <summary>
+    /// User roles for authorization (populated from claims)
+    /// </summary>
+    public List<string>? UserRoles { get; set; }
+
+    /// <summary>
+    /// Row version for optimistic concurrency control
+    /// </summary>
+    public string? RowVersion { get; set; }
+
+    /// <summary>
     /// Approval comments
     /// </summary>
     public string? Comments { get; set; }
