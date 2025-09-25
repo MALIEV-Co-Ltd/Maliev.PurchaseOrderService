@@ -61,7 +61,7 @@ public class SupplierServiceClient : ISupplierServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting supplier {SupplierId}", supplierId);
             throw new ExternalServiceException($"Failed to get supplier {supplierId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting supplier {SupplierId}", supplierId);
             throw new ExternalServiceException($"Timeout while getting supplier {supplierId}", ex);
@@ -70,6 +70,11 @@ public class SupplierServiceClient : ISupplierServiceClient
         {
             _logger.LogError(ex, "JSON deserialization error while getting supplier {SupplierId}", supplierId);
             throw new ExternalServiceException($"Invalid response format while getting supplier {supplierId}", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while getting supplier {SupplierId}", supplierId);
+            throw new ExternalServiceException($"Failed to get supplier {supplierId}: {ex.Message}", ex);
         }
     }
 
@@ -101,7 +106,7 @@ public class SupplierServiceClient : ISupplierServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting supplier contact {SupplierId}", supplierId);
             throw new ExternalServiceException($"Failed to get supplier contact {supplierId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting supplier contact {SupplierId}", supplierId);
             throw new ExternalServiceException($"Timeout while getting supplier contact {supplierId}", ex);
@@ -110,6 +115,11 @@ public class SupplierServiceClient : ISupplierServiceClient
         {
             _logger.LogError(ex, "JSON deserialization error while getting supplier contact {SupplierId}", supplierId);
             throw new ExternalServiceException($"Invalid response format while getting supplier contact {supplierId}", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while getting supplier contact {SupplierId}", supplierId);
+            throw new ExternalServiceException($"Failed to get supplier contact {supplierId}: {ex.Message}", ex);
         }
     }
 
@@ -141,7 +151,7 @@ public class SupplierServiceClient : ISupplierServiceClient
             _logger.LogError(ex, "HTTP error occurred while validating supplier {SupplierId}", supplierId);
             throw new ExternalServiceException($"Failed to validate supplier {supplierId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while validating supplier {SupplierId}", supplierId);
             throw new ExternalServiceException($"Timeout while validating supplier {supplierId}", ex);
@@ -150,6 +160,11 @@ public class SupplierServiceClient : ISupplierServiceClient
         {
             _logger.LogError(ex, "JSON deserialization error while validating supplier {SupplierId}", supplierId);
             throw new ExternalServiceException($"Invalid response format while validating supplier {supplierId}", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while validating supplier {SupplierId}", supplierId);
+            throw new ExternalServiceException($"Failed to validate supplier {supplierId}: {ex.Message}", ex);
         }
     }
 
@@ -183,7 +198,7 @@ public class SupplierServiceClient : ISupplierServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting supplier products {SupplierId}", supplierId);
             throw new ExternalServiceException($"Failed to get supplier products {supplierId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting supplier products {SupplierId}", supplierId);
             throw new ExternalServiceException($"Timeout while getting supplier products {supplierId}", ex);
@@ -192,6 +207,11 @@ public class SupplierServiceClient : ISupplierServiceClient
         {
             _logger.LogError(ex, "JSON deserialization error while getting supplier products {SupplierId}", supplierId);
             throw new ExternalServiceException($"Invalid response format while getting supplier products {supplierId}", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while getting supplier products {SupplierId}", supplierId);
+            throw new ExternalServiceException($"Failed to get supplier products {supplierId}: {ex.Message}", ex);
         }
     }
 
@@ -223,7 +243,7 @@ public class SupplierServiceClient : ISupplierServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting supplier payment terms {SupplierId}", supplierId);
             throw new ExternalServiceException($"Failed to get supplier payment terms {supplierId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting supplier payment terms {SupplierId}", supplierId);
             throw new ExternalServiceException($"Timeout while getting supplier payment terms {supplierId}", ex);
@@ -232,6 +252,11 @@ public class SupplierServiceClient : ISupplierServiceClient
         {
             _logger.LogError(ex, "JSON deserialization error while getting supplier payment terms {SupplierId}", supplierId);
             throw new ExternalServiceException($"Invalid response format while getting supplier payment terms {supplierId}", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while getting supplier payment terms {SupplierId}", supplierId);
+            throw new ExternalServiceException($"Failed to get supplier payment terms {supplierId}: {ex.Message}", ex);
         }
     }
 }

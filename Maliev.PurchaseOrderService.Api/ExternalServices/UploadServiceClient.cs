@@ -83,7 +83,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while uploading file: {FileName}", fileName);
             throw new ExternalServiceException($"Failed to upload file {fileName}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while uploading file: {FileName}", fileName);
             throw new ExternalServiceException($"Timeout while uploading file {fileName}", ex);
@@ -147,7 +147,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while uploading multiple files");
             throw new ExternalServiceException($"Failed to upload multiple files: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while uploading multiple files");
             throw new ExternalServiceException("Timeout while uploading multiple files", ex);
@@ -192,7 +192,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting file info {FileId}", fileId);
             throw new ExternalServiceException($"Failed to get file info {fileId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting file info {FileId}", fileId);
             throw new ExternalServiceException($"Timeout while getting file info {fileId}", ex);
@@ -229,7 +229,7 @@ public class UploadServiceClient : IUploadServiceClient
             var result = new FileDownloadResultDto
             {
                 FileId = fileId,
-                FileName = GetHeaderValue(response.Headers, "X-File-Name") ?? "unknown",
+                FileName = GetFileNameFromResponse(response) ?? "unknown",
                 ContentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
                 FileSize = response.Content.Headers.ContentLength ?? 0,
                 Content = await response.Content.ReadAsStreamAsync(cancellationToken),
@@ -251,7 +251,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while downloading file {FileId}", fileId);
             throw new ExternalServiceException($"Failed to download file {fileId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while downloading file {FileId}", fileId);
             throw new ExternalServiceException($"Timeout while downloading file {fileId}", ex);
@@ -288,7 +288,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while deleting file {FileId}", fileId);
             throw new ExternalServiceException($"Failed to delete file {fileId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while deleting file {FileId}", fileId);
             throw new ExternalServiceException($"Timeout while deleting file {fileId}", ex);
@@ -334,7 +334,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting download URL for file {FileId}", fileId);
             throw new ExternalServiceException($"Failed to get download URL for file {fileId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting download URL for file {FileId}", fileId);
             throw new ExternalServiceException($"Timeout while getting download URL for file {fileId}", ex);
@@ -385,7 +385,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while validating file {FileName}", fileName);
             throw new ExternalServiceException($"Failed to validate file {fileName}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while validating file {FileName}", fileName);
             throw new ExternalServiceException($"Timeout while validating file {fileName}", ex);
@@ -439,7 +439,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting files by category {Category}", category);
             throw new ExternalServiceException($"Failed to get files by category {category}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting files by category {Category}", category);
             throw new ExternalServiceException($"Timeout while getting files by category {category}", ex);
@@ -476,7 +476,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while generating upload URL for {FileName}", fileName);
             throw new ExternalServiceException($"Failed to generate upload URL for {fileName}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while generating upload URL for {FileName}", fileName);
             throw new ExternalServiceException($"Timeout while generating upload URL for {fileName}", ex);
@@ -510,7 +510,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while generating download URL for {FileId}", fileId);
             throw new ExternalServiceException($"Failed to generate download URL for {fileId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while generating download URL for {FileId}", fileId);
             throw new ExternalServiceException($"Timeout while generating download URL for {fileId}", ex);
@@ -553,7 +553,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting files by tags {Tags}", string.Join(", ", tags));
             throw new ExternalServiceException($"Failed to get files by tags {string.Join(", ", tags)}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting files by tags {Tags}", string.Join(", ", tags));
             throw new ExternalServiceException($"Timeout while getting files by tags {string.Join(", ", tags)}", ex);
@@ -610,7 +610,7 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogError(ex, "HTTP error occurred while updating metadata for file {FileId}", fileId);
             throw new ExternalServiceException($"Failed to update metadata for file {fileId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while updating metadata for file {FileId}", fileId);
             throw new ExternalServiceException($"Timeout while updating metadata for file {fileId}", ex);
@@ -625,5 +625,24 @@ public class UploadServiceClient : IUploadServiceClient
     private static string? GetHeaderValue(System.Net.Http.Headers.HttpResponseHeaders headers, string headerName)
     {
         return headers.TryGetValues(headerName, out var values) ? values.FirstOrDefault() : null;
+    }
+
+    private static string? GetFileNameFromResponse(HttpResponseMessage response)
+    {
+        // First try X-File-Name header
+        if (response.Headers.TryGetValues("X-File-Name", out var fileNameValues))
+        {
+            return fileNameValues.FirstOrDefault();
+        }
+
+        // Then try Content-Disposition header
+        if (response.Content.Headers.ContentDisposition?.FileName != null)
+        {
+            var fileName = response.Content.Headers.ContentDisposition.FileName;
+            // Remove quotes if present
+            return fileName.Trim('"');
+        }
+
+        return null;
     }
 }

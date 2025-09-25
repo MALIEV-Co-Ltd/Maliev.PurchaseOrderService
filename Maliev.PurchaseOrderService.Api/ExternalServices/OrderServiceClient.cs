@@ -62,7 +62,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting order {OrderId}", orderId);
             throw new ExternalServiceException($"Failed to get order {orderId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting order {OrderId}", orderId);
             throw new ExternalServiceException($"Timeout while getting order {orderId}", ex);
@@ -102,7 +102,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting order status {OrderId}", orderId);
             throw new ExternalServiceException($"Failed to get order status {orderId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting order status {OrderId}", orderId);
             throw new ExternalServiceException($"Timeout while getting order status {orderId}", ex);
@@ -143,7 +143,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while updating order status {OrderId}", orderId);
             throw new ExternalServiceException($"Failed to update order status {orderId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while updating order status {OrderId}", orderId);
             throw new ExternalServiceException($"Timeout while updating order status {orderId}", ex);
@@ -180,7 +180,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting order items {OrderId}", orderId);
             throw new ExternalServiceException($"Failed to get order items {orderId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting order items {OrderId}", orderId);
             throw new ExternalServiceException($"Timeout while getting order items {orderId}", ex);
@@ -225,7 +225,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while validating order {OrderId}", orderId);
             throw new ExternalServiceException($"Failed to validate order {orderId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while validating order {OrderId}", orderId);
             throw new ExternalServiceException($"Timeout while validating order {orderId}", ex);
@@ -265,7 +265,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting order delivery info {OrderId}", orderId);
             throw new ExternalServiceException($"Failed to get order delivery info {orderId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting order delivery info {OrderId}", orderId);
             throw new ExternalServiceException($"Timeout while getting order delivery info {orderId}", ex);
@@ -307,7 +307,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while linking purchase order to order {OrderId}", orderId);
             throw new ExternalServiceException($"Failed to link purchase order to order {orderId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while linking purchase order to order {OrderId}", orderId);
             throw new ExternalServiceException($"Timeout while linking purchase order to order {orderId}", ex);
@@ -351,7 +351,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while getting orders by customer {CustomerId}", customerId);
             throw new ExternalServiceException($"Failed to get orders by customer {customerId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while getting orders by customer {CustomerId}", customerId);
             throw new ExternalServiceException($"Timeout while getting orders by customer {customerId}", ex);
@@ -400,7 +400,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while creating order");
             throw new ExternalServiceException($"Failed to create order: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while creating order");
             throw new ExternalServiceException("Timeout while creating order", ex);
@@ -445,7 +445,7 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "HTTP error occurred while canceling order {OrderId}", orderId);
             throw new ExternalServiceException($"Failed to cancel order {orderId}: {ex.Message}", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout occurred while canceling order {OrderId}", orderId);
             throw new ExternalServiceException($"Timeout while canceling order {orderId}", ex);

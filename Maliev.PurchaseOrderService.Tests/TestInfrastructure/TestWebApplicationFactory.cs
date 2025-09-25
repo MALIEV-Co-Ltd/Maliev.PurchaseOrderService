@@ -5,6 +5,9 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
+using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -35,21 +38,56 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
     {
         builder.UseEnvironment("Testing");
 
+        // Configure app settings to override any problematic configuration
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            // Clear existing configuration sources that might cause issues
+            config.Sources.Clear();
+
+            // Add basic configuration
+            config.AddJsonFile("appsettings.Testing.json", optional: true);
+
+            // Add in-memory configuration to override any problematic settings
+            var testConfig = new Dictionary<string, string?>
+            {
+                // Override connection string to prevent environment variable resolution issues
+                ["ConnectionStrings:PurchaseOrderDbContext"] = $"InMemory:{_databaseName}",
+
+                // Override external service URLs to prevent resolution issues
+                ["ExternalServices:SupplierService:BaseUrl"] = "http://localhost:5001/mock/suppliers",
+                ["ExternalServices:OrderService:BaseUrl"] = "http://localhost:5002/mock/orders",
+                ["ExternalServices:CurrencyService:BaseUrl"] = "http://localhost:5003/mock/currencies",
+                ["ExternalServices:UploadService:BaseUrl"] = "http://localhost:5004/mock/uploads",
+                ["ExternalServices:PdfService:BaseUrl"] = "http://localhost:5005/mock/pdfs",
+                ["ExternalServices:AuthService:BaseUrl"] = "http://localhost:5006/mock/auth",
+
+                // Override JWT settings
+                ["JWT_SIGNING_KEY"] = "test-signing-key-that-is-at-least-32-characters-long-for-testing-purposes",
+                ["JWT_ISSUER"] = "test-issuer",
+                ["JWT_AUDIENCE"] = "test-audience",
+
+                // Disable HTTPS redirect and other problematic settings
+                ["Security:RequireHttps"] = "false",
+                ["ASPNETCORE_URLS"] = "http://localhost:0"
+            };
+
+            config.AddInMemoryCollection(testConfig);
+        });
+
         builder.ConfigureServices(services =>
         {
-            // Remove all database-related service registrations
-            var dbContextDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>));
-            if (dbContextDescriptor != null)
-                services.Remove(dbContextDescriptor);
+            // Remove all database-related service registrations more comprehensively
+            var descriptorsToRemove = services
+                .Where(d => d.ServiceType == typeof(DbContextOptions<PurchaseOrderContext>) ||
+                           d.ServiceType == typeof(PurchaseOrderContext) ||
+                           d.ServiceType == typeof(DbContext) ||
+                           d.ServiceType.IsGenericType && d.ServiceType.GetGenericTypeDefinition() == typeof(DbContextOptions<>))
+                .ToList();
 
-            var dbContextServiceDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(PurchaseOrderContext));
-            if (dbContextServiceDescriptor != null)
-                services.Remove(dbContextServiceDescriptor);
-
-            // Remove any DbContext<T> registrations
-            var genericDbContextDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContext));
-            if (genericDbContextDescriptor != null)
-                services.Remove(genericDbContextDescriptor);
+            foreach (var descriptor in descriptorsToRemove)
+            {
+                services.Remove(descriptor);
+            }
 
             // Add InMemory database for testing
             services.AddDbContext<PurchaseOrderContext>(options =>
@@ -64,15 +102,24 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
                     warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning));
             });
 
-            // Replace external service clients with mocks
-            ReplaceService(services, MockServiceFactory.CreateSupplierServiceMock().Object);
-            ReplaceService(services, MockServiceFactory.CreateOrderServiceMock().Object);
-            ReplaceService(services, MockServiceFactory.CreateCurrencyServiceMock().Object);
-            ReplaceService(services, MockServiceFactory.CreateUploadServiceMock().Object);
-            ReplaceService(services, MockServiceFactory.CreatePdfServiceClientMock().Object);
+            // Note: External service mocks will be replaced by IntegrationTestBase
+            // Set up default mocks here, but they will be overridden if IntegrationTestBase provides custom ones
+            var defaultSupplierMock = MockServiceFactory.CreateSupplierServiceMock().Object;
+            var defaultOrderMock = MockServiceFactory.CreateOrderServiceMock().Object;
+            var defaultCurrencyMock = MockServiceFactory.CreateCurrencyServiceMock().Object;
+            var defaultUploadMock = MockServiceFactory.CreateUploadServiceMock().Object;
+            var defaultPdfClientMock = MockServiceFactory.CreatePdfServiceClientMock().Object;
 
-            // Replace application services with mocks
-            ReplaceService(services, MockServiceFactory.CreateDomainEventServiceMock().Object);
+            // Replace external service clients with default mocks first
+            ReplaceService(services, defaultSupplierMock);
+            ReplaceService(services, defaultOrderMock);
+            ReplaceService(services, defaultCurrencyMock);
+            ReplaceService(services, defaultUploadMock);
+            ReplaceService(services, defaultPdfClientMock);
+
+            // Keep application services as real services for proper database integration
+            // Only mock the external ones that make HTTP calls
+            // Note: DomainEventService should remain real for database persistence
             ReplaceService(services, MockServiceFactory.CreatePdfGenerationServiceMock().Object);
             ReplaceService(services, MockServiceFactory.CreateWHTCalculationServiceMock().Object);
             ReplaceService(services, MockServiceFactory.CreateDocumentManagementServiceMock().Object);

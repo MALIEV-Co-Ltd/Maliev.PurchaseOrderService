@@ -16,6 +16,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("v{version:apiVersion}/addresses")]
+[Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/addresses")]
 [ApiVersion("1.0")]
 [Authorize]
 [Produces("application/json")]
@@ -36,38 +37,154 @@ public class AddressesController : ControllerBase
     }
 
     /// <summary>
-    /// Gets all addresses for purchase orders (filtered by user access)
+    /// Gets addresses for purchase orders with optional pagination and filtering
     /// </summary>
+    /// <param name="purchaseOrderId">Optional purchase order ID for nested route</param>
     /// <param name="type">Address type filter</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="pageSize">Items per page</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of addresses</returns>
+    /// <returns>List of addresses or paginated response</returns>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<AddressDto>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(PaginatedResponse<AddressDto>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
-    public async Task<ActionResult<IEnumerable<AddressDto>>> GetAddresses(
+    [ProducesResponseType(typeof(ValidationErrorResponse), (int)HttpStatusCode.BadRequest)]
+    public async Task<ActionResult> GetAddresses(
+        [FromRoute] int? purchaseOrderId = null,
         [FromQuery] AddressType? type = null,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Getting addresses (filtered by user access and type: {AddressType})", type);
+            _logger.LogInformation("Getting addresses (PO: {PurchaseOrderId}, Type: {AddressType})", purchaseOrderId, type);
 
-            // Get all addresses from purchase orders that user has access to
-            var query = _context.Addresses.AsQueryable();
+            // Validate pagination parameters
+            if (page.HasValue || pageSize.HasValue)
+            {
+                if (page.HasValue && page.Value < 1)
+                {
+                    return BadRequest(new ValidationErrorResponse
+                    {
+                        Message = "Invalid pagination parameters",
+                        Code = "INVALID_PAGINATION",
+                        Errors = new List<ValidationError>
+                        {
+                            new ValidationError
+                            {
+                                Field = "page",
+                                Message = "Page number must be greater than 0",
+                                Code = "INVALID_PAGE_NUMBER",
+                                Value = page.Value
+                            }
+                        }
+                    });
+                }
+
+                if (pageSize.HasValue && pageSize.Value < 1)
+                {
+                    return BadRequest(new ValidationErrorResponse
+                    {
+                        Message = "Invalid pagination parameters",
+                        Code = "INVALID_PAGINATION",
+                        Errors = new List<ValidationError>
+                        {
+                            new ValidationError
+                            {
+                                Field = "pageSize",
+                                Message = "Page size must be greater than 0",
+                                Code = "INVALID_PAGE_SIZE",
+                                Value = pageSize.Value
+                            }
+                        }
+                    });
+                }
+            }
+
+            // If purchase order ID is specified (nested route), verify it exists
+            if (purchaseOrderId.HasValue)
+            {
+                var purchaseOrderExists = await _context.PurchaseOrders
+                    .AnyAsync(po => po.Id == purchaseOrderId.Value && !po.IsDeleted, cancellationToken);
+
+                if (!purchaseOrderExists)
+                {
+                    return NotFound(new ErrorResponse
+                    {
+                        Error = new ErrorInfo
+                        {
+                            Message = $"Purchase order with ID {purchaseOrderId} not found",
+                            Code = "PURCHASE_ORDER_NOT_FOUND"
+                        }
+                    });
+                }
+            }
+
+            // Build query
+            var baseQuery = _context.Addresses.AsQueryable();
+
+            // Filter by purchase order if specified
+            if (purchaseOrderId.HasValue)
+            {
+                baseQuery = baseQuery.Where(a =>
+                    _context.PurchaseOrders
+                        .Any(po => po.Id == purchaseOrderId.Value &&
+                                   (po.ShippingAddressId == a.Id || po.BillingAddressId == a.Id)));
+            }
 
             // Apply address type filter if specified
             if (type.HasValue)
             {
-                query = query.Where(a => a.AddressType == type.Value);
+                baseQuery = baseQuery.Where(a => a.AddressType == type.Value);
             }
 
             // TODO: Apply user access filtering based on user role and ownership
             // For now, returning all addresses (this should be filtered by user permissions)
 
-            var addresses = await query.OrderBy(a => a.CreatedAt).ToListAsync(cancellationToken);
-            var addressDtos = _mapper.Map<IEnumerable<AddressDto>>(addresses);
+            var query = baseQuery.OrderBy(a => a.CreatedAt);
 
-            return Ok(addressDtos);
+            // If pagination is requested
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = await query.CountAsync(cancellationToken);
+                var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize.Value);
+
+                var addresses = await query
+                    .Skip((page.Value - 1) * pageSize.Value)
+                    .Take(pageSize.Value)
+                    .ToListAsync(cancellationToken);
+
+                var addressDtos = _mapper.Map<IEnumerable<AddressDto>>(addresses);
+
+                var response = new PaginatedResponse<AddressDto>
+                {
+                    Data = addressDtos,
+                    Page = page.Value,
+                    PageSize = pageSize.Value,
+                    TotalCount = totalCount,
+                    TotalPages = totalPages,
+                    HasPreviousPage = page.Value > 1,
+                    HasNextPage = page.Value < totalPages
+                };
+
+                // Add Cache-Control header
+                Response.Headers["Cache-Control"] = "private, max-age=300"; // 5 minutes
+
+                return Ok(response);
+            }
+            else
+            {
+                // Return all addresses without pagination
+                var addresses = await query.ToListAsync(cancellationToken);
+                var addressDtos = _mapper.Map<IEnumerable<AddressDto>>(addresses);
+
+                // Add Cache-Control header
+                Response.Headers["Cache-Control"] = "private, max-age=300"; // 5 minutes
+
+                return Ok(addressDtos);
+            }
         }
         catch (Exception ex)
         {

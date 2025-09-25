@@ -231,7 +231,7 @@ public class PdfServiceTests
                 "SendAsync",
                 ItExpr.Is<HttpRequestMessage>(req =>
                     req.Method == HttpMethod.Post &&
-                    req.RequestUri!.ToString().Contains("/generate/quote")),
+                    req.RequestUri!.ToString().Contains("/pdfs/generate/template")),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(httpResponse);
 

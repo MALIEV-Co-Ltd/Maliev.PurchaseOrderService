@@ -15,6 +15,7 @@ using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.MappingProfiles;
 using Maliev.PurchaseOrderService.Api.Configuration;
+using Maliev.PurchaseOrderService.Api.Extensions;
 using Polly;
 using Polly.Extensions.Http;
 
@@ -456,6 +457,9 @@ if (!app.Environment.IsEnvironment("Testing"))
 
 // Always use authentication (including Testing environment)
 app.UseAuthentication();
+
+// Add WWW-Authenticate headers for 401 responses
+app.UseAuthenticationHeaders();
 
 app.UseAuthorization();
 

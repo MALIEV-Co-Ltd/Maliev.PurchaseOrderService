@@ -131,7 +131,11 @@ public class UploadServiceTests
             FileSize = 1024000,
             UploadedAt = DateTime.UtcNow.AddHours(-2),
             UploadedBy = "user@maliev.com",
-            Category = "purchase-order"
+            Category = "purchase-order",
+            Metadata = new Dictionary<string, string>
+            {
+                ["Tags"] = "approved,purchase-order,document"
+            }
         };
 
         var responseContent = JsonSerializer.Serialize(expectedFileInfo);

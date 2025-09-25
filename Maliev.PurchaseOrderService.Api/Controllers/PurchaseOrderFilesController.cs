@@ -38,21 +38,73 @@ public class PurchaseOrderFilesController : ControllerBase
     }
 
     /// <summary>
-    /// Gets all files for a purchase order
+    /// Gets files for a purchase order with optional pagination and filtering
     /// </summary>
     /// <param name="purchaseOrderId">Purchase order ID</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="pageSize">Items per page</param>
+    /// <param name="fileType">Filter by file type</param>
+    /// <param name="category">Filter by category</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of purchase order files</returns>
+    /// <returns>List of purchase order files or paginated response</returns>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<PurchaseOrderFileDto>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(PaginatedResponse<PurchaseOrderFileDto>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
-    public async Task<ActionResult<IEnumerable<PurchaseOrderFileDto>>> GetFiles(
+    [ProducesResponseType(typeof(ValidationErrorResponse), (int)HttpStatusCode.BadRequest)]
+    public async Task<ActionResult> GetFiles(
         int purchaseOrderId,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null,
+        [FromQuery] string? fileType = null,
+        [FromQuery] string? category = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
             _logger.LogInformation("Getting files for purchase order {PurchaseOrderId}", purchaseOrderId);
+
+            // Validate pagination parameters
+            if (page.HasValue || pageSize.HasValue)
+            {
+                if (page.HasValue && page.Value < 1)
+                {
+                    return BadRequest(new ValidationErrorResponse
+                    {
+                        Message = "Invalid pagination parameters",
+                        Code = "INVALID_PAGINATION",
+                        Errors = new List<ValidationError>
+                        {
+                            new ValidationError
+                            {
+                                Field = "page",
+                                Message = "Page number must be greater than 0",
+                                Code = "INVALID_PAGE_NUMBER",
+                                Value = page.Value
+                            }
+                        }
+                    });
+                }
+
+                if (pageSize.HasValue && pageSize.Value < 1)
+                {
+                    return BadRequest(new ValidationErrorResponse
+                    {
+                        Message = "Invalid pagination parameters",
+                        Code = "INVALID_PAGINATION",
+                        Errors = new List<ValidationError>
+                        {
+                            new ValidationError
+                            {
+                                Field = "pageSize",
+                                Message = "Page size must be greater than 0",
+                                Code = "INVALID_PAGE_SIZE",
+                                Value = pageSize.Value
+                            }
+                        }
+                    });
+                }
+            }
 
             // Verify purchase order exists
             var purchaseOrderExists = await _context.PurchaseOrders
@@ -70,8 +122,60 @@ public class PurchaseOrderFilesController : ControllerBase
                 });
             }
 
-            var files = await _documentService.GetDocumentsAsync(purchaseOrderId, cancellationToken);
-            return Ok(files);
+            // Use document service instead of direct database access
+            var documents = await _documentService.GetDocumentsAsync(purchaseOrderId, cancellationToken);
+            var filteredDocuments = documents.AsEnumerable();
+
+            // Apply filters
+            if (!string.IsNullOrEmpty(fileType))
+            {
+                filteredDocuments = filteredDocuments.Where(doc => doc.DocumentType.ToString().Equals(fileType, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (!string.IsNullOrEmpty(category))
+            {
+                filteredDocuments = filteredDocuments.Where(doc => doc.DocumentType.ToString().Equals(category, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var orderedDocuments = filteredDocuments.OrderBy(doc => doc.FileName);
+
+            // If pagination is requested
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = orderedDocuments.Count();
+                var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize.Value);
+
+                var pagedDocuments = orderedDocuments
+                    .Skip((page.Value - 1) * pageSize.Value)
+                    .Take(pageSize.Value)
+                    .ToList();
+
+                var response = new PaginatedResponse<PurchaseOrderFileDto>
+                {
+                    Data = pagedDocuments,
+                    Page = page.Value,
+                    PageSize = pageSize.Value,
+                    TotalCount = totalCount,
+                    TotalPages = totalPages,
+                    HasPreviousPage = page.Value > 1,
+                    HasNextPage = page.Value < totalPages
+                };
+
+                // Add Cache-Control header
+                Response.Headers["Cache-Control"] = "private, max-age=300"; // 5 minutes
+
+                return Ok(response);
+            }
+            else
+            {
+                // Return all files without pagination
+                var documentsList = orderedDocuments.ToList();
+
+                // Add Cache-Control header
+                Response.Headers["Cache-Control"] = "private, max-age=300"; // 5 minutes
+
+                return Ok(documentsList);
+            }
         }
         catch (Exception ex)
         {
@@ -151,7 +255,7 @@ public class PurchaseOrderFilesController : ControllerBase
     [RequestFormLimits(MultipartBodyLengthLimit = 52428800)]
     public async Task<ActionResult<DocumentUploadResult>> UploadFile(
         int purchaseOrderId,
-        IFormFile file,
+        IFormFile? file,
         CancellationToken cancellationToken = default)
     {
         try

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Maliev.PurchaseOrderService.Api.DTOs;
 
 /// <summary>
@@ -13,6 +15,8 @@ public class CancelPurchaseOrderRequest
     /// <summary>
     /// Reason for cancellation
     /// </summary>
+    [Required(ErrorMessage = "Reason is required")]
+    [MinLength(1, ErrorMessage = "Reason cannot be empty")]
     public string Reason { get; set; } = string.Empty;
 
     /// <summary>

@@ -15,7 +15,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// Order Items API Controller for read-only operations and cache refresh
 /// </summary>
 [ApiController]
-[Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/items")]
+[Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/orderitems")]
 [ApiVersion("1.0")]
 [Authorize]
 [Produces("application/json")]
@@ -39,21 +39,69 @@ public class OrderItemsController : ControllerBase
     }
 
     /// <summary>
-    /// Gets all order items for a purchase order
+    /// Gets order items for a purchase order with optional pagination
     /// </summary>
     /// <param name="purchaseOrderId">Purchase order ID</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="pageSize">Items per page</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of order items</returns>
+    /// <returns>List of order items or paginated response</returns>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<OrderItemDto>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(PaginatedResponse<OrderItemDto>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
-    public async Task<ActionResult<IEnumerable<OrderItemDto>>> GetOrderItems(
+    [ProducesResponseType(typeof(ValidationErrorResponse), (int)HttpStatusCode.BadRequest)]
+    public async Task<ActionResult> GetOrderItems(
         int purchaseOrderId,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
             _logger.LogInformation("Getting order items for purchase order {PurchaseOrderId}", purchaseOrderId);
+
+            // Validate pagination parameters
+            if (page.HasValue || pageSize.HasValue)
+            {
+                if (page.HasValue && page.Value < 1)
+                {
+                    return BadRequest(new ValidationErrorResponse
+                    {
+                        Message = "Invalid pagination parameters",
+                        Code = "INVALID_PAGINATION",
+                        Errors = new List<ValidationError>
+                        {
+                            new ValidationError
+                            {
+                                Field = "page",
+                                Message = "Page number must be greater than 0",
+                                Code = "INVALID_PAGE_NUMBER",
+                                Value = page.Value
+                            }
+                        }
+                    });
+                }
+
+                if (pageSize.HasValue && pageSize.Value < 1)
+                {
+                    return BadRequest(new ValidationErrorResponse
+                    {
+                        Message = "Invalid pagination parameters",
+                        Code = "INVALID_PAGINATION",
+                        Errors = new List<ValidationError>
+                        {
+                            new ValidationError
+                            {
+                                Field = "pageSize",
+                                Message = "Page size must be greater than 0",
+                                Code = "INVALID_PAGE_SIZE",
+                                Value = pageSize.Value
+                            }
+                        }
+                    });
+                }
+            }
 
             // Verify purchase order exists
             var purchaseOrderExists = await _context.PurchaseOrders
@@ -71,15 +119,50 @@ public class OrderItemsController : ControllerBase
                 });
             }
 
-            // Get order items from database
-            var orderItems = await _context.OrderItems
+            var query = _context.OrderItems
                 .Where(oi => oi.PurchaseOrderId == purchaseOrderId)
-                .OrderBy(oi => oi.ProductName)
-                .ToListAsync(cancellationToken);
+                .OrderBy(oi => oi.ProductName);
 
-            var orderItemDtos = _mapper.Map<IEnumerable<OrderItemDto>>(orderItems);
+            // If pagination is requested
+            if (page.HasValue && pageSize.HasValue)
+            {
+                var totalCount = await query.CountAsync(cancellationToken);
+                var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize.Value);
 
-            return Ok(orderItemDtos);
+                var orderItems = await query
+                    .Skip((page.Value - 1) * pageSize.Value)
+                    .Take(pageSize.Value)
+                    .ToListAsync(cancellationToken);
+
+                var orderItemDtos = _mapper.Map<IEnumerable<OrderItemDto>>(orderItems);
+
+                var response = new PaginatedResponse<OrderItemDto>
+                {
+                    Data = orderItemDtos,
+                    Page = page.Value,
+                    PageSize = pageSize.Value,
+                    TotalCount = totalCount,
+                    TotalPages = totalPages,
+                    HasPreviousPage = page.Value > 1,
+                    HasNextPage = page.Value < totalPages
+                };
+
+                // Add Cache-Control header for paginated results
+                Response.Headers["Cache-Control"] = "private, max-age=300"; // 5 minutes
+
+                return Ok(response);
+            }
+            else
+            {
+                // Return all items without pagination
+                var orderItems = await query.ToListAsync(cancellationToken);
+                var orderItemDtos = _mapper.Map<IEnumerable<OrderItemDto>>(orderItems);
+
+                // Add Cache-Control header for non-paginated results
+                Response.Headers["Cache-Control"] = "private, max-age=300"; // 5 minutes
+
+                return Ok(orderItemDtos);
+            }
         }
         catch (Exception ex)
         {

@@ -274,8 +274,8 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         // Act
         var response = await Client.PostAsync("/v1.0/purchase-orders", content);
 
-        // Assert - Should return expected response once tests are fixed
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert - Should return Created (201) for successful creation
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
     [Fact]
@@ -296,8 +296,8 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         // Act
         var response = await Client.PostAsync("/v1.0/purchase-orders", content);
 
-        // Assert - Should return expected response once tests are fixed
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert - Should return BadRequest (400) for missing required fields
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -400,8 +400,8 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         // Act
         var response = await Client.PutAsync($"/v1.0/purchase-orders/{purchaseOrderId}", content);
 
-        // Assert - Should return expected response once tests are fixed
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert - Should return BadRequest (400) for missing RowVersion
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     #endregion
@@ -512,8 +512,8 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         // Act
         var response = await Client.PostAsync($"/v1.0/purchase-orders/{purchaseOrderId}/cancel", content);
 
-        // Assert - Should return expected response once tests are fixed
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert - Should return BadRequest (400) for missing reason
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     #endregion

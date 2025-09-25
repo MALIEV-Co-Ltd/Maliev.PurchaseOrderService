@@ -29,6 +29,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     protected readonly Mock<IUploadServiceClient> MockUploadService;
     protected readonly Mock<IPdfGenerationService> MockPdfService;
     protected readonly Mock<IWHTCalculationService> MockWHTService;
+    protected readonly Mock<IDocumentManagementService> MockDocumentService;
     protected readonly JsonSerializerOptions JsonOptions;
 
     protected IntegrationTestBase(TestWebApplicationFactory<Program> factory)
@@ -40,9 +41,11 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         MockUploadService = new Mock<IUploadServiceClient>();
         MockPdfService = new Mock<IPdfGenerationService>();
         MockWHTService = new Mock<IWHTCalculationService>();
+        MockDocumentService = new Mock<IDocumentManagementService>();
 
-        // Create a custom factory that sets up mocks
-        Factory = new TestWebApplicationFactory<Program>($"TestDatabase_{GetType().Name}_{Guid.NewGuid()}");
+        // Create a unique database for each test class instance to ensure proper isolation
+        var testId = $"{GetType().Name}_{Guid.NewGuid():N}";
+        Factory = new TestWebApplicationFactory<Program>($"TestDatabase_{testId}");
 
         // Configure the test services
         Factory.ConfigureTestServices = services =>
@@ -54,6 +57,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             TestWebApplicationFactory<Program>.ReplaceService(services, MockUploadService.Object);
             TestWebApplicationFactory<Program>.ReplaceService(services, MockPdfService.Object);
             TestWebApplicationFactory<Program>.ReplaceService(services, MockWHTService.Object);
+            TestWebApplicationFactory<Program>.ReplaceService(services, MockDocumentService.Object);
 
             // Configure additional test services
             ConfigureAdditionalTestServices(services);
@@ -84,6 +88,9 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
         // Clear any existing test data to ensure clean state
         ClearAllTestData(context);
+
+        // Reset the TestDataFactory sequence for consistent IDs
+        TestDataFactory.ResetIdSequence(1);
     }
 
     /// <summary>
@@ -178,6 +185,141 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
                 WHTRate = 0.03m,
                 IsApplicable = true
             });
+
+        // Default document management service mocks
+        SetupDocumentManagementMocks();
+
+        // Default PDF generation service mocks
+        SetupPdfGenerationMocks();
+    }
+
+    /// <summary>
+    /// Sets up common document management service mocks
+    /// </summary>
+    private void SetupDocumentManagementMocks()
+    {
+        // Default file validation - valid
+        MockDocumentService
+            .Setup(x => x.ValidateFile(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>()))
+            .Returns(new DocumentValidationResult { IsValid = true, Errors = new List<string>() });
+
+        // Default document metadata
+        MockDocumentService
+            .Setup(x => x.GetDocumentMetadataAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int fileId, CancellationToken _) => new PurchaseOrderFileDto
+            {
+                Id = fileId,
+                PurchaseOrderId = 1,
+                FileName = $"test-document-{fileId}.pdf",
+                ContentType = "application/pdf",
+                FileSize = 1024,
+                UploadedBy = "test-user",
+                UploadedAt = DateTime.UtcNow
+            });
+
+        // Default upload result
+        MockDocumentService
+            .Setup(x => x.UploadDocumentAsync(It.IsAny<int>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int poId, Stream stream, string fileName, string contentType, string uploadedBy, CancellationToken _) => new DocumentUploadResult
+            {
+                Success = true,
+                FileId = 1,
+                FileSize = stream.Length,
+                UploadedBy = uploadedBy
+            });
+
+        // Default download result
+        MockDocumentService
+            .Setup(x => x.DownloadDocumentAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DocumentDownloadResult
+            {
+                Success = true,
+                FileName = "test-document.pdf",
+                ContentType = "application/pdf",
+                FileStream = new MemoryStream(Encoding.UTF8.GetBytes("Test PDF content"))
+            });
+
+        // Default delete operation
+        MockDocumentService
+            .Setup(x => x.DeleteDocumentAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // Default update operation
+        MockDocumentService
+            .Setup(x => x.UpdateDocumentAsync(It.IsAny<int>(), It.IsAny<UpdateDocumentRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int fileId, UpdateDocumentRequest request, string updatedBy, CancellationToken _) => new PurchaseOrderFileDto
+            {
+                Id = fileId,
+                PurchaseOrderId = 1,
+                FileName = request.FileName ?? $"updated-document-{fileId}.pdf",
+                ContentType = "application/pdf",
+                FileSize = 1024,
+                UploadedBy = "test-user",
+                UploadedAt = DateTime.UtcNow
+            });
+
+        // Default preview URL generation
+        MockDocumentService
+            .Setup(x => x.GeneratePreviewUrlAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("https://preview.example.com/document/1");
+
+        // Default documents list
+        MockDocumentService
+            .Setup(x => x.GetDocumentsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PurchaseOrderFileDto>
+            {
+                new PurchaseOrderFileDto
+                {
+                    Id = 1,
+                    PurchaseOrderId = 1,
+                    FileName = "test-document.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 1024,
+                    UploadedBy = "test-user",
+                    UploadedAt = DateTime.UtcNow
+                }
+            });
+    }
+
+    /// <summary>
+    /// Sets up common PDF generation service mocks
+    /// </summary>
+    private void SetupPdfGenerationMocks()
+    {
+        // Default PDF generation - success
+        MockPdfService
+            .Setup(x => x.GeneratePurchaseOrderPdfAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PdfGenerationResult
+            {
+                Success = true,
+                FileSize = 2048,
+                GeneratedAt = DateTime.UtcNow,
+                GenerationTime = TimeSpan.FromSeconds(2),
+                RequestId = Guid.NewGuid().ToString(),
+                IsAsync = false,
+                FilePath = "/storage/pdfs/purchase-order.pdf"
+            });
+
+        // Default PDF status
+        MockPdfService
+            .Setup(x => x.GetPdfGenerationStatusAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PdfGenerationStatus
+            {
+                Status = PdfStatus.Completed,
+                LastAttempt = DateTime.UtcNow,
+                AttemptCount = 1,
+                IsApplicable = true
+            });
+
+        // Default PDF applicability check - applicable for internal orders
+        MockPdfService
+            .Setup(x => x.IsPdfGenerationApplicable(It.IsAny<PurchaseOrderDto>()))
+            .Returns(true);
+
+        // Default PDF download URL
+        MockPdfService
+            .Setup(x => x.GetPdfDownloadUrlAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("https://storage.example.com/pdf/po-123.pdf");
     }
 
     #region Authentication Helpers
@@ -362,10 +504,40 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
     #endregion
 
+    #region Test Isolation Helpers
+
+    /// <summary>
+    /// Ensures a clean database state for the current test
+    /// Call this at the beginning of tests that need isolated state
+    /// </summary>
+    protected async Task EnsureCleanDatabaseAsync()
+    {
+        await ClearTestDataAsync();
+        TestDataFactory.ResetIdSequence(1);
+    }
+
+    /// <summary>
+    /// Resets all mocks to their default state
+    /// Call this if you need to reset mock configurations during a test
+    /// </summary>
+    protected void ResetMocks()
+    {
+        MockSupplierService.Reset();
+        MockOrderService.Reset();
+        MockCurrencyService.Reset();
+        MockUploadService.Reset();
+        MockPdfService.Reset();
+        MockWHTService.Reset();
+        MockDocumentService.Reset();
+        SetupCommonMocks();
+    }
+
+    #endregion
+
     #region Database Seeding Helpers
 
     /// <summary>
-    /// Seeds the database with comprehensive test data for scenarios that need existing purchase orders
+    /// Seeds the database with comprehensive test data with predictable IDs for scenarios that need existing purchase orders
     /// </summary>
     protected async Task SeedTestDataAsync()
     {
@@ -383,23 +555,35 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
         try
         {
-            // Use the enhanced TestDataFactory to create comprehensive scenarios
-            var (pendingPO, approvedPO, cancelledPO) = TestDataFactory.CreateMultiStatusPOScenarios("test-employee");
+            // Reset sequence to ensure predictable IDs
+            TestDataFactory.ResetIdSequence(1);
 
-            // Create comprehensive test scenarios with all dependencies
+            // Create predictable test scenarios with specific IDs that tests expect
             var scenarios = new[]
             {
+                // PO ID 1: Internal, Pending (most tests expect this)
                 TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.Internal, OrderStatus.Pending, "emp123", 2),
+                // PO ID 2: External, Approved
                 TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.External, OrderStatus.Approved, "emp456", 1),
+                // PO ID 3: Internal, Cancelled
                 TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.Internal, OrderStatus.Cancelled, "emp789", 3)
             };
 
-            // Seed addresses first (all scenarios)
+            // Seed addresses first with predictable IDs
             var allAddresses = new List<Address>();
+            int addressId = 1;
             foreach (var (_, _, shippingAddr, billingAddr, _, _) in scenarios)
             {
-                if (shippingAddr != null) allAddresses.Add(shippingAddr);
-                if (billingAddr != null) allAddresses.Add(billingAddr);
+                if (shippingAddr != null)
+                {
+                    shippingAddr.Id = addressId++;
+                    allAddresses.Add(shippingAddr);
+                }
+                if (billingAddr != null)
+                {
+                    billingAddr.Id = addressId++;
+                    allAddresses.Add(billingAddr);
+                }
             }
 
             if (allAddresses.Count > 0)
@@ -408,10 +592,12 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
                 await dbContext.SaveChangesAsync();
             }
 
-            // Seed purchase orders with address relationships
+            // Seed purchase orders with predictable IDs and address relationships
             var allPurchaseOrders = new List<PurchaseOrder>();
+            int poId = 1;
             foreach (var (purchaseOrder, _, shippingAddr, billingAddr, _, _) in scenarios)
             {
+                purchaseOrder.Id = poId++;
                 purchaseOrder.ShippingAddressId = shippingAddr?.Id;
                 purchaseOrder.BillingAddressId = billingAddr?.Id;
                 allPurchaseOrders.Add(purchaseOrder);
@@ -420,12 +606,14 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             await dbContext.PurchaseOrders.AddRangeAsync(allPurchaseOrders);
             await dbContext.SaveChangesAsync();
 
-            // Seed order items with proper foreign key relationships
+            // Seed order items with predictable IDs and proper foreign key relationships
             var allOrderItems = new List<OrderItem>();
+            int itemId = 1;
             foreach (var (purchaseOrder, orderItems, _, _, _, _) in scenarios)
             {
                 foreach (var item in orderItems)
                 {
+                    item.Id = itemId++;
                     item.PurchaseOrderId = purchaseOrder.Id;
                     allOrderItems.Add(item);
                 }
@@ -434,15 +622,18 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             await dbContext.OrderItems.AddRangeAsync(allOrderItems);
             await dbContext.SaveChangesAsync();
 
-            // Add some test files for document management scenarios
+            // Add test files with predictable IDs for document management scenarios
             var testFiles = new List<PurchaseOrderFile>();
+            int fileId = 1;
             foreach (var (purchaseOrder, _, _, _, _, _) in scenarios.Take(2)) // Add files to first 2 POs
             {
-                testFiles.Add(TestDataFactory.CreatePurchaseOrderFileEntity(
+                var file = TestDataFactory.CreatePurchaseOrderFileEntity(
+                    id: fileId++,
                     purchaseOrderId: purchaseOrder.Id,
                     fileName: $"test-document-{purchaseOrder.Id}.pdf",
                     uploadedBy: purchaseOrder.CreatedBy
-                ));
+                );
+                testFiles.Add(file);
             }
 
             if (testFiles.Count > 0)
@@ -520,13 +711,14 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     }
 
     /// <summary>
-    /// Seeds a specific purchase order for tests that need a known entity with enhanced scenario support
+    /// Seeds a specific purchase order for tests that need a known entity with enhanced scenario support and predictable ID
     /// </summary>
     protected async Task<PurchaseOrder> SeedPurchaseOrderAsync(
         OrderType orderType = OrderType.Internal,
         OrderStatus status = OrderStatus.Pending,
-        string createdBy = "test-user",
-        int itemCount = 2)
+        string createdBy = "emp123",
+        int itemCount = 2,
+        int? expectedId = null)
     {
         using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
@@ -538,6 +730,15 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             // Use the enhanced factory method
             var (purchaseOrder, orderItems, shippingAddress, billingAddress, supplier, currency) =
                 TestDataFactory.CreateCompletePOScenarioForSeeding(orderType, status, createdBy, itemCount);
+
+            // Assign predictable IDs
+            var nextAddressId = (await dbContext.Addresses.CountAsync()) + 1;
+            var nextPOId = expectedId ?? ((await dbContext.PurchaseOrders.CountAsync()) + 1);
+            var nextItemId = (await dbContext.OrderItems.CountAsync()) + 1;
+
+            shippingAddress.Id = nextAddressId;
+            billingAddress.Id = nextAddressId + 1;
+            purchaseOrder.Id = nextPOId;
 
             // Add addresses first
             var addresses = new List<Address> { shippingAddress, billingAddress };
@@ -552,9 +753,12 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             await dbContext.PurchaseOrders.AddAsync(purchaseOrder);
             await dbContext.SaveChangesAsync();
 
-            // Set order item foreign keys and add them
+            // Set order item IDs and foreign keys
             foreach (var item in orderItems)
+            {
+                item.Id = nextItemId++;
                 item.PurchaseOrderId = purchaseOrder.Id;
+            }
 
             await dbContext.OrderItems.AddRangeAsync(orderItems);
             await dbContext.SaveChangesAsync();
@@ -576,7 +780,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     /// Seeds multiple purchase orders with different statuses for comprehensive testing
     /// </summary>
     protected async Task<(PurchaseOrder pending, PurchaseOrder approved, PurchaseOrder cancelled)> SeedMultiStatusPurchaseOrdersAsync(
-        string createdBy = "test-user")
+        string createdBy = "emp123")
     {
         using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();

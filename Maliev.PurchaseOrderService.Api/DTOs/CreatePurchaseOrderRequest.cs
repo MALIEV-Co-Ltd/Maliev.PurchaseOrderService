@@ -7,12 +7,15 @@ namespace Maliev.PurchaseOrderService.Api.DTOs;
 public class CreatePurchaseOrderRequest
 {
     [Required]
+    [Range(1, int.MaxValue, ErrorMessage = "SupplierID must be greater than 0")]
     public int SupplierID { get; set; }
 
     [Required]
+    [Range(1, int.MaxValue, ErrorMessage = "OrderID must be greater than 0")]
     public int OrderID { get; set; }
 
     [Required]
+    [Range(1, int.MaxValue, ErrorMessage = "CurrencyID must be greater than 0")]
     public int CurrencyID { get; set; }
 
     [Required]

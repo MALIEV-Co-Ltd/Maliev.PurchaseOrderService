@@ -32,8 +32,8 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
     {
         base.SetupCommonMocks();
 
-        // Setup mock document management service
-        var mockDocumentService = new Mock<IDocumentManagementService>();
+        // Setup mock document management service with test-specific overrides
+        var mockDocumentService = MockDocumentService;
 
         // Default mock responses for file operations
         mockDocumentService
@@ -110,10 +110,8 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
             .Setup(x => x.GeneratePreviewUrlAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("https://preview.example.com/document/1");
 
-        // Setup mock PDF generation service
-        var mockPdfService = new Mock<IPdfGenerationService>();
-
-        mockPdfService
+        // MockPdfService is already configured in the base class and injected into DI container
+        MockPdfService
             .Setup(x => x.GeneratePurchaseOrderPdfAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PdfGenerationResult
             {
@@ -123,7 +121,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
                 GeneratedAt = DateTime.UtcNow
             });
 
-        mockPdfService
+        MockPdfService
             .Setup(x => x.GetPdfGenerationStatusAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PdfGenerationStatus
             {
@@ -224,8 +222,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Setup mock to return null for invalid file ID
-        var mockDocumentService = MockServiceFactory.CreateDocumentManagementServiceMock();
-        mockDocumentService
+        MockDocumentService
             .Setup(x => x.GetDocumentMetadataAsync(99999, It.IsAny<CancellationToken>()))
             .ReturnsAsync((PurchaseOrderFileDto?)null);
 
@@ -362,8 +359,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Setup mock to return validation failure
-        var mockDocumentService = MockServiceFactory.CreateDocumentManagementServiceMock();
-        mockDocumentService
+        MockDocumentService
             .Setup(x => x.ValidateFile(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>()))
             .Returns(new DocumentValidationResult
             {
@@ -422,8 +418,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Setup mock to return null metadata for invalid file
-        var mockDocumentService = MockServiceFactory.CreateDocumentManagementServiceMock();
-        mockDocumentService
+        MockDocumentService
             .Setup(x => x.GetDocumentMetadataAsync(99999, It.IsAny<CancellationToken>()))
             .ReturnsAsync((PurchaseOrderFileDto?)null);
 
@@ -448,8 +443,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Setup mock to return download failure
-        var mockDocumentService = MockServiceFactory.CreateDocumentManagementServiceMock();
-        mockDocumentService
+        MockDocumentService
             .Setup(x => x.DownloadDocumentAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DocumentDownloadResult
             {
@@ -496,8 +490,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Setup mock to return null metadata for invalid file
-        var mockDocumentService = MockServiceFactory.CreateDocumentManagementServiceMock();
-        mockDocumentService
+        MockDocumentService
             .Setup(x => x.GetDocumentMetadataAsync(99999, It.IsAny<CancellationToken>()))
             .ReturnsAsync((PurchaseOrderFileDto?)null);
 
@@ -522,8 +515,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Setup mock to return false for delete operation
-        var mockDocumentService = MockServiceFactory.CreateDocumentManagementServiceMock();
-        mockDocumentService
+        MockDocumentService
             .Setup(x => x.DeleteDocumentAsync(1, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
@@ -594,8 +586,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Setup mock to return null metadata for invalid file
-        var mockDocumentService = MockServiceFactory.CreateDocumentManagementServiceMock();
-        mockDocumentService
+        MockDocumentService
             .Setup(x => x.GetDocumentMetadataAsync(99999, It.IsAny<CancellationToken>()))
             .ReturnsAsync((PurchaseOrderFileDto?)null);
 
@@ -669,8 +660,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Setup mock to return failure
-        var mockPdfService = MockServiceFactory.CreatePdfGenerationServiceMock();
-        mockPdfService
+        MockPdfService
             .Setup(x => x.GeneratePurchaseOrderPdfAsync(seededPurchaseOrder.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PdfGenerationResult
             {
@@ -802,8 +792,7 @@ public class PurchaseOrderFilesControllerIntegrationTests : IntegrationTestBase
         var seededPurchaseOrder = await SeedPurchaseOrderAsync();
 
         // Setup mock to return null metadata for invalid file
-        var mockDocumentService = MockServiceFactory.CreateDocumentManagementServiceMock();
-        mockDocumentService
+        MockDocumentService
             .Setup(x => x.GetDocumentMetadataAsync(99999, It.IsAny<CancellationToken>()))
             .ReturnsAsync((PurchaseOrderFileDto?)null);
 
