@@ -70,28 +70,48 @@ public class PurchaseOrderContext : DbContext
             .HasMany(po => po.OrderItems)
             .WithOne(oi => oi.PurchaseOrder)
             .HasForeignKey(oi => oi.PurchaseOrderId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Cascade)
+            .IsRequired(true); // Explicitly specify relationship is required
+
+        // OrderItem -> PurchaseOrder (Many-to-One) - explicit reverse configuration
+        modelBuilder.Entity<OrderItem>()
+            .HasOne(oi => oi.PurchaseOrder)
+            .WithMany(po => po.OrderItems)
+            .HasForeignKey(oi => oi.PurchaseOrderId)
+            .OnDelete(DeleteBehavior.Cascade)
+            .IsRequired(true);
 
         // PurchaseOrder -> PurchaseOrderFile (One-to-Many)
         modelBuilder.Entity<PurchaseOrder>()
             .HasMany(po => po.PurchaseOrderFiles)
             .WithOne(pof => pof.PurchaseOrder)
             .HasForeignKey(pof => pof.PurchaseOrderId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Cascade)
+            .IsRequired(true);
+
+        // PurchaseOrderFile -> PurchaseOrder (Many-to-One) - explicit reverse configuration
+        modelBuilder.Entity<PurchaseOrderFile>()
+            .HasOne(pof => pof.PurchaseOrder)
+            .WithMany(po => po.PurchaseOrderFiles)
+            .HasForeignKey(pof => pof.PurchaseOrderId)
+            .OnDelete(DeleteBehavior.Cascade)
+            .IsRequired(true);
 
         // PurchaseOrder -> Address (Shipping) (Many-to-One, Optional)
         modelBuilder.Entity<PurchaseOrder>()
             .HasOne(po => po.ShippingAddress)
             .WithMany(a => a.ShippingPurchaseOrders)
             .HasForeignKey(po => po.ShippingAddressId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
 
         // PurchaseOrder -> Address (Billing) (Many-to-One, Optional)
         modelBuilder.Entity<PurchaseOrder>()
             .HasOne(po => po.BillingAddress)
             .WithMany(a => a.BillingPurchaseOrders)
             .HasForeignKey(po => po.BillingAddressId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
 
         // Configure unique constraints
         modelBuilder.Entity<PurchaseOrder>()
@@ -104,6 +124,19 @@ public class PurchaseOrderContext : DbContext
             .HasIndex(oi => new { oi.PurchaseOrderId, oi.ExternalOrderItemId })
             .IsUnique()
             .HasDatabaseName("IX_OrderItems_PurchaseOrderId_ExternalOrderItemId_Unique");
+
+        // Configure additional indexes for performance
+        modelBuilder.Entity<PurchaseOrder>()
+            .HasIndex(po => po.Status)
+            .HasDatabaseName("IX_PurchaseOrders_Status");
+
+        modelBuilder.Entity<PurchaseOrder>()
+            .HasIndex(po => po.OrderType)
+            .HasDatabaseName("IX_PurchaseOrders_OrderType");
+
+        modelBuilder.Entity<Address>()
+            .HasIndex(a => a.AddressType)
+            .HasDatabaseName("IX_Addresses_AddressType");
     }
 
     /// <summary>
@@ -153,6 +186,11 @@ public class PurchaseOrderContext : DbContext
         // Soft delete filter for Address
         modelBuilder.Entity<Address>()
             .HasQueryFilter(a => !a.IsDeleted);
+
+        // Apply matching query filter for OrderItem to resolve navigation warning
+        // Since OrderItem doesn't have soft delete, we use a filter that doesn't filter anything
+        modelBuilder.Entity<OrderItem>()
+            .HasQueryFilter(oi => true);
     }
 
     /// <summary>

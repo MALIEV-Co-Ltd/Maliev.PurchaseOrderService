@@ -7,6 +7,7 @@ using Maliev.PurchaseOrderService.Api.Services;
 using System.Net;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using Maliev.PurchaseOrderService.Api.Models;
 
 namespace Maliev.PurchaseOrderService.Api.Controllers;
 
@@ -42,8 +43,10 @@ public class PurchaseOrdersController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Paginated list of purchase orders</returns>
     [HttpGet]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(PaginatedPurchaseOrdersResponse), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.Forbidden)]
     public async Task<ActionResult<PaginatedPurchaseOrdersResponse>> GetPurchaseOrders(
         [FromQuery] SearchPurchaseOrdersRequest request,
         CancellationToken cancellationToken = default)
@@ -77,24 +80,32 @@ public class PurchaseOrdersController : ControllerBase
                 });
             }
 
+            // Get current user context for role-based filtering
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.Identity?.Name ?? "unknown";
+            var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+
             var result = await _purchaseOrderService.GetPurchaseOrdersAsync(request, cancellationToken);
 
-            // Convert to expected response format
-            var response = new PaginatedPurchaseOrdersResponse
-            {
-                Items = _mapper.Map<List<PurchaseOrderResponse>>(result.Data),
-                Pagination = new PaginationInfo
-                {
-                    Page = result.Page,
-                    PageSize = result.PageSize,
-                    TotalCount = result.TotalCount,
-                    TotalPages = result.TotalPages,
-                    HasNextPage = result.HasNextPage,
-                    HasPreviousPage = result.HasPreviousPage
-                }
-            };
+            // Add required response headers
+            Response.Headers["X-Total-Count"] = result.TotalCount.ToString();
+            Response.Headers["X-Page"] = result.Page.ToString();
+            Response.Headers["X-Page-Size"] = result.PageSize.ToString();
+            Response.Headers["X-Total-Pages"] = result.TotalPages.ToString();
+            Response.Headers.CacheControl = "no-cache, must-revalidate";
 
-            return Ok(response);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to purchase orders by user {UserId}", User.Identity?.Name);
+            return StatusCode(403, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "Access denied. You do not have permission to view purchase orders",
+                    Code = "ACCESS_DENIED"
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -210,21 +221,21 @@ public class PurchaseOrdersController : ControllerBase
 
             if (!ModelState.IsValid)
             {
-                return BadRequest(new ErrorResponse
+                var validationErrors = ModelState.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray() ?? Array.Empty<string>()
+                ).Select(kvp => new ValidationError
                 {
-                    Error = new ErrorInfo
-                    {
-                        Message = "Invalid request data",
-                        Code = "INVALID_REQUEST",
-                        Details = ModelState.ToDictionary(
-                            kvp => kvp.Key,
-                            kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray() ?? Array.Empty<string>()
-                        ).Select(kvp => new ErrorDetail
-                        {
-                            Field = kvp.Key,
-                            Message = string.Join(", ", kvp.Value)
-                        }).ToList()
-                    }
+                    Field = kvp.Key,
+                    Message = string.Join(", ", kvp.Value),
+                    Code = "VALIDATION_ERROR"
+                }).ToList();
+
+                return BadRequest(new ValidationErrorResponse
+                {
+                    Message = "Invalid request data",
+                    Code = "VALIDATION_FAILED",
+                    Errors = validationErrors
                 });
             }
 
@@ -250,6 +261,18 @@ public class PurchaseOrdersController : ControllerBase
                 nameof(GetPurchaseOrder),
                 new { id = createdPurchaseOrder.Id },
                 createdPurchaseOrder);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Validation error when creating purchase order");
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "VALIDATION_ERROR"
+                }
+            });
         }
         catch (InvalidOperationException ex)
         {
@@ -299,21 +322,21 @@ public class PurchaseOrdersController : ControllerBase
 
             if (!ModelState.IsValid)
             {
-                return BadRequest(new ErrorResponse
+                var validationErrors = ModelState.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray() ?? Array.Empty<string>()
+                ).Select(kvp => new ValidationError
                 {
-                    Error = new ErrorInfo
-                    {
-                        Message = "Invalid request data",
-                        Code = "INVALID_REQUEST",
-                        Details = ModelState.ToDictionary(
-                            kvp => kvp.Key,
-                            kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray() ?? Array.Empty<string>()
-                        ).Select(kvp => new ErrorDetail
-                        {
-                            Field = kvp.Key,
-                            Message = string.Join(", ", kvp.Value)
-                        }).ToList()
-                    }
+                    Field = kvp.Key,
+                    Message = string.Join(", ", kvp.Value),
+                    Code = "VALIDATION_ERROR"
+                }).ToList();
+
+                return BadRequest(new ValidationErrorResponse
+                {
+                    Message = "Invalid request data",
+                    Code = "VALIDATION_FAILED",
+                    Errors = validationErrors
                 });
             }
 
@@ -334,6 +357,14 @@ public class PurchaseOrdersController : ControllerBase
                 });
             }
 
+            // Add ETag header for updated resource
+            if (updatedPurchaseOrder != null)
+            {
+                var timestamp = updatedPurchaseOrder.UpdatedAt?.Ticks ?? updatedPurchaseOrder.CreatedAt.Ticks;
+                var etag = $"\"{updatedPurchaseOrder.Id}-{timestamp}\"";
+                Response.Headers.ETag = etag;
+            }
+
             return Ok(updatedPurchaseOrder);
         }
         catch (DbUpdateConcurrencyException ex)
@@ -345,6 +376,18 @@ public class PurchaseOrdersController : ControllerBase
                 {
                     Message = ex.Message,
                     Code = "CONCURRENCY_CONFLICT"
+                }
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Validation error when updating purchase order {PurchaseOrderId}", id);
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "VALIDATION_ERROR"
                 }
             });
         }
@@ -501,6 +544,18 @@ public class PurchaseOrdersController : ControllerBase
                 }
             });
         }
+        catch (BusinessRuleException ex)
+        {
+            _logger.LogWarning(ex, "Business rule violation when approving purchase order {PurchaseOrderId}", id);
+            return Conflict(new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = ex.ErrorCode
+                }
+            });
+        }
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex, "Unauthorized access when approving purchase order {PurchaseOrderId}", id);
@@ -594,6 +649,18 @@ public class PurchaseOrdersController : ControllerBase
                 {
                     Message = ex.Message,
                     Code = "CONCURRENCY_CONFLICT"
+                }
+            });
+        }
+        catch (BusinessRuleException ex)
+        {
+            _logger.LogWarning(ex, "Business rule violation when canceling purchase order {PurchaseOrderId}", id);
+            return Conflict(new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = ex.ErrorCode
                 }
             });
         }
@@ -717,21 +784,21 @@ public class PurchaseOrdersController : ControllerBase
 
             if (!ModelState.IsValid)
             {
-                return BadRequest(new ErrorResponse
+                var validationErrors = ModelState.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray() ?? Array.Empty<string>()
+                ).Select(kvp => new ValidationError
                 {
-                    Error = new ErrorInfo
-                    {
-                        Message = "Invalid request data",
-                        Code = "INVALID_REQUEST",
-                        Details = ModelState.ToDictionary(
-                            kvp => kvp.Key,
-                            kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray() ?? Array.Empty<string>()
-                        ).Select(kvp => new ErrorDetail
-                        {
-                            Field = kvp.Key,
-                            Message = string.Join(", ", kvp.Value)
-                        }).ToList()
-                    }
+                    Field = kvp.Key,
+                    Message = string.Join(", ", kvp.Value),
+                    Code = "VALIDATION_ERROR"
+                }).ToList();
+
+                return BadRequest(new ValidationErrorResponse
+                {
+                    Message = "Invalid request data",
+                    Code = "VALIDATION_FAILED",
+                    Errors = validationErrors
                 });
             }
 

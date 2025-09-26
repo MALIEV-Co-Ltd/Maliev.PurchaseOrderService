@@ -80,11 +80,18 @@ public class PdfServiceTests
             GenerationTime = TimeSpan.FromSeconds(2)
         };
 
-        var responseContent = JsonSerializer.Serialize(expectedResult);
+        var pdfContent = "Mock PDF content for purchase order"u8.ToArray();
         var httpResponse = new HttpResponseMessage(HttpStatusCode.Created)
         {
-            Content = new StringContent(responseContent, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"))
+            Content = new ByteArrayContent(pdfContent)
         };
+
+        // Add headers that the PdfServiceClient expects
+        httpResponse.Headers.Add("X-Document-Id", expectedResult.DocumentId);
+        httpResponse.Headers.Add("X-File-Name", expectedResult.FileName);
+        httpResponse.Headers.Add("X-Page-Count", expectedResult.PageCount.ToString());
+        httpResponse.Headers.Add("X-Generation-Time", expectedResult.GenerationTime.ToString());
+        httpResponse.Content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
 
         _httpMessageHandlerMock
             .Protected()
@@ -219,11 +226,18 @@ public class PdfServiceTests
             GenerationTime = TimeSpan.FromSeconds(1)
         };
 
-        var responseContent = JsonSerializer.Serialize(expectedResult);
+        var pdfContent = "Mock PDF content as bytes"u8.ToArray();
         var httpResponse = new HttpResponseMessage(HttpStatusCode.Accepted)
         {
-            Content = new StringContent(responseContent, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"))
+            Content = new ByteArrayContent(pdfContent)
         };
+
+        // Add headers that the PdfServiceClient expects
+        httpResponse.Headers.Add("X-Document-Id", expectedResult.DocumentId);
+        httpResponse.Headers.Add("X-File-Name", expectedResult.FileName);
+        httpResponse.Headers.Add("X-Page-Count", expectedResult.PageCount.ToString());
+        httpResponse.Headers.Add("X-Generation-Time", expectedResult.GenerationTime.ToString());
+        httpResponse.Content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
 
         _httpMessageHandlerMock
             .Protected()
@@ -568,7 +582,7 @@ public class PdfServiceTests
         var exception = await Assert.ThrowsAsync<InvalidDataException>(
             () => service.GetAvailableTemplatesAsync());
 
-        exception.Message.Should().Contain("parsing");
+        exception.Message.Should().Contain("Failed to parse PDF templates response");
     }
 
     [Fact]

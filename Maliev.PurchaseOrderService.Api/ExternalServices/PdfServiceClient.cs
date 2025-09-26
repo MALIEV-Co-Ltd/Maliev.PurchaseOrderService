@@ -59,6 +59,13 @@ public class PdfServiceClient : IPdfServiceClient
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.PostAsync("/pdfs/generate/html", content, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while generating PDF from HTML");
+                throw new UnauthorizedAccessException("PDF service authentication failed while generating PDF from HTML");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var result = new PdfGenerationResultDto
@@ -137,6 +144,12 @@ public class PdfServiceClient : IPdfServiceClient
                 return null;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while generating PDF from template {TemplateId}", templateId);
+                throw new UnauthorizedAccessException($"PDF service authentication failed while generating PDF from template {templateId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var result = new PdfGenerationResultDto
@@ -207,6 +220,13 @@ public class PdfServiceClient : IPdfServiceClient
             }
 
             var response = await _httpClient.PostAsync("/pdfs/merge", multipartContent, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while merging PDF files");
+                throw new UnauthorizedAccessException("PDF service authentication failed while merging PDF files");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var result = new PdfMergeResultDto
@@ -262,6 +282,13 @@ public class PdfServiceClient : IPdfServiceClient
             multipartContent.Add(new StringContent(optionsJson, Encoding.UTF8, "application/json"), "options");
 
             var response = await _httpClient.PostAsync("/pdfs/convert/images", multipartContent, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while converting PDF to images");
+                throw new UnauthorizedAccessException("PDF service authentication failed while converting PDF to images");
+            }
+
             response.EnsureSuccessStatusCode();
 
             // For simplicity, returning a basic result. In practice, you might parse a JSON response
@@ -315,6 +342,13 @@ public class PdfServiceClient : IPdfServiceClient
             multipartContent.Add(new StringContent(optionsJson, Encoding.UTF8, "application/json"), "options");
 
             var response = await _httpClient.PostAsync("/pdfs/extract-text", multipartContent, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while extracting text from PDF");
+                throw new UnauthorizedAccessException("PDF service authentication failed while extracting text from PDF");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -378,6 +412,13 @@ public class PdfServiceClient : IPdfServiceClient
             multipartContent.Add(new StringContent(optionsJson, Encoding.UTF8, "application/json"), "options");
 
             var response = await _httpClient.PostAsync("/pdfs/watermark", multipartContent, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while adding watermark to PDF");
+                throw new UnauthorizedAccessException("PDF service authentication failed while adding watermark to PDF");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var result = new PdfWatermarkResultDto
@@ -489,6 +530,13 @@ public class PdfServiceClient : IPdfServiceClient
             multipartContent.Add(new StringContent(optionsJson, Encoding.UTF8, "application/json"), "options");
 
             var response = await _httpClient.PostAsync("/pdfs/validate", multipartContent, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while validating PDF");
+                throw new UnauthorizedAccessException("PDF service authentication failed while validating PDF");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -537,6 +585,13 @@ public class PdfServiceClient : IPdfServiceClient
             }
 
             var response = await _httpClient.GetAsync(url, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting PDF templates");
+                throw new UnauthorizedAccessException("PDF service authentication failed while getting PDF templates");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -582,6 +637,12 @@ public class PdfServiceClient : IPdfServiceClient
             {
                 _logger.LogWarning("PDF template not found: {TemplateId}", templateId);
                 return null;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while downloading PDF template {TemplateId}", templateId);
+                throw new UnauthorizedAccessException($"PDF service authentication failed while downloading PDF template {templateId}");
             }
 
             response.EnsureSuccessStatusCode();
@@ -647,6 +708,12 @@ public class PdfServiceClient : IPdfServiceClient
                 };
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while validating template data {TemplateId}", templateId);
+                throw new UnauthorizedAccessException($"PDF service authentication failed while validating template data {templateId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -694,6 +761,12 @@ public class PdfServiceClient : IPdfServiceClient
                 return null;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while downloading PDF for job {JobId}", jobId);
+                throw new UnauthorizedAccessException($"PDF service authentication failed while downloading PDF for job {jobId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var result = new PdfDownloadResultDto
@@ -736,6 +809,12 @@ public class PdfServiceClient : IPdfServiceClient
                 throw new InvalidOperationException($"PDF job not found for job ID: {jobId}");
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting PDF job status {JobId}", jobId);
+                throw new UnauthorizedAccessException($"PDF service authentication failed while getting PDF job status {jobId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -775,6 +854,12 @@ public class PdfServiceClient : IPdfServiceClient
             {
                 _logger.LogWarning("PDF job not found for cancellation, Job ID: {JobId}", jobId);
                 return false;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while canceling PDF job {JobId}", jobId);
+                throw new UnauthorizedAccessException($"PDF service authentication failed while canceling PDF job {jobId}");
             }
 
             if (response.StatusCode == HttpStatusCode.NoContent || response.StatusCode == HttpStatusCode.OK)

@@ -88,9 +88,11 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             using var scope = Factory.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
-            // Ensure database is completely fresh for each test class
-            context.Database.EnsureDeleted();
+            // For InMemory database, we don't need to delete/recreate, just ensure it's created
             context.Database.EnsureCreated();
+
+            // Clear any existing data for proper isolation
+            ClearAllTestData(context);
 
             // Reset the TestDataFactory sequence for consistent IDs
             TestDataFactory.ResetIdSequence(1);
@@ -149,22 +151,27 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     /// </summary>
     protected virtual void SetupCommonMocks()
     {
-        // Default supplier validation
+        // Default supplier validation with consistent test data
+        var defaultSupplier = TestDataFactory.CreateSupplierDto();
         MockSupplierService
             .Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TestDataFactory.CreateSupplierDto());
+            .ReturnsAsync(defaultSupplier);
 
-        // Default supplier lookup
+        // Default supplier lookup with same consistent data
         MockSupplierService
             .Setup(x => x.GetSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TestDataFactory.CreateSupplierDto());
+            .ReturnsAsync(defaultSupplier);
 
-        // Default currency validation
+        // Default currency validation with consistent test data
+        var defaultCurrency = TestDataFactory.CreateCurrencyDto("THB", "Thai Baht");
         MockCurrencyService
-            .Setup(x => x.ValidateCurrencyAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TestDataFactory.CreateCurrencyDto("THB", "Thai Baht"));
+            .Setup(x => x.ValidateCurrencyAsync("THB", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(defaultCurrency);
+        MockCurrencyService
+            .Setup(x => x.ValidateCurrencyAsync("USD", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(TestDataFactory.CreateCurrencyDto("USD", "US Dollar"));
 
-        // Default order items
+        // Default order items with consistent test data matching scenarios
         MockOrderService
             .Setup(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((int orderId, CancellationToken _) => new List<OrderItemDto>
@@ -173,8 +180,14 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
                     id: 1,
                     purchaseOrderId: 1,
                     externalOrderItemId: 1,
+                    quantity: 2,
+                    unitPrice: 150.00m),
+                TestDataFactory.CreateOrderItemDto(
+                    id: 2,
+                    purchaseOrderId: 1,
+                    externalOrderItemId: 2,
                     quantity: 1,
-                    unitPrice: 1000.00m)
+                    unitPrice: 300.00m)
             });
 
         // Order validation (missing from IntegrationTestBase)
@@ -184,15 +197,20 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
         // Use real domain event service for database persistence (no mock setup needed)
 
-        // Default WHT calculation
+        // Default WHT calculation matching expected test scenario totals (600 subtotal)
         MockWHTService
             .Setup(x => x.CalculateWHTAsync(It.IsAny<SupplierDto>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WHTCalculationResult
+            .ReturnsAsync((SupplierDto supplier, decimal amount, string currency, CancellationToken _) => new WHTCalculationResult
             {
-                WHTAmount = 30.00m,
-                NetAmount = 970.00m,
-                WHTRate = 0.03m,
-                IsApplicable = true
+                WHTAmount = Math.Round(amount * 0.03m, 2), // 3% of subtotal
+                NetAmount = Math.Round(amount * 0.97m, 2), // Amount minus WHT
+                WHTRate = 3.0m, // 3% stored as percentage
+                IsApplicable = true,
+                SubtotalAmount = amount,
+                TaxBase = amount,
+                CurrencyCode = currency,
+                WHTAmountTHB = Math.Round(amount * 0.03m, 2),
+                Reason = "Standard 3% WHT for Thailand suppliers"
             });
 
         // Default document management service mocks
@@ -523,6 +541,26 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     {
         await ClearTestDataAsync();
         TestDataFactory.ResetIdSequence(1);
+        ResetMocks(); // Also reset mocks for complete isolation
+    }
+
+    /// <summary>
+    /// Ensures database is ready and optionally seeds test data
+    /// This is a comprehensive setup method for integration tests
+    /// </summary>
+    protected async Task PrepareTestAsync(bool seedData = false, bool resetMocks = true)
+    {
+        await EnsureCleanDatabaseAsync();
+
+        if (resetMocks)
+        {
+            ResetMocks();
+        }
+
+        if (seedData)
+        {
+            await SeedTestDataAsync();
+        }
     }
 
     /// <summary>
@@ -567,30 +605,29 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             // Reset sequence to ensure predictable IDs
             TestDataFactory.ResetIdSequence(1);
 
-            // Create predictable test scenarios with specific IDs that tests expect
+            // Create predictable test scenarios with consistent data that tests expect
             var scenarios = new[]
             {
-                // PO ID 1: Internal, Pending (most tests expect this)
+                // Scenario 1: Internal, Pending (most tests expect this) - Predictable amounts: 1*150 + 2*300 = 750, WHT: 22.50, Total: 727.50
                 TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.Internal, OrderStatus.Pending, "emp123", 2),
-                // PO ID 2: External, Approved
-                TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.External, OrderStatus.Approved, "emp456", 1),
-                // PO ID 3: Internal, Cancelled
+                // Scenario 2: External, Approved - Predictable amounts: 1*150 = 150, No WHT, Total: 150
+                TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.External, OrderStatus.Approved, "mgr456", 1),
+                // Scenario 3: Internal, Cancelled - Predictable amounts: 1*150 + 2*300 + 3*450 = 2100, WHT: 63, Total: 2037
                 TestDataFactory.CreateCompletePOScenarioForSeeding(OrderType.Internal, OrderStatus.Cancelled, "emp789", 3)
             };
 
-            // Seed addresses first with predictable IDs
+            // Seed addresses first ensuring proper data consistency
             var allAddresses = new List<Address>();
-            int addressId = 1;
             foreach (var (_, _, shippingAddr, billingAddr, _, _) in scenarios)
             {
                 if (shippingAddr != null)
                 {
-                    shippingAddr.Id = addressId++;
+                    shippingAddr.Id = 0; // Let database assign sequential IDs
                     allAddresses.Add(shippingAddr);
                 }
                 if (billingAddr != null)
                 {
-                    billingAddr.Id = addressId++;
+                    billingAddr.Id = 0; // Let database assign sequential IDs
                     allAddresses.Add(billingAddr);
                 }
             }
@@ -599,47 +636,59 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
             {
                 await dbContext.Addresses.AddRangeAsync(allAddresses);
                 await dbContext.SaveChangesAsync();
+                // Database assigns sequential IDs starting from 1, 2, 3...
             }
 
-            // Seed purchase orders with predictable IDs and address relationships
+            // Seed purchase orders with proper address relationships
             var allPurchaseOrders = new List<PurchaseOrder>();
-            int poId = 1;
+            int addressIndex = 0;
             foreach (var (purchaseOrder, _, shippingAddr, billingAddr, _, _) in scenarios)
             {
-                purchaseOrder.Id = poId++;
-                purchaseOrder.ShippingAddressId = shippingAddr?.Id;
-                purchaseOrder.BillingAddressId = billingAddr?.Id;
+                purchaseOrder.Id = 0; // Let database assign
+                if (shippingAddr != null)
+                {
+                    purchaseOrder.ShippingAddressId = allAddresses[addressIndex].Id;
+                    addressIndex++;
+                }
+                if (billingAddr != null)
+                {
+                    purchaseOrder.BillingAddressId = allAddresses[addressIndex].Id;
+                    addressIndex++;
+                }
                 allPurchaseOrders.Add(purchaseOrder);
             }
 
             await dbContext.PurchaseOrders.AddRangeAsync(allPurchaseOrders);
             await dbContext.SaveChangesAsync();
+            // Database assigns sequential IDs, addresses are already linked by foreign keys
 
             // Seed order items with predictable IDs and proper foreign key relationships
             var allOrderItems = new List<OrderItem>();
-            int itemId = 1;
             foreach (var (purchaseOrder, orderItems, _, _, _, _) in scenarios)
             {
                 foreach (var item in orderItems)
                 {
-                    item.Id = itemId++;
-                    item.PurchaseOrderId = purchaseOrder.Id;
+                    item.Id = 0; // Let database assign
+                    item.PurchaseOrderId = purchaseOrder.Id; // Use the updated ID
                     allOrderItems.Add(item);
                 }
             }
 
-            await dbContext.OrderItems.AddRangeAsync(allOrderItems);
-            await dbContext.SaveChangesAsync();
+            if (allOrderItems.Count > 0)
+            {
+                await dbContext.OrderItems.AddRangeAsync(allOrderItems);
+                await dbContext.SaveChangesAsync();
+                // Order items now linked to purchase orders with correct totals calculated
+            }
 
-            // Add test files with predictable IDs for document management scenarios
+            // Add test files for document management scenarios
             var testFiles = new List<PurchaseOrderFile>();
-            int fileId = 1;
             foreach (var (purchaseOrder, _, _, _, _, _) in scenarios.Take(2)) // Add files to first 2 POs
             {
                 var file = TestDataFactory.CreatePurchaseOrderFileEntity(
-                    id: fileId++,
+                    id: 0, // Let database assign sequential IDs
                     purchaseOrderId: purchaseOrder.Id,
-                    fileName: $"test-document-{purchaseOrder.Id}.pdf",
+                    fileName: $"PO-{purchaseOrder.OrderNumber}-Document.pdf",
                     uploadedBy: purchaseOrder.CreatedBy
                 );
                 testFiles.Add(file);
@@ -651,12 +700,15 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
                 await dbContext.SaveChangesAsync();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            // Log the specific error for debugging
+            System.Diagnostics.Debug.WriteLine($"SeedTestDataAsync failed: {ex.Message}");
+
             // Clean up partial data on error
             try
             {
-                ClearAllTestData(dbContext);
+                await ClearTestDataAsync();
             }
             catch
             {

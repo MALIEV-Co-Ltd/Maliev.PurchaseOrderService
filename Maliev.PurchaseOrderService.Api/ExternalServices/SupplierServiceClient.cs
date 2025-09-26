@@ -48,6 +48,12 @@ public class SupplierServiceClient : ISupplierServiceClient
                 return null;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting supplier {SupplierId}", supplierId);
+                throw new UnauthorizedAccessException($"Supplier service authentication failed while getting supplier {supplierId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -91,6 +97,12 @@ public class SupplierServiceClient : ISupplierServiceClient
             {
                 _logger.LogWarning("Supplier contact not found for ID: {SupplierId}", supplierId);
                 return null;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting supplier contact {SupplierId}", supplierId);
+                throw new UnauthorizedAccessException($"Supplier service authentication failed while getting supplier contact {supplierId}");
             }
 
             response.EnsureSuccessStatusCode();
@@ -138,6 +150,12 @@ public class SupplierServiceClient : ISupplierServiceClient
                 return null;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while validating supplier {SupplierId}", supplierId);
+                throw new UnauthorizedAccessException($"Supplier service authentication failed while validating supplier {supplierId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -181,6 +199,12 @@ public class SupplierServiceClient : ISupplierServiceClient
             {
                 _logger.LogWarning("Supplier products not found for ID: {SupplierId}", supplierId);
                 return Enumerable.Empty<SupplierProductDto>();
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting supplier products {SupplierId}", supplierId);
+                throw new UnauthorizedAccessException($"Supplier service authentication failed while getting supplier products {supplierId}");
             }
 
             response.EnsureSuccessStatusCode();
@@ -228,6 +252,12 @@ public class SupplierServiceClient : ISupplierServiceClient
             {
                 _logger.LogWarning("Supplier payment terms not found for ID: {SupplierId}", supplierId);
                 return null;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting supplier payment terms {SupplierId}", supplierId);
+                throw new UnauthorizedAccessException($"Supplier service authentication failed while getting supplier payment terms {supplierId}");
             }
 
             response.EnsureSuccessStatusCode();

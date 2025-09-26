@@ -52,7 +52,8 @@ public class OrderServiceClient : IOrderServiceClient
             if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
             {
                 _logger.LogError("Authentication failure while getting order {OrderId}", orderId);
-                throw new UnauthorizedAccessException($"Order service authentication failed while getting order {orderId}");
+                throw new ExternalServiceException("OrderService", $"Failed to get order {orderId}: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
             }
 
             response.EnsureSuccessStatusCode();
@@ -93,6 +94,13 @@ public class OrderServiceClient : IOrderServiceClient
             {
                 _logger.LogWarning("Order status not found for ID: {OrderId}", orderId);
                 return null;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting order status {OrderId}", orderId);
+                throw new ExternalServiceException("OrderService", $"Failed to get order status {orderId}: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
             }
 
             response.EnsureSuccessStatusCode();
@@ -139,6 +147,13 @@ public class OrderServiceClient : IOrderServiceClient
                 return false;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while updating order status {OrderId}", orderId);
+                throw new ExternalServiceException("OrderService", $"Failed to update order status {orderId}: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             _logger.LogInformation("Successfully updated order status for ID: {OrderId} to {Status}", orderId, status);
@@ -169,6 +184,13 @@ public class OrderServiceClient : IOrderServiceClient
             {
                 _logger.LogWarning("Order items not found for ID: {OrderId}", orderId);
                 return Enumerable.Empty<OrderItemDto>();
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting order items {OrderId}", orderId);
+                throw new ExternalServiceException("OrderService", $"Failed to get order items {orderId}: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
             }
 
             response.EnsureSuccessStatusCode();
@@ -211,6 +233,13 @@ public class OrderServiceClient : IOrderServiceClient
             {
                 _logger.LogWarning("Order validation failed - not found for ID: {OrderId}", orderId);
                 return false;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while validating order {OrderId}", orderId);
+                throw new ExternalServiceException("OrderService", $"Failed to validate order {orderId}: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
             }
 
             if (response.StatusCode == HttpStatusCode.OK)
@@ -258,6 +287,13 @@ public class OrderServiceClient : IOrderServiceClient
                 return null;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting order delivery info {OrderId}", orderId);
+                throw new ExternalServiceException("OrderService", $"Failed to get order delivery info {orderId}: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -302,6 +338,13 @@ public class OrderServiceClient : IOrderServiceClient
                 return false;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while linking purchase order to order {OrderId}", orderId);
+                throw new ExternalServiceException("OrderService", $"Failed to link purchase order to order {orderId}: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             _logger.LogInformation("Successfully linked purchase order {PurchaseOrderId} to order {OrderId}",
@@ -340,6 +383,13 @@ public class OrderServiceClient : IOrderServiceClient
             {
                 _logger.LogWarning("No orders found for customer ID: {CustomerId}", customerId);
                 return Enumerable.Empty<OrderDto>();
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting orders by customer {CustomerId}", customerId);
+                throw new ExternalServiceException("OrderService", $"Failed to get orders by customer {customerId}: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
             }
 
             response.EnsureSuccessStatusCode();
@@ -393,6 +443,13 @@ public class OrderServiceClient : IOrderServiceClient
                 throw new ExternalServiceException($"Bad request while creating order: {errorContent}");
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while creating order");
+                throw new ExternalServiceException("OrderService", "Failed to create order: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -435,6 +492,13 @@ public class OrderServiceClient : IOrderServiceClient
             {
                 _logger.LogWarning("Order not found for cancellation, ID: {OrderId}", orderId);
                 return false;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while canceling order {OrderId}", orderId);
+                throw new ExternalServiceException("OrderService", $"Failed to cancel order {orderId}: Authentication failed",
+                    response.StatusCode.ToString(), $"HTTP {response.StatusCode}");
             }
 
             if (response.StatusCode == HttpStatusCode.NoContent || response.StatusCode == HttpStatusCode.OK)

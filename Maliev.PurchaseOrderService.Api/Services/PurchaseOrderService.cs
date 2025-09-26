@@ -1,10 +1,13 @@
 using AutoMapper;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
+using Maliev.PurchaseOrderService.Api.Models;
 using Maliev.PurchaseOrderService.Common.Enumerations;
 using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Data.Entities;
-using Maliev.PurchaseOrderService.Data.Enums;
+using OrderStatus = Maliev.PurchaseOrderService.Data.Enums.OrderStatus;
+using OrderType = Maliev.PurchaseOrderService.Data.Enums.OrderType;
+using AuditAction = Maliev.PurchaseOrderService.Data.Enums.AuditAction;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using System.Diagnostics;
@@ -223,13 +226,13 @@ public class PurchaseOrderService : IPurchaseOrderService
                 OrderType = request.OrderType,
                 Notes = request.Notes,
                 SubtotalAmount = 0m, // Will be calculated from order items
-                TotalAmount = 0m, // Will be calculated from order items
+                TotalAmount = 0m, // Will be calculated after WHT
                 Status = OrderStatus.Pending,
                 CreatedBy = createdBy,
                 CreatedAt = DateTime.UtcNow,
                 OrderDate = DateTime.UtcNow,
                 ExpectedDeliveryDate = request.ExpectedDeliveryDate,
-                WHTRate = request.WhtRate, // Nullable - allow null for no WHT scenario
+                WHTRate = request.WhtRate, // Store as decimal (e.g., 0.03 for 3%)
                 WHTAmount = null, // Initialize as null for PostgreSQL compatibility
                 CurrencyCode = currencyCode,
                 CurrencySymbol = currencySymbol,
@@ -375,9 +378,20 @@ public class PurchaseOrderService : IPurchaseOrderService
                 hasChanges = true;
             }
 
-            // Update WHT rate if provided
+            // Update WHT rate if provided with validation
             if (request.WhtRate.HasValue && request.WhtRate.Value != purchaseOrder.WHTRate)
             {
+                // Validate WHT rate compliance
+                if (request.WhtRate.Value < 0)
+                {
+                    throw new ArgumentException("WHT rate cannot be negative");
+                }
+
+                if (request.WhtRate.Value > 15m)
+                {
+                    throw new ArgumentException("WHT rate cannot exceed 15% as per Thailand tax regulations");
+                }
+
                 purchaseOrder.WHTRate = request.WhtRate.Value;
                 hasChanges = true;
             }
@@ -480,6 +494,12 @@ public class PurchaseOrderService : IPurchaseOrderService
             query = query.Where(po => po.SupplierID == request.SupplierId.Value);
         }
 
+        if (!string.IsNullOrWhiteSpace(request.SupplierName))
+        {
+            var supplierName = request.SupplierName.Trim();
+            query = query.Where(po => po.SupplierName != null && po.SupplierName.Contains(supplierName));
+        }
+
         if (request.OrderId.HasValue)
         {
             query = query.Where(po => po.OrderID == request.OrderId.Value);
@@ -560,11 +580,17 @@ public class PurchaseOrderService : IPurchaseOrderService
         return sortBy switch
         {
             PurchaseOrderSortType.OrderNumber => isDescending ? query.OrderByDescending(po => po.OrderNumber) : query.OrderBy(po => po.OrderNumber),
+            PurchaseOrderSortType.OrderNumberDesc => query.OrderByDescending(po => po.OrderNumber),
             PurchaseOrderSortType.CreatedAt => isDescending ? query.OrderByDescending(po => po.CreatedAt) : query.OrderBy(po => po.CreatedAt),
-            PurchaseOrderSortType.CreatedAtDesc => query.OrderByDescending(po => po.CreatedAt), // Always descending for CreatedAtDesc
+            PurchaseOrderSortType.CreatedAtDesc => query.OrderByDescending(po => po.CreatedAt),
             PurchaseOrderSortType.TotalAmount => isDescending ? query.OrderByDescending(po => po.TotalAmount) : query.OrderBy(po => po.TotalAmount),
+            PurchaseOrderSortType.TotalAmountDesc => query.OrderByDescending(po => po.TotalAmount),
             PurchaseOrderSortType.Status => isDescending ? query.OrderByDescending(po => po.Status) : query.OrderBy(po => po.Status),
+            PurchaseOrderSortType.StatusDesc => query.OrderByDescending(po => po.Status),
             PurchaseOrderSortType.SupplierId => isDescending ? query.OrderByDescending(po => po.SupplierID) : query.OrderBy(po => po.SupplierID),
+            PurchaseOrderSortType.SupplierIdDesc => query.OrderByDescending(po => po.SupplierID),
+            PurchaseOrderSortType.ApprovedAt => isDescending ? query.OrderByDescending(po => po.ApprovedAt) : query.OrderBy(po => po.ApprovedAt),
+            PurchaseOrderSortType.ApprovedAtDesc => query.OrderByDescending(po => po.ApprovedAt),
             _ => query.OrderByDescending(po => po.CreatedAt)
         };
     }
@@ -670,16 +696,18 @@ public class PurchaseOrderService : IPurchaseOrderService
                     supplierDto,
                     purchaseOrder.SubtotalAmount,
                     purchaseOrder.CurrencyCode,
+                    purchaseOrder.WHTRate, // Use custom WHT rate if specified
                     cancellationToken);
 
                 // Ensure proper nullable decimal assignment for PostgreSQL compatibility
                 purchaseOrder.WHTAmount = whtResult.WHTAmount;
                 purchaseOrder.WHTRate = whtResult.WHTRate;
+                // TotalAmount = Subtotal - WHT (NetAmount)
                 purchaseOrder.TotalAmount = whtResult.NetAmount;
             }
             else
             {
-                // Set to null for no WHT scenario
+                // Set to null for no WHT scenario - Total equals Subtotal
                 purchaseOrder.WHTAmount = null;
                 purchaseOrder.WHTRate = null;
                 purchaseOrder.TotalAmount = purchaseOrder.SubtotalAmount;
@@ -787,19 +815,19 @@ public class PurchaseOrderService : IPurchaseOrderService
             {
                 if (purchaseOrder.Status == OrderStatus.Approved)
                 {
-                    throw new InvalidOperationException("Purchase order is already approved");
+                    throw new BusinessRuleException("Purchase order is already approved", "ALREADY_APPROVED");
                 }
                 if (purchaseOrder.Status == OrderStatus.Cancelled)
                 {
-                    throw new InvalidOperationException("Cannot approve a cancelled purchase order");
+                    throw new BusinessRuleException("Cannot approve a cancelled purchase order", "CANNOT_APPROVE_CANCELLED");
                 }
-                throw new InvalidOperationException($"Cannot approve purchase order with status {purchaseOrder.Status}");
+                throw new BusinessRuleException($"Cannot approve purchase order with status {purchaseOrder.Status}", "INVALID_STATUS_TRANSITION");
             }
 
             // Business rule: Validate purchase order has items and amounts
             if (purchaseOrder.SubtotalAmount <= 0)
             {
-                throw new InvalidOperationException("Cannot approve purchase order with zero or negative amount");
+                throw new BusinessRuleException("Cannot approve purchase order with zero or negative amount", "INVALID_AMOUNT");
             }
 
             // Update status and approval information
@@ -913,13 +941,13 @@ public class PurchaseOrderService : IPurchaseOrderService
             // Business rule: Check if order can be canceled based on current status
             if (purchaseOrder.Status == OrderStatus.Cancelled)
             {
-                throw new InvalidOperationException("Purchase order is already canceled");
+                throw new BusinessRuleException("Purchase order is already canceled", "ALREADY_CANCELLED");
             }
 
             // Business rule: Cannot cancel delivered or shipped orders
             if (purchaseOrder.Status == OrderStatus.Delivered)
             {
-                throw new InvalidOperationException("Cannot cancel a delivered purchase order");
+                throw new BusinessRuleException("Cannot cancel a delivered purchase order", "CANNOT_CANCEL_DELIVERED");
             }
 
             // Update status and cancellation information
@@ -1125,6 +1153,16 @@ public class PurchaseOrderService : IPurchaseOrderService
                         }
                     }
                 }
+                catch (HttpRequestException httpEx) when (httpEx.Message.Contains("Invalid currency"))
+                {
+                    result.Errors.Add(new ValidationError
+                    {
+                        Field = nameof(request.CurrencyID),
+                        Message = "Invalid currency",
+                        Code = "INVALID_CURRENCY",
+                        Value = request.CurrencyID
+                    });
+                }
                 catch (Exception)
                 {
                     result.Warnings.Add(new ValidationWarning
@@ -1155,6 +1193,16 @@ public class PurchaseOrderService : IPurchaseOrderService
                         });
                     }
                 }
+                catch (HttpRequestException httpEx) when (httpEx.Message.Contains("Supplier not found"))
+                {
+                    result.Errors.Add(new ValidationError
+                    {
+                        Field = nameof(request.SupplierID),
+                        Message = "Supplier not found",
+                        Code = "SUPPLIER_NOT_FOUND",
+                        Value = request.SupplierID
+                    });
+                }
                 catch (Exception)
                 {
                     result.Warnings.Add(new ValidationWarning
@@ -1183,6 +1231,16 @@ public class PurchaseOrderService : IPurchaseOrderService
                         });
                     }
                 }
+                catch (HttpRequestException httpEx) when (httpEx.Message.Contains("Order not found"))
+                {
+                    result.Errors.Add(new ValidationError
+                    {
+                        Field = nameof(request.OrderID),
+                        Message = "Order not found",
+                        Code = "ORDER_NOT_FOUND",
+                        Value = request.OrderID
+                    });
+                }
                 catch (Exception)
                 {
                     result.Warnings.Add(new ValidationWarning
@@ -1190,6 +1248,31 @@ public class PurchaseOrderService : IPurchaseOrderService
                         Field = nameof(request.OrderID),
                         Message = "Could not validate order existence due to service unavailability",
                         Code = "ORDER_SERVICE_UNAVAILABLE"
+                    });
+                }
+            }
+
+            // Validate WHT rate if provided
+            if (request.WhtRate.HasValue)
+            {
+                if (request.WhtRate.Value < 0)
+                {
+                    result.Errors.Add(new ValidationError
+                    {
+                        Field = nameof(request.WhtRate),
+                        Message = "WHT rate cannot be negative",
+                        Code = "INVALID_WHT_RATE",
+                        Value = request.WhtRate.Value
+                    });
+                }
+                else if (request.WhtRate.Value > 15m)
+                {
+                    result.Errors.Add(new ValidationError
+                    {
+                        Field = nameof(request.WhtRate),
+                        Message = "WHT rate cannot exceed 15% as per Thailand tax regulations",
+                        Code = "WHT_RATE_EXCEEDS_LIMIT",
+                        Value = request.WhtRate.Value
                     });
                 }
             }
@@ -1331,7 +1414,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new ArgumentException("WHT rate cannot be negative");
             }
 
-            if (request.WHTRate > 0.15m)
+            if (request.WHTRate > 15m)
             {
                 throw new ArgumentException("WHT rate cannot exceed 15% as per Thailand tax regulations");
             }
@@ -1343,8 +1426,8 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new ArgumentException($"Supplier {request.SupplierID} not found");
             }
 
-            // Calculate WHT using external service
-            var result = await _whtService.CalculateWHTAsync(supplier, request.TotalAmount ?? 0m, request.CurrencyCode, cancellationToken);
+            // Calculate WHT using external service with custom rate
+            var result = await _whtService.CalculateWHTAsync(supplier, request.TotalAmount ?? 0m, request.CurrencyCode, request.WHTRate, cancellationToken);
 
             // Store calculation in database if needed
             await CreateAuditLogAsync(id, AuditAction.Create,

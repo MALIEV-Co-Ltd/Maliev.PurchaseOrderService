@@ -140,6 +140,13 @@ public class UploadServiceClient : IUploadServiceClient
             }
 
             var response = await _httpClient.PostAsync("/files/upload-multiple", multipartContent, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while uploading multiple files");
+                throw new UnauthorizedAccessException("Upload service authentication failed while uploading multiple files");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -237,6 +244,12 @@ public class UploadServiceClient : IUploadServiceClient
                 return null;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while downloading file {FileId}", fileId);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while downloading file {fileId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var result = new FileDownloadResultDto
@@ -291,6 +304,12 @@ public class UploadServiceClient : IUploadServiceClient
                 return false;
             }
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while deleting file {FileId}", fileId);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while deleting file {fileId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             _logger.LogInformation("Successfully deleted file with ID: {FileId}", fileId);
@@ -332,6 +351,12 @@ public class UploadServiceClient : IUploadServiceClient
             {
                 _logger.LogWarning("File not found for download URL, ID: {FileId}", fileId);
                 return null;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting download URL for file {FileId}", fileId);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while getting download URL for file {fileId}");
             }
 
             response.EnsureSuccessStatusCode();
@@ -384,6 +409,13 @@ public class UploadServiceClient : IUploadServiceClient
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.PostAsync("/files/validate", content, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while validating file {FileName}", fileName);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while validating file {fileName}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -437,6 +469,13 @@ public class UploadServiceClient : IUploadServiceClient
 
             var queryString = string.Join("&", queryParams);
             var response = await _httpClient.GetAsync($"/files/search?{queryString}", cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting files by category {Category}", category);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while getting files by category {category}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -476,6 +515,13 @@ public class UploadServiceClient : IUploadServiceClient
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.PostAsync("/files/upload-url", content, cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while generating upload URL for {FileName}", fileName);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while generating upload URL for {fileName}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -509,6 +555,13 @@ public class UploadServiceClient : IUploadServiceClient
             _logger.LogInformation("Generating download URL for file: {FileId}", fileId);
 
             var response = await _httpClient.GetAsync($"/files/{fileId}/download-url", cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while generating download URL for {FileId}", fileId);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while generating download URL for {fileId}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -551,6 +604,13 @@ public class UploadServiceClient : IUploadServiceClient
 
             var tagsParam = string.Join(",", tags.Select(Uri.EscapeDataString));
             var response = await _httpClient.GetAsync($"/files/search?tags={tagsParam}", cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while getting files by tags {Tags}", string.Join(", ", tags));
+                throw new UnauthorizedAccessException($"Upload service authentication failed while getting files by tags {string.Join(", ", tags)}");
+            }
+
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -608,6 +668,12 @@ public class UploadServiceClient : IUploadServiceClient
             {
                 _logger.LogWarning("File not found for metadata update, ID: {FileId}", fileId);
                 throw new InvalidOperationException($"File not found for metadata update, ID: {fileId}");
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError("Authentication failure while updating metadata for file {FileId}", fileId);
+                throw new UnauthorizedAccessException($"Upload service authentication failed while updating metadata for file {fileId}");
             }
 
             response.EnsureSuccessStatusCode();

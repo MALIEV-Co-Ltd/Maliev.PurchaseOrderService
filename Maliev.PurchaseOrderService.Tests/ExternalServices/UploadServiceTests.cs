@@ -279,7 +279,7 @@ public class UploadServiceTests
         var service = new UploadServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act
-        var result = await service.GetFilesByCategoryAsync("test-category");
+        var result = await service.GetFilesByTagsAsync(tags);
 
         // Assert
         result.Should().NotBeNull();
@@ -517,10 +517,10 @@ public class UploadServiceTests
         var service = new UploadServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(
+        var exception = await Assert.ThrowsAsync<ExternalServiceException>(
             () => service.GetFileInfoAsync(fileId.ToString()));
 
-        exception.Message.Should().Contain("parsing");
+        exception.Message.Should().Contain("Invalid response format");
     }
 
     [Fact]

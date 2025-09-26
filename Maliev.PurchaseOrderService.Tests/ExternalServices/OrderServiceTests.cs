@@ -245,12 +245,13 @@ public class OrderServiceTests
         var service = new OrderServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act
-        var result = await service.GetOrderAsync(customerId);
+        var result = await service.GetOrdersByCustomerAsync(customerId);
 
         // Assert
         result.Should().NotBeNull();
-        result.CustomerId.Should().Be(customerId);
-        result.Id.Should().BeGreaterThan(0);
+        result.Should().HaveCount(2);
+        result.First().Id.Should().Be(77777);
+        result.First().OrderNumber.Should().Be("ORD-001");
     }
 
     [Fact]

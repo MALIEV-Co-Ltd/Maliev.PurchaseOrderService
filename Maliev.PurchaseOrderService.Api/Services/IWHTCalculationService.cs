@@ -22,6 +22,22 @@ public interface IWHTCalculationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Calculates withholding tax with custom rate override
+    /// </summary>
+    /// <param name="supplierDto">Supplier information</param>
+    /// <param name="subtotalAmount">Subtotal amount before WHT</param>
+    /// <param name="currencyCode">Currency code (e.g., "THB", "USD")</param>
+    /// <param name="customWhtRate">Custom WHT rate to use (as percentage, e.g., 3.0 for 3%)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>WHT calculation result</returns>
+    Task<WHTCalculationResult> CalculateWHTAsync(
+        SupplierDto supplierDto,
+        decimal subtotalAmount,
+        string currencyCode,
+        decimal? customWhtRate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets applicable WHT rate for a supplier category
     /// </summary>
     /// <param name="supplierType">Type of supplier</param>

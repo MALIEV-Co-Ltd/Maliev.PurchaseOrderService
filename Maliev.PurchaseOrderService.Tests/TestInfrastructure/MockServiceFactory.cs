@@ -117,6 +117,50 @@ public static class MockServiceFactory
                 CreatedAt = DateTime.UtcNow.AddDays(-5)
             });
 
+        // Get orders by customer
+        mock.Setup(x => x.GetOrdersByCustomerAsync(It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int customerId, string? status, CancellationToken _) => new List<OrderDto>
+            {
+                new()
+                {
+                    Id = 1001,
+                    OrderNumber = $"ORD-{customerId}-001",
+                    Status = "Active",
+                    CustomerName = "Test Customer",
+                    TotalAmount = 2500.00m,
+                    CreatedAt = DateTime.UtcNow.AddDays(-10)
+                },
+                new()
+                {
+                    Id = 1002,
+                    OrderNumber = $"ORD-{customerId}-002",
+                    Status = "Completed",
+                    CustomerName = "Test Customer",
+                    TotalAmount = 3500.00m,
+                    CreatedAt = DateTime.UtcNow.AddDays(-15)
+                }
+            });
+
+        // Create order
+        mock.Setup(x => x.CreateOrderAsync(It.IsAny<CreateOrderRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CreateOrderRequest request, CancellationToken _) => new OrderDto
+            {
+                Id = Random.Shared.Next(1000, 9999),
+                OrderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(100, 999)}",
+                Status = "Active",
+                CustomerName = "Test Customer",
+                TotalAmount = 1000.00m,
+                CreatedAt = DateTime.UtcNow
+            });
+
+        // Update order status
+        mock.Setup(x => x.UpdateOrderStatusAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // Cancel order
+        mock.Setup(x => x.CancelOrderAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
         return mock;
     }
 
@@ -134,11 +178,17 @@ public static class MockServiceFactory
                 {
                     FileId = Guid.NewGuid().ToString(),
                     FileName = fileName,
+                    OriginalFileName = fileName,
                     FileSize = stream.Length,
                     ContentType = contentType,
                     Category = category,
+                    Url = $"https://test.storage.maliev.com/files/{Guid.NewGuid()}/{fileName}",
+                    ThumbnailUrl = $"https://test.storage.maliev.com/thumbnails/{Guid.NewGuid()}/{fileName}.thumb.jpg",
                     UploadedAt = DateTime.UtcNow,
-                    IsSuccess = true
+                    ExpiresAt = DateTime.UtcNow.AddHours(24),
+                    IsSuccess = true,
+                    Hash = "mock-hash-" + Guid.NewGuid().ToString("N")[..8],
+                    Metadata = new Dictionary<string, string>()
                 });
 
         // Successful file deletion
@@ -150,11 +200,23 @@ public static class MockServiceFactory
             .ReturnsAsync((string fileId, CancellationToken _) => new FileInfoDto
             {
                 FileId = fileId,
-                FileName = "test-document.pdf",
-                FileSize = 1024,
+                FileName = "purchase-order-123.pdf",
+                OriginalFileName = "purchase-order-123.pdf",
+                FileSize = 1024000,
                 ContentType = "application/pdf",
-                Category = "purchase-orders",
-                UploadedAt = DateTime.UtcNow
+                Category = "purchase-order",
+                Url = $"https://test.storage.maliev.com/files/{fileId}/purchase-order-123.pdf",
+                ThumbnailUrl = $"https://test.storage.maliev.com/thumbnails/{fileId}/purchase-order-123.pdf.thumb.jpg",
+                UploadedAt = DateTime.UtcNow.AddHours(-2),
+                UploadedBy = "user@maliev.com",
+                ExpiresAt = DateTime.UtcNow.AddDays(30),
+                Hash = "mock-hash-" + fileId[..8],
+                IsActive = true,
+                DownloadCount = 0,
+                Metadata = new Dictionary<string, string>
+                {
+                    ["Tags"] = "approved,purchase-order,document"
+                }
             });
 
         // Get download URL
@@ -162,9 +224,106 @@ public static class MockServiceFactory
             .ReturnsAsync((string fileId, int expiry, CancellationToken _) =>
                 new FileDownloadUrlDto
                 {
+                    FileId = fileId,
                     DownloadUrl = $"https://storage.googleapis.com/test/{fileId}",
                     ExpiresAt = DateTime.UtcNow.AddMinutes(expiry),
-                    IsTemporary = false
+                    ExpirationMinutes = expiry,
+                    IsTemporary = false,
+                    Headers = new Dictionary<string, string>
+                    {
+                        ["Content-Type"] = "application/pdf",
+                        ["Content-Disposition"] = $"attachment; filename=\"{fileId}.pdf\""
+                    }
+                });
+
+        // Download file
+        mock.Setup(x => x.DownloadFileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string fileId, CancellationToken _) =>
+                new FileDownloadResultDto
+                {
+                    FileId = fileId,
+                    FileName = $"{fileId}.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 34,
+                    Content = new MemoryStream("Mock file content for download test"u8.ToArray()),
+                    LastModified = DateTime.UtcNow.AddHours(-1),
+                    ETag = $"\"mock-etag-{fileId}\"",
+                    Headers = new Dictionary<string, string>
+                    {
+                        ["Content-Type"] = "application/pdf",
+                        ["Content-Disposition"] = $"attachment; filename=\"{fileId}.pdf\""
+                    }
+                });
+
+        // Update file metadata
+        mock.Setup(x => x.UpdateFileMetadataAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string fileId, Dictionary<string, string> metadata, CancellationToken _) =>
+                new FileInfoDto
+                {
+                    FileId = fileId,
+                    FileName = "updated-file.pdf",
+                    OriginalFileName = "updated-file.pdf",
+                    FileSize = 1024,
+                    ContentType = "application/pdf",
+                    Category = "purchase-orders",
+                    Url = $"https://test.storage.maliev.com/files/{fileId}/updated-file.pdf",
+                    ThumbnailUrl = $"https://test.storage.maliev.com/thumbnails/{fileId}/updated-file.pdf.thumb.jpg",
+                    UploadedAt = DateTime.UtcNow.AddHours(-1),
+                    UploadedBy = "user@maliev.com",
+                    ExpiresAt = DateTime.UtcNow.AddDays(30),
+                    Hash = "updated-mock-hash",
+                    IsActive = true,
+                    DownloadCount = 0,
+                    Metadata = metadata
+                });
+
+        // Get files by tags
+        mock.Setup(x => x.GetFilesByTagsAsync(It.IsAny<string[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string[] tags, CancellationToken _) =>
+                new List<FileInfoDto>
+                {
+                    new()
+                    {
+                        FileId = Guid.NewGuid().ToString(),
+                        FileName = "tagged-file-1.pdf",
+                        OriginalFileName = "tagged-file-1.pdf",
+                        FileSize = 1024,
+                        ContentType = "application/pdf",
+                        Category = "documents",
+                        Url = "https://test.storage.maliev.com/files/1/tagged-file-1.pdf",
+                        ThumbnailUrl = "https://test.storage.maliev.com/thumbnails/1/tagged-file-1.pdf.thumb.jpg",
+                        UploadedAt = DateTime.UtcNow.AddDays(-1),
+                        UploadedBy = "user@maliev.com",
+                        ExpiresAt = DateTime.UtcNow.AddDays(30),
+                        Hash = "tag-hash-1",
+                        IsActive = true,
+                        DownloadCount = 0,
+                        Metadata = new Dictionary<string, string>
+                        {
+                            ["Tags"] = string.Join(",", tags)
+                        }
+                    },
+                    new()
+                    {
+                        FileId = Guid.NewGuid().ToString(),
+                        FileName = "tagged-file-2.pdf",
+                        OriginalFileName = "tagged-file-2.pdf",
+                        FileSize = 2048,
+                        ContentType = "application/pdf",
+                        Category = "documents",
+                        Url = "https://test.storage.maliev.com/files/2/tagged-file-2.pdf",
+                        ThumbnailUrl = "https://test.storage.maliev.com/thumbnails/2/tagged-file-2.pdf.thumb.jpg",
+                        UploadedAt = DateTime.UtcNow.AddDays(-2),
+                        UploadedBy = "admin@maliev.com",
+                        ExpiresAt = DateTime.UtcNow.AddDays(30),
+                        Hash = "tag-hash-2",
+                        IsActive = true,
+                        DownloadCount = 5,
+                        Metadata = new Dictionary<string, string>
+                        {
+                            ["Tags"] = string.Join(",", tags)
+                        }
+                    }
                 });
 
         return mock;
@@ -409,8 +568,8 @@ public static class MockServiceFactory
                 {
                     DocumentId = Guid.NewGuid().ToString(),
                     FileName = "generated.pdf",
-                    FileSize = 2048,
-                    PageCount = 1,
+                    FileSize = 2048000,
+                    PageCount = 2,
                     IsSuccess = true,
                     GeneratedAt = DateTime.UtcNow,
                     GenerationTime = TimeSpan.FromSeconds(2)
@@ -419,16 +578,19 @@ public static class MockServiceFactory
         // Successful PDF generation from template
         mock.Setup(x => x.GeneratePdfFromTemplateAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<PdfGenerationOptionsDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string templateId, Dictionary<string, object> data, PdfGenerationOptionsDto options, CancellationToken _) =>
-                new PdfGenerationResultDto
+            {
+                var isQuoteTemplate = templateId.Contains("quote", StringComparison.OrdinalIgnoreCase);
+                return new PdfGenerationResultDto
                 {
-                    DocumentId = Guid.NewGuid().ToString(),
-                    FileName = $"{templateId}-output.pdf",
-                    FileSize = 3072,
-                    PageCount = 1,
+                    DocumentId = isQuoteTemplate ? "QUO-2024-001" : "PO-2024-001",
+                    FileName = isQuoteTemplate ? "QUO-2024-001.pdf" : "PO-2024-001.pdf",
+                    FileSize = isQuoteTemplate ? 1024000 : 2048000,
+                    PageCount = isQuoteTemplate ? 1 : 2,
                     IsSuccess = true,
                     GeneratedAt = DateTime.UtcNow,
-                    GenerationTime = TimeSpan.FromSeconds(3)
-                });
+                    GenerationTime = isQuoteTemplate ? TimeSpan.FromSeconds(1) : TimeSpan.FromSeconds(2)
+                };
+            });
 
         // Get PDF info
         mock.Setup(x => x.GetPdfInfoAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
@@ -448,11 +610,21 @@ public static class MockServiceFactory
             {
                 new()
                 {
-                    Id = "purchase-order",
-                    Name = "Purchase Order Template",
+                    Id = "purchase-order-v1",
+                    Name = "Purchase Order Template v1",
                     Description = "Standard purchase order template",
-                    Category = "business",
+                    Category = "purchase-order",
                     Version = "1.0",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    Id = "quote-template-v2",
+                    Name = "Quote Template v2",
+                    Description = "Enhanced quote template with branding",
+                    Category = "quote",
+                    Version = "2.0",
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 }
@@ -466,8 +638,64 @@ public static class MockServiceFactory
                 PageCount = 1,
                 FileSize = 2048,
                 PdfVersion = "1.4",
-                ValidatedAt = DateTime.UtcNow
+                ValidatedAt = DateTime.UtcNow,
+                ValidationErrors = new List<string>(),
+                Warnings = new List<string> { "Missing optional field: DeliveryInstructions" }
             });
+
+        // Download template
+        mock.Setup(x => x.DownloadTemplateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string templateId, CancellationToken _) =>
+                new PdfTemplateDownloadDto
+                {
+                    TemplateId = templateId,
+                    FileName = "purchase-order.pdf",
+                    TemplateContent = new MemoryStream("Mock PDF content as bytes"u8.ToArray()),
+                    ContentType = "application/pdf",
+                    FileSize = 23,
+                    DownloadedAt = DateTime.UtcNow
+                });
+
+        // Validate template data
+        mock.Setup(x => x.ValidateTemplateDataAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string templateId, Dictionary<string, object> data, CancellationToken _) =>
+                new PdfTemplateValidationResultDto
+                {
+                    IsValid = true,
+                    ValidationErrors = new List<string>(),
+                    Warnings = new List<string> { "Missing optional field: DeliveryInstructions" },
+                    ValidatedAt = DateTime.UtcNow
+                });
+
+        // Download PDF
+        mock.Setup(x => x.DownloadPdfAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid jobId, CancellationToken _) =>
+                new PdfDownloadResultDto
+                {
+                    JobId = jobId,
+                    FileName = "purchase-order.pdf",
+                    ContentType = "application/pdf",
+                    PdfContent = new MemoryStream("Mock PDF content as bytes"u8.ToArray()),
+                    FileSize = 23,
+                    DownloadedAt = DateTime.UtcNow
+                });
+
+        // Get PDF job status
+        mock.Setup(x => x.GetPdfJobStatusAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid jobId, CancellationToken _) =>
+                new PdfJobStatusDto
+                {
+                    JobId = jobId,
+                    Status = "Processing",
+                    Progress = 75,
+                    EstimatedCompletionTime = DateTime.UtcNow.AddMinutes(2),
+                    Message = "Generating PDF pages...",
+                    CreatedAt = DateTime.UtcNow.AddMinutes(-5)
+                });
+
+        // Cancel PDF job
+        mock.Setup(x => x.CancelPdfJobAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         return mock;
     }
@@ -526,6 +754,15 @@ public static class MockServiceFactory
             {
                 orderMock.Setup(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                     .ThrowsAsync(new UnauthorizedAccessException("Invalid authentication token"));
+
+                orderMock.Setup(x => x.GetOrderAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                    .ThrowsAsync(new UnauthorizedAccessException("Invalid authentication token"));
+            }
+
+            if (mock is Mock<IPdfServiceClient> pdfMock)
+            {
+                pdfMock.Setup(x => x.GetPdfInfoAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+                    .ThrowsAsync(new UnauthorizedAccessException("Failed to authenticate with PDF service"));
             }
         }
     }

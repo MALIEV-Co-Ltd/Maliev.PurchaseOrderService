@@ -31,7 +31,7 @@ public static class TestDataFactory
             OrderType = orderType,
             CustomerPO = customerPO ?? (orderType == OrderType.External ? "CUST-PO-001" : null),
             ExpectedDeliveryDate = DateTime.UtcNow.AddDays(14),
-            WhtRate = whtRate ?? (orderType == OrderType.Internal ? 0.03m : null), // 3% as decimal for internal orders only
+            WhtRate = whtRate ?? (orderType == OrderType.Internal ? 3.0m : null), // 3% stored as percentage for internal orders only
             Notes = notes ?? "Test purchase order",
             ShippingAddress = CreateAddressRequest(AddressType.Shipping),
             BillingAddress = CreateAddressRequest(AddressType.Billing),
@@ -176,7 +176,7 @@ public static class TestDataFactory
             RowVersion = rowVersion ?? Convert.ToBase64String(new byte[] { 1, 2, 3, 4 }),
             CustomerPO = customerPO ?? "UPDATED-PO-001",
             ExpectedDeliveryDate = expectedDeliveryDate ?? DateTime.UtcNow.AddDays(21),
-            WhtRate = whtRate ?? 0.05m, // 5% as decimal (0.05)
+            WhtRate = whtRate ?? 5.0m, // 5% stored as percentage
             Notes = notes ?? "Updated notes"
         };
     }
@@ -260,11 +260,12 @@ public static class TestDataFactory
 
     /// <summary>
     /// Creates test data for a complete business scenario - Employee creates internal PO
+    /// Expected totals: 2×150 + 1×300 = 600, WHT (3%) = 18, Total = 582
     /// </summary>
     public static (CreatePurchaseOrderRequest request, SupplierDto supplier, CurrencyDto currency, List<OrderItemDto> orderItems)
         CreateEmployeeInternalPOScenario(string employeeId = "emp123")
     {
-        var supplier = CreateSupplierDto(name: "Internal Test Supplier");
+        var supplier = CreateSupplierDto(name: "Internal Test Supplier Co., Ltd.");
         var currency = CreateCurrencyDto("THB", "Thai Baht");
         var orderItems = new List<OrderItemDto>
         {
@@ -272,10 +273,15 @@ public static class TestDataFactory
             CreateOrderItemDto(id: 2, purchaseOrderId: 1, externalOrderItemId: 2, quantity: 1, unitPrice: 300.00m)
         };
 
+        // Use deterministic IDs for consistency
+        var supplierID = GenerateDeterministicId("test-supplier-internal");
+        var orderID = GenerateDeterministicId("test-order-internal");
+        var currencyID = 1; // THB currency ID
+
         var request = CreateCompletePurchaseOrderRequest(
-            supplierID: (int)(supplier.Id.GetHashCode() & 0x7FFFFFFF), // Convert Guid to positive int
-            orderID: orderItems.First().Id * 1000, // Derive from order items
-            currencyID: currency.Code.GetHashCode() & 0x7FFFFFFF,
+            supplierID: supplierID,
+            orderID: orderID,
+            currencyID: currencyID,
             orderType: OrderType.Internal
         );
 
@@ -284,21 +290,27 @@ public static class TestDataFactory
 
     /// <summary>
     /// Creates test data for external purchase order scenario
+    /// Expected totals: 1×500 = 500, No WHT (external), Total = 500
     /// </summary>
     public static (CreatePurchaseOrderRequest request, SupplierDto supplier, CurrencyDto currency, List<OrderItemDto> orderItems)
         CreateExternalPOScenario(string customerPO = "CUST-2024-001")
     {
-        var supplier = CreateSupplierDto(name: "External Test Supplier");
+        var supplier = CreateSupplierDto(name: "External Test Supplier Inc.");
         var currency = CreateCurrencyDto("USD", "US Dollar");
         var orderItems = new List<OrderItemDto>
         {
-            CreateOrderItemDto(id: 1, purchaseOrderId: 1, externalOrderItemId: 1, quantity: 1, unitPrice: 1500.00m)
+            CreateOrderItemDto(id: 1, purchaseOrderId: 1, externalOrderItemId: 1, quantity: 1, unitPrice: 500.00m, currency: "USD")
         };
 
+        // Use deterministic IDs for consistency
+        var supplierID = GenerateDeterministicId("test-supplier-external");
+        var orderID = GenerateDeterministicId("test-order-external");
+        var currencyID = 2; // USD currency ID
+
         var request = CreateCompletePurchaseOrderRequest(
-            supplierID: (int)(supplier.Id.GetHashCode() & 0x7FFFFFFF),
-            orderID: orderItems.First().Id * 1000,
-            currencyID: currency.Code.GetHashCode() & 0x7FFFFFFF,
+            supplierID: supplierID,
+            orderID: orderID,
+            currencyID: currencyID,
             orderType: OrderType.External
         );
         request.CustomerPO = customerPO;
@@ -338,11 +350,16 @@ public static class TestDataFactory
         var orderItems = new List<OrderItem>();
         for (int i = 0; i < itemCount; i++)
         {
+            // Generate realistic quantities (1-10) and prices (100-2000)
+            var quantity = Random.Shared.Next(1, 11); // 1-10 items
+            var basePrice = (i + 1) * 100.00m;
+            var unitPrice = basePrice + (Random.Shared.Next(0, 500)); // Add 0-500 variation
+
             var orderItem = CreateOrderItemEntity(
                 externalOrderItemId: i + 1,
-                productName: $"Test Product {i + 1}",
-                quantity: i + 1,
-                unitPrice: (i + 1) * 100.00m
+                productName: $"Product-{i + 1:D3}", // Consistent naming like Product-001, Product-002
+                quantity: quantity,
+                unitPrice: unitPrice
             );
             orderItems.Add(orderItem);
         }
@@ -353,8 +370,10 @@ public static class TestDataFactory
 
         if (orderType == OrderType.Internal && purchaseOrder.WHTRate.HasValue)
         {
-            purchaseOrder.WHTAmount = Math.Round(subtotal * (purchaseOrder.WHTRate.Value / 100), 2);
-            purchaseOrder.TotalAmount = subtotal - purchaseOrder.WHTAmount.Value;
+            // WHT Rate is stored as percentage (3.0 = 3%), so divide by 100 for calculation
+            var whtDecimal = purchaseOrder.WHTRate.Value / 100m;
+            purchaseOrder.WHTAmount = Math.Round(subtotal * whtDecimal, 2);
+            purchaseOrder.TotalAmount = Math.Round(subtotal - purchaseOrder.WHTAmount.Value, 2);
         }
         else
         {
@@ -403,24 +422,24 @@ public static class TestDataFactory
         bool isActive = true,
         string? code = null)
     {
-        var supplierId = id ?? Guid.NewGuid();
-        var supplierName = name ?? "Test Supplier";
-        var supplierCode = code ?? $"SUP-{supplierId.ToString()[..8].ToUpper()}";
+        var supplierId = id ?? new Guid("12345678-1234-5678-9012-123456789012"); // Deterministic GUID
+        var supplierName = name ?? "Test Supplier Co., Ltd.";
+        var supplierCode = code ?? "SUP-TEST-001";
 
         return new SupplierDto
         {
             Id = supplierId,
             Name = supplierName,
             Code = supplierCode,
-            Email = $"supplier.{supplierCode.ToLower()}@test.com",
+            Email = "supplier@test-company.com",
             Phone = "+66-2-555-0100",
             IsActive = isActive,
-            TaxId = $"{Random.Shared.NextInt64(1000000000000, 9999999999999)}",
+            TaxId = "1234567890123", // Consistent 13-digit Thai tax ID
             Address = new AddressDto
             {
-                AddressLine1 = $"{Random.Shared.Next(1, 999)} Supplier Street",
+                AddressLine1 = "123 Supplier Industrial Estate",
                 City = "Bangkok",
-                PostalCode = "10100",
+                PostalCode = "10540",
                 Country = "Thailand"
             }
         };
@@ -455,22 +474,46 @@ public static class TestDataFactory
     }
 
     /// <summary>
-    /// Creates a CurrencyDto for testing
+    /// Creates a CurrencyDto for testing with consistent data
     /// </summary>
     public static CurrencyDto CreateCurrencyDto(
         string code = "THB",
         string? name = null,
         bool isActive = true)
     {
-        return new CurrencyDto
+        // Provide consistent currency data for common test scenarios
+        return code.ToUpper() switch
         {
-            Code = code,
-            Name = name ?? "Thai Baht",
-            Symbol = code == "THB" ? "฿" : "$",
-            IsActive = isActive,
-            DecimalPlaces = 2,
-            Country = code == "THB" ? "Thailand" : "United States",
-            CountryCode = code == "THB" ? "TH" : "US"
+            "THB" => new CurrencyDto
+            {
+                Code = "THB",
+                Name = name ?? "Thai Baht",
+                Symbol = "฿",
+                IsActive = isActive,
+                DecimalPlaces = 2,
+                Country = "Thailand",
+                CountryCode = "TH"
+            },
+            "USD" => new CurrencyDto
+            {
+                Code = "USD",
+                Name = name ?? "US Dollar",
+                Symbol = "$",
+                IsActive = isActive,
+                DecimalPlaces = 2,
+                Country = "United States",
+                CountryCode = "US"
+            },
+            _ => new CurrencyDto
+            {
+                Code = code,
+                Name = name ?? $"{code} Currency",
+                Symbol = "¤",
+                IsActive = isActive,
+                DecimalPlaces = 2,
+                Country = "Test Country",
+                CountryCode = "XX"
+            }
         };
     }
 
@@ -623,7 +666,7 @@ public static class TestDataFactory
         decimal amount = 1000.00m,
         decimal whtRate = 3.0m) // 3% stored as 3.0
     {
-        var whtAmount = Math.Round(amount * (whtRate / 100), 2); // Convert percentage to decimal
+        var whtAmount = Math.Round(amount * (whtRate / 100m), 2); // Convert percentage to decimal for calculation
         return new WHTCalculationResult
         {
             WHTAmount = whtAmount,
@@ -653,32 +696,35 @@ public static class TestDataFactory
         string? country = null)
     {
         var actualCountry = country ?? "Thailand";
-        var addressId = Random.Shared.Next(1, 999);
+        // Generate deterministic address ID based on address type and creation context
+        var addressId = GenerateDeterministicId($"{addressType}-{createdBy}-{actualCountry}");
         var isThaiAddress = actualCountry == "Thailand";
 
         var contactNameSuffix = addressType == AddressType.Shipping ? "Shipping" : "Billing";
-        var actualContactName = contactName ?? $"Test {contactNameSuffix} Contact {addressId}";
+        var actualContactName = contactName ?? $"Test {contactNameSuffix} Contact";
 
         return new Address
         {
             Id = id ?? 0, // Let database assign ID
             AddressType = addressType,
             ContactName = actualContactName,
-            AddressLine1 = $"{addressId} Test {contactNameSuffix} Street",
-            AddressLine2 = addressType == AddressType.Shipping ? $"Loading Dock {addressId % 10}" : $"Suite {addressId}",
+            AddressLine1 = isThaiAddress ?
+                (addressType == AddressType.Shipping ? "123 Industrial Road" : "789 Business District") :
+                (addressType == AddressType.Shipping ? "456 Warehouse Ave" : "321 Office Plaza"),
+            AddressLine2 = addressType == AddressType.Shipping ? "Loading Bay A" : "Floor 5",
             City = isThaiAddress ? "Bangkok" : "Test City",
             StateProvince = isThaiAddress ? "Bangkok" : "Test State",
-            PostalCode = isThaiAddress ? $"{10100 + (addressId % 900)}" : $"{12000 + (addressId % 9000)}",
+            PostalCode = isThaiAddress ? (addressType == AddressType.Shipping ? "10330" : "10500") : "12345",
             Country = actualCountry,
-            PhoneNumber = isThaiAddress ? $"+66-2-555-{addressId:D4}" : $"+1-555-{addressId:D4}",
-            EmailAddress = $"test.{contactNameSuffix.ToLower()}.{addressId}@maliev.com",
+            PhoneNumber = isThaiAddress ? "+66-2-555-0100" : "+1-555-0100",
+            EmailAddress = $"{contactNameSuffix.ToLower()}@maliev.com",
             IsActive = true,
             IsValidated = true,
-            ValidatedAt = DateTime.UtcNow.AddDays(-Random.Shared.Next(1, 30)),
+            ValidatedAt = DateTime.UtcNow.AddDays(-7), // Consistent validation date
             CreatedBy = createdBy,
-            CreatedAt = DateTime.UtcNow.AddDays(-Random.Shared.Next(1, 90)),
+            CreatedAt = DateTime.UtcNow.AddDays(-30), // Consistent creation date
             UpdatedBy = createdBy,
-            UpdatedAt = DateTime.UtcNow.AddHours(-Random.Shared.Next(1, 24)),
+            UpdatedAt = DateTime.UtcNow.AddHours(-1), // Recent update
             IsDeleted = false
         };
     }
@@ -695,12 +741,15 @@ public static class TestDataFactory
         OrderStatus status = OrderStatus.Pending,
         string createdBy = "test-user")
     {
-        // Generate realistic IDs if not provided
-        var actualSupplierID = supplierID ?? Random.Shared.Next(10000, 99999);
-        var actualOrderID = orderID ?? Random.Shared.Next(10000, 99999);
+        // Generate deterministic IDs if not provided for consistent test scenarios
+        var actualSupplierID = supplierID ?? GenerateDeterministicId($"supplier-{createdBy}-{orderType}");
+        var actualOrderID = orderID ?? GenerateDeterministicId($"order-{createdBy}-{orderType}");
         var actualCurrencyID = currencyID ?? (orderType == OrderType.Internal ? 1 : 2);
 
-        var orderNumber = $"PO-{DateTime.UtcNow:yyyy}-{Random.Shared.Next(100000, 999999)}";
+        // Generate consistent order numbers for test scenarios
+        var orderIdString = actualOrderID.ToString();
+        var orderSuffix = orderIdString.Length >= 6 ? orderIdString[^6..] : orderIdString.PadLeft(6, '0');
+        var orderNumber = $"PO-{DateTime.UtcNow:yyyy}-{orderSuffix}"; // Last 6 digits or padded order ID
         var currencyInfo = orderType == OrderType.Internal
             ? (code: "THB", symbol: "฿", name: "Thai Baht")
             : (code: "USD", symbol: "$", name: "US Dollar");
@@ -718,8 +767,8 @@ public static class TestDataFactory
             CurrencyCode = currencyInfo.code,
             CurrencySymbol = currencyInfo.symbol,
             Currency = currencyInfo.code,
-            OrderDate = DateTime.UtcNow.AddDays(-Random.Shared.Next(0, 30)), // Random recent date
-            ExpectedDeliveryDate = DateTime.UtcNow.AddDays(Random.Shared.Next(7, 30)),
+            OrderDate = DateTime.UtcNow.AddDays(-7), // Consistent order date (7 days ago)
+            ExpectedDeliveryDate = DateTime.UtcNow.AddDays(14), // Consistent delivery date (2 weeks from now)
             Status = status,
             OrderType = orderType,
             SubtotalAmount = 1000.00m, // Will be recalculated by calling code
@@ -727,9 +776,9 @@ public static class TestDataFactory
             WHTRate = orderType == OrderType.Internal ? 3.0m : null, // 3% stored as 3.0
             WHTAmount = null, // Will be calculated by calling code
             CreatedBy = createdBy,
-            CreatedAt = DateTime.UtcNow.AddMinutes(-Random.Shared.Next(1, 1440)), // Random time in last day
+            CreatedAt = DateTime.UtcNow.AddHours(-2), // Consistent creation time (2 hours ago)
             UpdatedBy = createdBy,
-            UpdatedAt = DateTime.UtcNow.AddMinutes(-Random.Shared.Next(1, 60)), // Random recent modification
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-30), // Consistent update time (30 minutes ago)
             Notes = $"Test purchase order created by {createdBy}",
             IsPdfGenerationEnabled = orderType == OrderType.Internal,
             IsPdfGenerated = false,
@@ -770,9 +819,9 @@ public static class TestDataFactory
         decimal unitPrice = 1000.00m,
         string currency = "THB")
     {
-        var actualExternalId = externalOrderItemId ?? Random.Shared.Next(1, 9999);
-        var actualProductName = productName ?? $"Test Product {actualExternalId}";
-        var productCode = $"PROD-{actualExternalId:D4}";
+        var actualExternalId = externalOrderItemId ?? GenerateDeterministicId($"item-{purchaseOrderId}");
+        var actualProductName = productName ?? $"Product {actualExternalId:D3}";
+        var productCode = $"SKU-{actualExternalId:D4}";
 
         return new OrderItem
         {
@@ -786,15 +835,15 @@ public static class TestDataFactory
             UnitPrice = unitPrice,
             TotalPrice = quantity * unitPrice,
             Currency = currency,
-            DeliveryDate = DateTime.UtcNow.AddDays(Random.Shared.Next(7, 30)),
-            Notes = $"Test item for {actualProductName}",
-            CachedAt = DateTime.UtcNow.AddMinutes(-Random.Shared.Next(1, 60)),
+            DeliveryDate = DateTime.UtcNow.AddDays(14), // Consistent delivery date
+            Notes = $"Test order item: {actualProductName}",
+            CachedAt = DateTime.UtcNow.AddMinutes(-5), // Recent cache time
             ExternallyModified = false,
             SourceService = "OrderService",
             ExternalVersion = "1.0",
             ExternalStatus = "Active",
             IsSyncSuccessful = true,
-            CreatedAt = DateTime.UtcNow.AddMinutes(-Random.Shared.Next(1, 1440))
+            CreatedAt = DateTime.UtcNow.AddHours(-1) // Consistent creation time
             // Note: Description, Category, Specifications, Manufacturer, Model, IsActive properties don't exist on OrderItem entity
         };
     }
@@ -832,11 +881,15 @@ public static class TestDataFactory
         var orderItems = new List<OrderItem>();
         for (int i = 0; i < itemCount; i++)
         {
+            // Generate realistic quantities and prices for consistent test scenarios
+            var quantity = i + 1; // Sequential for predictable totals: 1, 2, 3...
+            var unitPrice = (i + 1) * 150.00m; // Sequential pricing: 150, 300, 450...
+
             var orderItem = CreateOrderItemEntity(
                 externalOrderItemId: i + 1,
-                productName: $"Test Product {i + 1}",
-                quantity: i + 1,
-                unitPrice: (i + 1) * 100.00m);
+                productName: $"Test Product {i + 1:D2}", // Test Product 01, 02, 03...
+                quantity: quantity,
+                unitPrice: unitPrice);
             orderItems.Add(orderItem);
         }
 
@@ -847,8 +900,9 @@ public static class TestDataFactory
         if (orderType == OrderType.Internal && purchaseOrder.WHTRate.HasValue)
         {
             // WHT calculation: Rate is stored as percentage (3.0 for 3%), so divide by 100
-            purchaseOrder.WHTAmount = Math.Round(subtotal * (purchaseOrder.WHTRate.Value / 100), 2);
-            purchaseOrder.TotalAmount = subtotal - purchaseOrder.WHTAmount.Value;
+            var whtDecimal = purchaseOrder.WHTRate.Value / 100m;
+            purchaseOrder.WHTAmount = Math.Round(subtotal * whtDecimal, 2);
+            purchaseOrder.TotalAmount = Math.Round(subtotal - purchaseOrder.WHTAmount.Value, 2);
         }
         else
         {

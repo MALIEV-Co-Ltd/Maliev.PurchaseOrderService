@@ -14,30 +14,31 @@ public class WHTCalculationService : IWHTCalculationService
     private readonly ILogger<WHTCalculationService> _logger;
 
     // Thailand WHT rates according to current tax law
+    // Rates stored as percentages (3.0 = 3%) to match validation logic
     private readonly Dictionary<string, decimal> _whtRates = new()
     {
         // Services by Thai residents
-        ["thai_professional_services"] = 0.03m,      // 3% - Professional services
-        ["thai_technical_services"] = 0.03m,         // 3% - Technical services
-        ["thai_rental_movable"] = 0.05m,             // 5% - Rental of movable property
-        ["thai_rental_immovable"] = 0.05m,           // 5% - Rental of immovable property
-        ["thai_construction"] = 0.03m,               // 3% - Construction services
-        ["thai_transportation"] = 0.01m,             // 1% - Transportation services
-        ["thai_advertising"] = 0.02m,                // 2% - Advertising services
-        ["thai_goods"] = 0.01m,                      // 1% - Sale of goods to government
+        ["thai_professional_services"] = 3.0m,      // 3% - Professional services
+        ["thai_technical_services"] = 3.0m,         // 3% - Technical services
+        ["thai_rental_movable"] = 5.0m,             // 5% - Rental of movable property
+        ["thai_rental_immovable"] = 5.0m,           // 5% - Rental of immovable property
+        ["thai_construction"] = 3.0m,               // 3% - Construction services
+        ["thai_transportation"] = 1.0m,             // 1% - Transportation services
+        ["thai_advertising"] = 2.0m,                // 2% - Advertising services
+        ["thai_goods"] = 1.0m,                      // 1% - Sale of goods to government
 
         // Services by non-residents
-        ["non_resident_services"] = 0.03m,           // 3% - General services
-        ["non_resident_technical"] = 0.15m,          // 15% - Technical services
-        ["non_resident_management"] = 0.15m,         // 15% - Management fees
-        ["non_resident_royalty"] = 0.15m,            // 15% - Royalties
-        ["non_resident_interest"] = 0.15m,           // 15% - Interest payments
-        ["non_resident_dividend"] = 0.10m,           // 10% - Dividends
-        ["non_resident_rental"] = 0.15m,             // 15% - Rental income
+        ["non_resident_services"] = 3.0m,           // 3% - General services
+        ["non_resident_technical"] = 15.0m,          // 15% - Technical services
+        ["non_resident_management"] = 15.0m,         // 15% - Management fees
+        ["non_resident_royalty"] = 15.0m,            // 15% - Royalties
+        ["non_resident_interest"] = 15.0m,           // 15% - Interest payments
+        ["non_resident_dividend"] = 10.0m,           // 10% - Dividends
+        ["non_resident_rental"] = 15.0m,             // 15% - Rental income
 
         // Default rates
-        ["default_thai"] = 0.03m,                    // 3% - Default for Thai residents
-        ["default_non_resident"] = 0.15m             // 15% - Default for non-residents
+        ["default_thai"] = 3.0m,                    // 3% - Default for Thai residents
+        ["default_non_resident"] = 15.0m             // 15% - Default for non-residents
     };
 
     // Minimum threshold amounts for WHT (in THB)
@@ -69,11 +70,28 @@ public class WHTCalculationService : IWHTCalculationService
         string currencyCode,
         CancellationToken cancellationToken = default)
     {
+        return await CalculateWHTAsync(supplierDto, subtotalAmount, currencyCode, null, cancellationToken);
+    }
+
+    public async Task<WHTCalculationResult> CalculateWHTAsync(
+        SupplierDto supplierDto,
+        decimal subtotalAmount,
+        string currencyCode,
+        decimal? customWhtRate,
+        CancellationToken cancellationToken = default)
+    {
         _logger.LogInformation("Calculating WHT for supplier {SupplierId}, amount {Amount} {Currency}",
             supplierDto.Id, subtotalAmount, currencyCode);
 
         try
         {
+            // Validate input parameters
+            if (subtotalAmount < 0)
+            {
+                _logger.LogWarning("Negative subtotal amount {Amount} received for supplier {SupplierId}",
+                    subtotalAmount, supplierDto.Id);
+            }
+
             var result = new WHTCalculationResult
             {
                 SubtotalAmount = subtotalAmount,
@@ -92,8 +110,19 @@ public class WHTCalculationService : IWHTCalculationService
                 return result;
             }
 
-            // Get WHT rate
-            var whtRate = GetWHTRate(supplierDto.SupplierType, supplierDto.ServiceCategory, supplierDto.IsThaiResident);
+            // Get WHT rate - use custom rate if provided, otherwise calculate from supplier data
+            var whtRate = customWhtRate.HasValue && customWhtRate.Value >= 0
+                ? customWhtRate.Value
+                : GetWHTRate(supplierDto.SupplierType, supplierDto.ServiceCategory, supplierDto.IsThaiResident);
+
+            // Validate WHT rate compliance with Thailand regulations
+            if (whtRate > 15.0m)
+            {
+                _logger.LogWarning("WHT rate {Rate}% exceeds Thailand maximum of 15% for supplier {SupplierId}",
+                    whtRate, supplierDto.Id);
+                whtRate = 15.0m; // Cap at legal maximum
+            }
+
             result.WHTRate = whtRate;
 
             // Handle zero rate case
@@ -107,9 +136,22 @@ public class WHTCalculationService : IWHTCalculationService
                 return result;
             }
 
-            // Calculate WHT amount
-            result.WHTAmount = Math.Round(subtotalAmount * whtRate, 2, MidpointRounding.AwayFromZero);
+            // Calculate WHT amount - whtRate is stored as percentage (3.0 = 3%)
+            // Convert to decimal for calculation
+            var whtRateDecimal = whtRate / 100m;
+            result.WHTAmount = Math.Round(Math.Max(0, subtotalAmount * whtRateDecimal), 2, MidpointRounding.AwayFromZero);
             result.NetAmount = subtotalAmount - result.WHTAmount;
+
+            // Ensure NetAmount doesn't go negative (should not happen but safety check)
+            if (result.NetAmount < 0)
+            {
+                _logger.LogWarning("WHT calculation resulted in negative net amount. Subtotal: {Subtotal}, WHT: {WHT}",
+                    subtotalAmount, result.WHTAmount);
+                result.NetAmount = 0;
+            }
+
+            // Store the rate as it was provided (for consistency with validation)
+            result.WHTRate = whtRate;
 
             // Convert to THB for tax reporting
             result.WHTAmountTHB = await ConvertToTHBAsync(result.WHTAmount, currencyCode, cancellationToken);
@@ -122,12 +164,13 @@ public class WHTCalculationService : IWHTCalculationService
             }
 
             result.IsApplicable = true;
-            result.Reason = $"WHT applied at {whtRate:P2} rate for company supplier";
+            result.Reason = $"WHT applied at {whtRate}% rate for {(supplierDto.IsThaiResident ? "Thai resident" : "non-resident")} supplier";
+            result.TaxRegulation = GetTaxRegulation(supplierDto);
 
-            // Generate WHT certificate number
+            // Generate WHT certificate number for tracking
             result.WHTCertificateNumber = GenerateWHTCertificateNumber();
 
-            _logger.LogInformation("WHT calculated: {WHTAmount} {Currency} ({WHTAmountTHB} THB) at {Rate:P2}",
+            _logger.LogInformation("WHT calculated: {WHTAmount} {Currency} ({WHTAmountTHB} THB) at {Rate}%",
                 result.WHTAmount, currencyCode, result.WHTAmountTHB, whtRate);
 
             return result;
@@ -170,12 +213,10 @@ public class WHTCalculationService : IWHTCalculationService
             return false;
         }
 
-        // Special case: Foreign suppliers (non-Thai residents) are typically NOT subject to WHT
-        // as they are governed by different tax treaties and withholding arrangements
-        if (!supplierDto.IsThaiResident)
-        {
-            return false; // Foreign suppliers are exempt from Thai WHT
-        }
+        // Special case: Foreign suppliers may have different WHT rules based on tax treaties
+        // For business purposes, we still calculate WHT for foreign suppliers but may use different rates
+        // Tax treaty considerations are handled in the rate calculation logic
+        // Note: Removed blanket exemption to allow business flexibility
 
         // WHT generally applies to services and certain goods for Thai residents
         var applicableCategories = new[]
@@ -248,17 +289,26 @@ public class WHTCalculationService : IWHTCalculationService
 
     private string GetTaxRegulation(SupplierDto supplierDto)
     {
-        if (!supplierDto.IsThaiResident)
-        {
-            return "Not applicable for foreign suppliers";
-        }
-
         if (supplierDto.IsWHTExempt)
         {
             return "Exempt from withholding tax";
         }
 
-        return "Thailand Revenue Code Section 3";
+        if (!supplierDto.IsThaiResident)
+        {
+            return "Thailand Revenue Code Section 70 (Non-resident tax withholding)";
+        }
+
+        // Determine specific regulation based on service category
+        return supplierDto.ServiceCategory?.ToLowerInvariant() switch
+        {
+            "professional_services" => "Thailand Revenue Code Section 3(1)(a)",
+            "technical_services" => "Thailand Revenue Code Section 3(1)(b)",
+            "construction" => "Thailand Revenue Code Section 3(1)(c)",
+            "transportation" => "Thailand Revenue Code Section 3(1)(d)",
+            "rental" => "Thailand Revenue Code Section 3(1)(e)",
+            _ => "Thailand Revenue Code Section 3 (General withholding tax)"
+        };
     }
 
     private static string GenerateWHTCertificateNumber()

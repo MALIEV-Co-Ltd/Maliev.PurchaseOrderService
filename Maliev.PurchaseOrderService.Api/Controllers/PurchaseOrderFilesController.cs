@@ -508,13 +508,21 @@ public class PurchaseOrderFilesController : ControllerBase
 
             if (!ModelState.IsValid)
             {
-                return BadRequest(new ErrorResponse
+                var validationErrors = ModelState.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray() ?? Array.Empty<string>()
+                ).Select(kvp => new ValidationError
                 {
-                    Error = new ErrorInfo
-                    {
-                        Message = "Invalid request data",
-                        Code = "INVALID_REQUEST"
-                    }
+                    Field = kvp.Key,
+                    Message = string.Join(", ", kvp.Value),
+                    Code = "VALIDATION_ERROR"
+                }).ToList();
+
+                return BadRequest(new ValidationErrorResponse
+                {
+                    Message = "Invalid request data",
+                    Code = "VALIDATION_FAILED",
+                    Errors = validationErrors
                 });
             }
 

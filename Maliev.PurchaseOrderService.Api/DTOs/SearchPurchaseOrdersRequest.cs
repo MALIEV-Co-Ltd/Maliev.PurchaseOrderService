@@ -14,9 +14,23 @@ public class SearchPurchaseOrdersRequest
     public string? SearchTerm { get; set; }
 
     /// <summary>
+    /// Search text (alternative name for SearchTerm for URL parameter compatibility)
+    /// </summary>
+    public string? SearchText
+    {
+        get => SearchTerm;
+        set => SearchTerm = value;
+    }
+
+    /// <summary>
     /// Filter by supplier ID
     /// </summary>
     public int? SupplierId { get; set; }
+
+    /// <summary>
+    /// Filter by supplier name (partial match)
+    /// </summary>
+    public string? SupplierName { get; set; }
 
     /// <summary>
     /// Filter by order ID

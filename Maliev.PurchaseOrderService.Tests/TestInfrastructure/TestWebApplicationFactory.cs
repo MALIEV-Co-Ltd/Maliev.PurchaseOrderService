@@ -54,6 +54,9 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
                 // Override connection string to prevent environment variable resolution issues
                 ["ConnectionStrings:PurchaseOrderDbContext"] = $"InMemory:{_databaseName}",
 
+                // Ensure no PostgreSQL connection strings are used in tests
+                ["ConnectionStrings:DefaultConnection"] = $"InMemory:{_databaseName}",
+
                 // Override external service URLs to prevent resolution issues
                 ["ExternalServices:SupplierService:BaseUrl"] = "http://localhost:5001/mock/suppliers",
                 ["ExternalServices:OrderService:BaseUrl"] = "http://localhost:5002/mock/orders",
@@ -67,9 +70,20 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
                 ["JWT_ISSUER"] = "test-issuer",
                 ["JWT_AUDIENCE"] = "test-audience",
 
+                // Disable problematic database environment variables
+                ["DEV_DB_HOST"] = "",
+                ["DEV_DB_PORT"] = "",
+                ["DEV_DB_NAME"] = "",
+                ["DEV_DB_USER"] = "",
+                ["DEV_DB_PASSWORD"] = "",
+
                 // Disable HTTPS redirect and other problematic settings
                 ["Security:RequireHttps"] = "false",
-                ["ASPNETCORE_URLS"] = "http://localhost:0"
+                ["ASPNETCORE_URLS"] = "http://localhost:0",
+
+                // Ensure test environment logging
+                ["Logging:LogLevel:Default"] = "Warning",
+                ["Logging:LogLevel:Microsoft.EntityFrameworkCore"] = "Warning"
             };
 
             config.AddInMemoryCollection(testConfig);
@@ -97,17 +111,46 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
                 options.EnableSensitiveDataLogging();
                 options.EnableDetailedErrors();
 
-                // Suppress transaction warnings for InMemory database
-                // InMemory database doesn't support transactions, but we can safely ignore this warning
+                // Suppress problematic warnings for InMemory database
                 options.ConfigureWarnings(warnings =>
-                    warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning));
+                {
+                    // InMemory database doesn't support transactions, but we can safely ignore this warning
+                    warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning);
+
+                    // Ignore the query filter navigation warning - this is expected behavior
+                    warnings.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning);
+
+                    // Reduce noise from relationship warnings
+                    warnings.Ignore(CoreEventId.SensitiveDataLoggingEnabledWarning);
+                });
             });
 
             // Ensure API versioning is properly configured for tests
             // The main application already registers API versioning, but we need to ensure it's available in tests
             services.AddControllers();
             services.AddEndpointsApiExplorer();
+
+            // Configure API versioning for tests - simplified to avoid dependency issues
+            services.AddApiVersioning(config =>
+            {
+                config.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
+                config.AssumeDefaultVersionWhenUnspecified = true;
+                config.ApiVersionReader = Asp.Versioning.ApiVersionReader.Combine(
+                    new Asp.Versioning.UrlSegmentApiVersionReader(),
+                    new Asp.Versioning.QueryStringApiVersionReader("version"),
+                    new Asp.Versioning.HeaderApiVersionReader("X-Version")
+                );
+            });
+
+            // Skip API Explorer for tests - it's not essential for test functionality
+
             services.AddSwaggerGen();
+
+            // Add AutoMapper configuration (missing from original test setup)
+            services.AddAutoMapper(typeof(Program));
+
+            // Ensure application services are registered
+            // The main application services need to be available in tests
 
             // Note: External service mocks will be replaced by IntegrationTestBase
             // Set up default mocks here, but they will be overridden if IntegrationTestBase provides custom ones
