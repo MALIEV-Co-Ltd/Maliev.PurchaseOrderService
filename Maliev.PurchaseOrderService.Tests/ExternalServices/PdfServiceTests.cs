@@ -111,13 +111,13 @@ public class PdfServiceTests
         // Assert
         result.Should().NotBeNull();
         result.IsSuccess.Should().BeTrue();
-        result.DocumentId.Should().NotBeNullOrEmpty();
+        result.DocumentId.Should().Be("PO-2024-001");
         result.FileName.Should().Be("PO-2024-001.pdf");
-        result.FileSize.Should().BeGreaterThan(0);
+        result.FileSize.Should().Be(pdfContent.Length);
     }
 
     [Fact]
-    public async Task GetPdfInfoAsync_ValidJobId_ReturnsJobStatus()
+    public async Task GetPdfJobStatusAsync_ValidJobId_ReturnsJobStatus()
     {
         // Arrange
         var jobId = Guid.NewGuid();
@@ -150,14 +150,57 @@ public class PdfServiceTests
         var service = new PdfServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act
-        using var stream = new MemoryStream();
+        var result = await service.GetPdfJobStatusAsync(jobId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.JobId.Should().Be(jobId);
+        result.Status.Should().Be("Processing");
+        result.Progress.Should().Be(75);
+    }
+
+    [Fact]
+    public async Task GetPdfInfoAsync_ValidPdfStream_ReturnsPdfInfo()
+    {
+        // Arrange
+        var expectedInfo = new
+        {
+            PageCount = 3,
+            FileSize = 2048000L,
+            Version = "1.7",
+            Author = "Test Author",
+            Title = "Test Document",
+            CreationDate = DateTime.UtcNow.AddHours(-1),
+            IsEncrypted = false
+        };
+
+        var responseContent = JsonSerializer.Serialize(expectedInfo);
+        var httpResponse = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(responseContent, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"))
+        };
+
+        _httpMessageHandlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req =>
+                    req.Method == HttpMethod.Post &&
+                    req.RequestUri!.ToString().Contains("/pdfs/info")),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(httpResponse);
+
+        var service = new PdfServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
+
+        // Act
+        using var stream = new MemoryStream("Mock PDF content"u8.ToArray());
         var result = await service.GetPdfInfoAsync(stream);
 
         // Assert
         result.Should().NotBeNull();
-        result.PageCount.Should().BeGreaterThan(0);
-        result.FileSize.Should().BeGreaterThan(0);
-        result.Version.Should().NotBeNullOrEmpty();
+        result.PageCount.Should().Be(3);
+        result.FileSize.Should().Be(2048000);
+        result.Version.Should().Be("1.7");
     }
 
     [Fact]
@@ -257,7 +300,7 @@ public class PdfServiceTests
         // Assert
         result.Should().NotBeNull();
         result.IsSuccess.Should().BeTrue();
-        result.PageCount.Should().BeGreaterThan(0);
+        result.PageCount.Should().Be(1); // Based on the header we set
         result.GeneratedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
     }
 
@@ -390,7 +433,7 @@ public class PdfServiceTests
                 "SendAsync",
                 ItExpr.Is<HttpRequestMessage>(req =>
                     req.Method == HttpMethod.Post &&
-                    req.RequestUri!.ToString().Contains("/templates/validate")),
+                    req.RequestUri!.ToString().Contains("/pdfs/templates/validate")),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(httpResponse);
 
@@ -556,7 +599,7 @@ public class PdfServiceTests
         var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => service.GetPdfInfoAsync(new MemoryStream()));
 
-        exception.Message.Should().Contain("authentication");
+        exception.Message.Should().Contain("Failed to authenticate");
     }
 
     [Fact]

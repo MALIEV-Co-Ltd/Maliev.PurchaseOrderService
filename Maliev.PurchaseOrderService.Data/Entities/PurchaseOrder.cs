@@ -21,7 +21,7 @@ public class PurchaseOrder
     /// Auto-generated unique internal order number (e.g., "PO-2025-001234")
     /// </summary>
     [Required]
-    [StringLength(20)]
+    [StringLength(50)]
     public string OrderNumber { get; set; } = string.Empty;
 
     /// <summary>

@@ -162,8 +162,19 @@ public class PdfServiceClient : IPdfServiceClient
                 GeneratedAt = DateTime.UtcNow
             };
 
-            _logger.LogInformation("Successfully generated PDF from template: {TemplateId}, Document ID: {DocumentId}",
-                templateId, result.DocumentId);
+            // Try to get additional metadata from headers
+            if (int.TryParse(GetHeaderValue(response.Headers, "X-Page-Count"), out var pageCount))
+            {
+                result.PageCount = pageCount;
+            }
+
+            if (TimeSpan.TryParse(GetHeaderValue(response.Headers, "X-Generation-Time"), out var generationTime))
+            {
+                result.GenerationTime = generationTime;
+            }
+
+            _logger.LogInformation("Successfully generated PDF from template: {TemplateId}, Document ID: {DocumentId}, Pages: {PageCount}",
+                templateId, result.DocumentId, result.PageCount);
             return result;
         }
         catch (HttpRequestException ex)
@@ -696,7 +707,7 @@ public class PdfServiceClient : IPdfServiceClient
             var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync("/templates/validate", content, cancellationToken);
+            var response = await _httpClient.PostAsync("/pdfs/templates/validate", content, cancellationToken);
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {

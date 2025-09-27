@@ -18,6 +18,8 @@ using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.MappingProfiles;
 using Maliev.PurchaseOrderService.Api.Configuration;
 using Maliev.PurchaseOrderService.Api.Extensions;
+using Maliev.PurchaseOrderService.Api.Middleware;
+using Microsoft.AspNetCore.Mvc;
 using Polly;
 using Polly.Extensions.Http;
 
@@ -228,7 +230,17 @@ builder.Services.AddControllers()
     })
     .ConfigureApiBehaviorOptions(options =>
     {
-        options.SuppressMapClientErrors = true;
+        options.SuppressMapClientErrors = false;
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var problemDetails = new ValidationProblemDetails(context.ModelState)
+            {
+                Title = "Invalid request",
+                Status = StatusCodes.Status400BadRequest,
+                Instance = context.HttpContext.Request.Path
+            };
+            return new BadRequestObjectResult(problemDetails);
+        };
     });
 
 // API Versioning
@@ -459,6 +471,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors();
+app.UseRouteConstraintValidation();
 
 if (!app.Environment.IsEnvironment("Testing"))
 {

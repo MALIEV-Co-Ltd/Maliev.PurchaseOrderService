@@ -208,8 +208,10 @@ public class PurchaseOrdersController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Created purchase order</returns>
     [HttpPost]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(PurchaseOrderDto), (int)HttpStatusCode.Created)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.Forbidden)]
     [ProducesResponseType(typeof(ValidationErrorResponse), (int)HttpStatusCode.UnprocessableEntity)]
     public async Task<ActionResult<PurchaseOrderDto>> CreatePurchaseOrder(
         [FromBody] CreatePurchaseOrderRequest request,
@@ -241,6 +243,7 @@ public class PurchaseOrdersController : ControllerBase
 
             // Get CreatedBy from current user context
             var createdBy = User.Identity?.Name ?? "unknown";
+            var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
             // Validate business rules
             var validationResult = await _purchaseOrderService.ValidatePurchaseOrderAsync(request, cancellationToken);
@@ -255,12 +258,24 @@ public class PurchaseOrdersController : ControllerBase
                 });
             }
 
-            var createdPurchaseOrder = await _purchaseOrderService.CreatePurchaseOrderAsync(request, createdBy, cancellationToken);
+            var createdPurchaseOrder = await _purchaseOrderService.CreatePurchaseOrderAsync(request, createdBy, userRoles, cancellationToken);
 
             return CreatedAtAction(
                 nameof(GetPurchaseOrder),
                 new { id = createdPurchaseOrder.Id },
                 createdPurchaseOrder);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access when creating purchase order");
+            return StatusCode(403, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "ACCESS_DENIED"
+                }
+            });
         }
         catch (ArgumentException ex)
         {
@@ -308,9 +323,11 @@ public class PurchaseOrdersController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated purchase order</returns>
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(PurchaseOrderDto), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.Forbidden)]
     public async Task<ActionResult<PurchaseOrderDto>> UpdatePurchaseOrder(
         int id,
         [FromBody] UpdatePurchaseOrderRequest request,
@@ -342,8 +359,9 @@ public class PurchaseOrdersController : ControllerBase
 
             // Get UpdatedBy from current user context
             var lastModifiedBy = User.Identity?.Name ?? "unknown";
+            var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
-            var updatedPurchaseOrder = await _purchaseOrderService.UpdatePurchaseOrderAsync(id, request, lastModifiedBy, cancellationToken);
+            var updatedPurchaseOrder = await _purchaseOrderService.UpdatePurchaseOrderAsync(id, request, lastModifiedBy, userRoles, cancellationToken);
 
             if (updatedPurchaseOrder == null)
             {
@@ -376,6 +394,18 @@ public class PurchaseOrdersController : ControllerBase
                 {
                     Message = ex.Message,
                     Code = "CONCURRENCY_CONFLICT"
+                }
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access when updating purchase order {PurchaseOrderId}", id);
+            return StatusCode(403, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "ACCESS_DENIED"
                 }
             });
         }
@@ -595,9 +625,11 @@ public class PurchaseOrdersController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Canceled purchase order</returns>
     [HttpPost("{id:int}/cancel")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(PurchaseOrderDto), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.Forbidden)]
     public async Task<ActionResult<PurchaseOrderDto>> CancelPurchaseOrder(
         int id,
         [FromBody] CancelPurchaseOrderRequest request,

@@ -49,6 +49,7 @@ public class PurchaseOrderFilesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of purchase order files or paginated response</returns>
     [HttpGet]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(IEnumerable<PurchaseOrderFileDto>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(PaginatedResponse<PurchaseOrderFileDto>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
@@ -200,6 +201,7 @@ public class PurchaseOrderFilesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>File metadata</returns>
     [HttpGet("{fileId:int}")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(PurchaseOrderFileDto), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     public async Task<ActionResult<PurchaseOrderFileDto>> GetFile(
@@ -249,6 +251,7 @@ public class PurchaseOrderFilesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Upload result with file information</returns>
     [HttpPost]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(DocumentUploadResult), (int)HttpStatusCode.Created)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
@@ -362,6 +365,7 @@ public class PurchaseOrderFilesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>File content</returns>
     [HttpGet("{fileId:int}/download")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(FileResult), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     public async Task<ActionResult> DownloadFile(
@@ -428,6 +432,7 @@ public class PurchaseOrderFilesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>No content if successful</returns>
     [HttpDelete("{fileId:int}")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType((int)HttpStatusCode.NoContent)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     public async Task<ActionResult> DeleteFile(
@@ -493,6 +498,7 @@ public class PurchaseOrderFilesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated file metadata</returns>
     [HttpPut("{fileId:int}")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(PurchaseOrderFileDto), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
@@ -599,10 +605,10 @@ public class PurchaseOrderFilesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>PDF generation result</returns>
     [HttpPost("generate-pdf")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(PdfGenerationResult), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
-    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     public async Task<ActionResult<PdfGenerationResult>> GeneratePdf(
         int purchaseOrderId,
         CancellationToken cancellationToken = default)
@@ -664,6 +670,7 @@ public class PurchaseOrderFilesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>PDF generation status</returns>
     [HttpGet("pdf-status")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(PdfGenerationStatus), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     public async Task<ActionResult<PdfGenerationStatus>> GetPdfStatus(
@@ -715,6 +722,7 @@ public class PurchaseOrderFilesController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Preview URL</returns>
     [HttpGet("{fileId:int}/preview")]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(FilePreviewResponse), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     public async Task<ActionResult<FilePreviewResponse>> GetFilePreview(

@@ -48,7 +48,6 @@ public class OrderItemsController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of order items or paginated response</returns>
     [HttpGet]
-    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(IEnumerable<OrderItemDto>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(PaginatedResponse<OrderItemDto>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
@@ -187,7 +186,6 @@ public class OrderItemsController : ControllerBase
     /// <param name="itemId">Order item ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Order item details</returns>
-    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [HttpGet("{itemId:int}")]
     [ProducesResponseType(typeof(OrderItemDto), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
@@ -238,11 +236,11 @@ public class OrderItemsController : ControllerBase
     /// <param name="purchaseOrderId">Purchase order ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated list of order items</returns>
-    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [HttpPut("refresh")]
     [ProducesResponseType(typeof(OrderItemRefreshResult), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     public async Task<ActionResult<OrderItemRefreshResult>> RefreshOrderItems(
         int purchaseOrderId,
         CancellationToken cancellationToken = default)
@@ -389,7 +387,6 @@ public class OrderItemsController : ControllerBase
     /// <param name="purchaseOrderId">Purchase order ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Order items summary statistics</returns>
-    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [HttpGet("summary")]
     [ProducesResponseType(typeof(OrderItemsSummaryDto), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]

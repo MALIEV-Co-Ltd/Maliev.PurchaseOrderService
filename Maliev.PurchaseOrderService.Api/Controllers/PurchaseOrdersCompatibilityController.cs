@@ -79,7 +79,8 @@ public class PurchaseOrdersCompatibilityController : ControllerBase
                 });
             }
 
-            var createdPurchaseOrder = await _purchaseOrderService.CreatePurchaseOrderAsync(request, createdBy, cancellationToken);
+            var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+            var createdPurchaseOrder = await _purchaseOrderService.CreatePurchaseOrderAsync(request, createdBy, userRoles, cancellationToken);
 
             // Return the DTO directly - it should already be in the correct format
             var response = createdPurchaseOrder;
@@ -214,8 +215,9 @@ public class PurchaseOrdersCompatibilityController : ControllerBase
 
             // Get UpdatedBy from current user context
             var lastModifiedBy = User.Identity?.Name ?? "unknown";
+            var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
-            var updatedPurchaseOrder = await _purchaseOrderService.UpdatePurchaseOrderAsync(id, request, lastModifiedBy, cancellationToken);
+            var updatedPurchaseOrder = await _purchaseOrderService.UpdatePurchaseOrderAsync(id, request, lastModifiedBy, userRoles, cancellationToken);
 
             if (updatedPurchaseOrder == null)
             {

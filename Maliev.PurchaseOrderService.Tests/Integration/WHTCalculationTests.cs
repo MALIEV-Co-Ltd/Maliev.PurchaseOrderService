@@ -33,7 +33,9 @@ public class WHTCalculationTests : IntegrationTestBase
     [Fact]
     public async Task CreatePurchaseOrder_WithValidWHTRate_ShouldCalculateWHTCorrectly()
     {
-        // Arrange
+        // Arrange - Set up authentication
+        SetupEmployeeAuthentication("emp123", "test");
+
         var request = new CreatePurchaseOrderRequest
         {
             SupplierID = 1234,
@@ -58,7 +60,7 @@ public class WHTCalculationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -77,16 +79,21 @@ public class WHTCalculationTests : IntegrationTestBase
     [Fact]
     public async Task UpdatePurchaseOrder_WithValidWHTRate_ShouldRecalculateAmounts()
     {
-        // Arrange
+        // Arrange - Set up authentication
+        SetupEmployeeAuthentication("emp123", "test");
+
+        // Create a test purchase order first
+        var testPO = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending, "emp123");
+
         var updateRequest = new UpdatePurchaseOrderRequest
         {
             WhtRate = 5.0m, // Update to 5% WHT
             Notes = "Updated WHT rate for tax compliance",
-            RowVersion = "AAAAAAAAB9F="
+            RowVersion = testPO.RowVersion != null ? Convert.ToBase64String(testPO.RowVersion) : "AAAAAAAAB9F="
         };
 
         // Act
-        var response = await Client.PutAsJsonAsync("/purchase-orders/12345", updateRequest);
+        var response = await PutAsJsonAsync($"/v1.0/purchase-orders/{testPO.Id}", updateRequest);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -144,7 +151,9 @@ public class WHTCalculationTests : IntegrationTestBase
     [Fact]
     public async Task CreatePurchaseOrder_WithThailandSupplier_ShouldApplyCorrectWHTRate()
     {
-        // Arrange - Thailand supplier with local tax requirements
+        // Arrange - Set up authentication and Thailand supplier with local tax requirements
+        SetupEmployeeAuthentication("emp123", "test");
+
         var request = new CreatePurchaseOrderRequest
         {
             SupplierID = 7890, // Thailand supplier
@@ -168,7 +177,7 @@ public class WHTCalculationTests : IntegrationTestBase
         };
 
         // Act
-        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -218,8 +227,11 @@ public class WHTCalculationTests : IntegrationTestBase
             }
         };
 
+        // Arrange - Set up authentication
+        SetupEmployeeAuthentication("emp123", "test");
+
         // Act
-        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", request);
 
         // Assert - Multi-item WHT calculation
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -250,12 +262,18 @@ public class WHTCalculationTests : IntegrationTestBase
             RowVersion = "AAAAAAAAB9F="
         };
 
-        // Act
-        var response = await Client.PutAsJsonAsync("/purchase-orders/12349", updateRequest);
+        // Arrange - Set up authentication
+        SetupEmployeeAuthentication("emp123", "test");
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase orders update endpoint is not implemented yet");
+        // Create a test purchase order first
+        var testPO = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending, "emp123");
+        updateRequest.RowVersion = testPO.RowVersion != null ? Convert.ToBase64String(testPO.RowVersion) : "AAAAAAAAB9F=";
+
+        // Act
+        var response = await PutAsJsonAsync($"/v1.0/purchase-orders/{testPO.Id}", updateRequest);
+
+        // Assert - Currency updates are supported
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -283,12 +301,14 @@ public class WHTCalculationTests : IntegrationTestBase
             }
         };
 
-        // Act
-        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
+        // Arrange - Set up authentication
+        SetupEmployeeAuthentication("emp123", "test");
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase orders controller endpoint is not implemented yet");
+        // Act
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", request);
+
+        // Assert - Zero WHT should be accepted
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
     [Fact]
@@ -316,12 +336,14 @@ public class WHTCalculationTests : IntegrationTestBase
             }
         };
 
-        // Act
-        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
+        // Arrange - Set up authentication
+        SetupEmployeeAuthentication("emp123", "test");
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase orders controller endpoint is not implemented yet");
+        // Act
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", request);
+
+        // Assert - Maximum WHT rate should be accepted
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
     [Fact]
@@ -340,12 +362,18 @@ public class WHTCalculationTests : IntegrationTestBase
             RowVersion = "AAAAAAAAB9F="
         };
 
-        // Act
-        var response = await Client.PutAsJsonAsync("/purchase-orders/12345", updateRequest);
+        // Arrange - Set up authentication
+        SetupEmployeeAuthentication("emp123", "test");
 
-        // Assert - Should fail because implementation doesn't exist yet (TDD)
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-            "because the purchase orders update endpoint is not implemented yet");
+        // Create a test purchase order first
+        var testPO = await SeedPurchaseOrderAsync(Data.Enums.OrderType.Internal, Data.Enums.OrderStatus.Pending, "emp123");
+        updateRequest.RowVersion = testPO.RowVersion != null ? Convert.ToBase64String(testPO.RowVersion) : "AAAAAAAAB9F=";
+
+        // Act
+        var response = await PutAsJsonAsync($"/v1.0/purchase-orders/{testPO.Id}", updateRequest);
+
+        // Assert - WHT precision calculation should work
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     private async Task<PurchaseOrderResponse> CreateTestPurchaseOrder(decimal whtRate = 3.0m)
@@ -373,7 +401,7 @@ public class WHTCalculationTests : IntegrationTestBase
             }
         };
 
-        var response = await Client.PostAsJsonAsync("/purchase-orders", request);
+        var response = await PostAsJsonAsync("/v1.0/purchase-orders", request);
         response.EnsureSuccessStatusCode();
 
         var content = await response.Content.ReadAsStringAsync();

@@ -46,6 +46,7 @@ public class AddressesController : ControllerBase
     /// <param name="pageSize">Items per page</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of addresses or paginated response</returns>
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<AddressDto>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(PaginatedResponse<AddressDto>), (int)HttpStatusCode.OK)]

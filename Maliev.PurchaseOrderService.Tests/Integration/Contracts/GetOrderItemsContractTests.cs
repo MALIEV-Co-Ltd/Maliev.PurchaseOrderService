@@ -73,6 +73,10 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
 
         await dbContext.OrderItems.AddRangeAsync(orderItems);
         await dbContext.SaveChangesAsync();
+        // Create a second purchase order without items for testing empty scenarios
+        var emptyPurchaseOrder = TestDataFactory.CreatePurchaseOrderEntity(orderType: Data.Enums.OrderType.Internal, createdBy: "emp456");
+        await dbContext.PurchaseOrders.AddAsync(emptyPurchaseOrder);
+        await dbContext.SaveChangesAsync();
     }
 
     [Fact]
@@ -178,7 +182,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var validToken = TestJwtHelper.GenerateEmployeeToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
-        var purchaseOrderId = 1; // Assuming this exists but has no items
+        var purchaseOrderId = 2; // This purchase order exists but has no items
 
         // Act
         var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");

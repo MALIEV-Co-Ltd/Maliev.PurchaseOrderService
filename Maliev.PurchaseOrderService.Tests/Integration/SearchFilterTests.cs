@@ -345,6 +345,9 @@ public class SearchFilterTests : IntegrationTestBase
     [Fact]
     public async Task SearchPurchaseOrders_WithInvalidParameters_ShouldReturnValidationError()
     {
+        // Arrange
+        SetupEmployeeAuthentication();
+
         // Act - Invalid page size
         var response = await Client.GetAsync("/v1.0/purchase-orders?pageSize=0");
 
@@ -352,12 +355,13 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var errorResponse = JsonSerializer.Deserialize<ValidationErrorResponse>(responseContent, new JsonSerializerOptions
+        var errorResponse = JsonSerializer.Deserialize<ErrorResponse>(responseContent, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
         errorResponse.Should().NotBeNull();
-        errorResponse!.Errors.Should().Contain(e => e.Field == "PageSize");
+        errorResponse!.Error.Should().NotBeNull();
+        errorResponse.Error.Message.Should().Contain("Page size must be greater than 0");
     }
 }

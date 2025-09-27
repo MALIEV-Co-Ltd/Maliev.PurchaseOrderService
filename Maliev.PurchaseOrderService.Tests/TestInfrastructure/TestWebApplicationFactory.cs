@@ -15,6 +15,8 @@ using System.Text;
 using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Configuration;
+using Moq;
+using Maliev.PurchaseOrderService.Api.DTOs;
 
 namespace Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
@@ -166,6 +168,34 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
             ReplaceService(services, defaultCurrencyMock);
             ReplaceService(services, defaultUploadMock);
             ReplaceService(services, defaultPdfClientMock);
+            // Add mock for the Clients namespace IOrderServiceClient that the controller needs
+            var orderClientMock = new Mock<Maliev.PurchaseOrderService.Api.Clients.IOrderServiceClient>();
+
+            // Setup basic methods that the controller might use
+            orderClientMock.Setup(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<OrderItemDto>());
+
+            orderClientMock.Setup(x => x.GetOrderItemsSummaryAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new OrderItemsSummaryDto
+                {
+                    TotalItems = 0,
+                    TotalQuantity = 0,
+                    TotalValue = 0,
+                    UniqueCategories = 0
+                });
+
+            orderClientMock.Setup(x => x.RefreshOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new OrderItemRefreshResult
+                {
+                    Success = true,
+                    RefreshedCount = 0,
+                    ErrorMessage = null
+                });
+
+            orderClientMock.Setup(x => x.OrderExistsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+
+            ReplaceService(services, orderClientMock.Object);
 
             // Keep application services as real services for proper database integration
             // Only mock the external ones that make HTTP calls

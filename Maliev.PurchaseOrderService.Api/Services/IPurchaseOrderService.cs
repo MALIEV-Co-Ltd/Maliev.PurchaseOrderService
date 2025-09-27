@@ -47,11 +47,13 @@ public interface IPurchaseOrderService
     /// </summary>
     /// <param name="request">Create purchase order request</param>
     /// <param name="createdBy">User creating the purchase order</param>
+    /// <param name="userRoles">Current user roles for authorization</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Created purchase order</returns>
     Task<PurchaseOrderDto> CreatePurchaseOrderAsync(
         CreatePurchaseOrderRequest request,
         string createdBy,
+        List<string> userRoles,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -60,12 +62,14 @@ public interface IPurchaseOrderService
     /// <param name="id">Purchase order ID</param>
     /// <param name="request">Update purchase order request</param>
     /// <param name="lastModifiedBy">User updating the purchase order</param>
+    /// <param name="userRoles">Current user roles for authorization</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated purchase order or null if not found</returns>
     Task<PurchaseOrderDto?> UpdatePurchaseOrderAsync(
         int id,
         UpdatePurchaseOrderRequest request,
         string lastModifiedBy,
+        List<string> userRoles,
         CancellationToken cancellationToken = default);
 
     /// <summary>

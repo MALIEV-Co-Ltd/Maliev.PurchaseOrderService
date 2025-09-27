@@ -83,8 +83,10 @@ public class UploadServiceTests
             ContentType = contentType,
             FileSize = fileContent.Length,
             Url = "https://test.storage.maliev.com/files/123456/test-document.pdf",
+            ThumbnailUrl = "https://test.storage.maliev.com/files/123456/test-document-thumb.jpg",
             UploadedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddHours(24)
+            ExpiresAt = DateTime.UtcNow.AddHours(24),
+            IsSuccess = true
         };
 
         var responseContent = JsonSerializer.Serialize(expectedResponse);
@@ -321,8 +323,8 @@ public class UploadServiceTests
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.Is<HttpRequestMessage>(req =>
-                    req.Method == HttpMethod.Patch &&
-                    req.RequestUri!.ToString().Contains($"/files/{fileId}/metadata")),
+                    req.Method == HttpMethod.Get &&
+                    req.RequestUri!.ToString().Contains($"/files/{fileId}/info")),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(httpResponse);
 
@@ -438,11 +440,11 @@ public class UploadServiceTests
 
         var service = new UploadServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.GetFileInfoAsync(fileId.ToString()));
+        // Act
+        var result = await service.GetFileInfoAsync(fileId.ToString());
 
-        exception.Message.Should().Contain("File not found");
+        // Assert
+        result.Should().BeNull();
     }
 
     [Fact]

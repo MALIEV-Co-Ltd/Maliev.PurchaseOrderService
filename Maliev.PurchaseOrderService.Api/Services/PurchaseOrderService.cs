@@ -190,10 +190,18 @@ public class PurchaseOrderService : IPurchaseOrderService
     public async Task<PurchaseOrderDto> CreatePurchaseOrderAsync(
         CreatePurchaseOrderRequest request,
         string createdBy,
+        List<string> userRoles,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Creating purchase order for supplier {SupplierID} by {CreatedBy}",
-            request.SupplierID, createdBy);
+        _logger.LogInformation("Creating purchase order for supplier {SupplierID} by {CreatedBy} with roles {UserRoles}",
+            request.SupplierID, createdBy, string.Join(",", userRoles));
+
+        // Role-based authorization check
+        var hasValidRole = userRoles.Any(role => new[] { "Employee", "Manager", "Procurement", "Admin" }.Contains(role));
+        if (!hasValidRole)
+        {
+            throw new UnauthorizedAccessException($"User {createdBy} does not have permission to create purchase orders");
+        }
 
         try
         {
@@ -232,7 +240,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 CreatedAt = DateTime.UtcNow,
                 OrderDate = DateTime.UtcNow,
                 ExpectedDeliveryDate = request.ExpectedDeliveryDate,
-                WHTRate = request.WhtRate, // Store as decimal (e.g., 0.03 for 3%)
+                WHTRate = request.WhtRate, // Store as percentage (e.g., 3.0 for 3%)
                 WHTAmount = null, // Initialize as null for PostgreSQL compatibility
                 CurrencyCode = currencyCode,
                 CurrencySymbol = currencySymbol,
@@ -290,9 +298,11 @@ public class PurchaseOrderService : IPurchaseOrderService
         int id,
         UpdatePurchaseOrderRequest request,
         string lastModifiedBy,
+        List<string> userRoles,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Updating purchase order {PurchaseOrderId} by {UpdatedBy}", id, lastModifiedBy);
+        _logger.LogInformation("Updating purchase order {PurchaseOrderId} by {UpdatedBy} with roles {UserRoles}",
+            id, lastModifiedBy, string.Join(",", userRoles));
 
         try
         {
@@ -305,6 +315,25 @@ public class PurchaseOrderService : IPurchaseOrderService
             if (purchaseOrder == null)
             {
                 return null;
+            }
+
+            // Role-based authorization check
+            var hasAccessToAllOrders = userRoles.Any(role =>
+                role.Equals("Manager", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Procurement", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Admin", StringComparison.OrdinalIgnoreCase));
+
+            // Employees can only update their own purchase orders
+            if (!hasAccessToAllOrders && userRoles.Contains("Employee"))
+            {
+                if (purchaseOrder.CreatedBy != lastModifiedBy)
+                {
+                    throw new UnauthorizedAccessException($"User {lastModifiedBy} does not have access to update purchase order {id}");
+                }
+            }
+            else if (!hasAccessToAllOrders)
+            {
+                throw new UnauthorizedAccessException($"User {lastModifiedBy} does not have permission to update purchase orders");
             }
 
             // Concurrency control - validate RowVersion
