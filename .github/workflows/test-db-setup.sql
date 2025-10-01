@@ -17,10 +17,10 @@ ALTER SYSTEM SET checkpoint_segments = 32;
 ALTER SYSTEM SET checkpoint_completion_target = 0.9;
 
 -- Increase WAL buffers for better write performance
-ALTER SYSTEM SET wal_buffers = 16MB;
+ALTER SYSTEM SET wal_buffers = '16MB';
 
 -- Increase shared buffers for better caching
-ALTER SYSTEM SET shared_buffers = 256MB;
+ALTER SYSTEM SET shared_buffers = '256MB';
 
 -- Apply the configuration changes
 SELECT pg_reload_conf();
