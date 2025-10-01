@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Maliev.PurchaseOrderService.Api.DTOs;
 
 /// <summary>
@@ -8,6 +10,8 @@ public class ApprovePurchaseOrderRequest
     /// <summary>
     /// User approving the purchase order
     /// </summary>
+    [Required(ErrorMessage = "ApprovedBy is required")]
+    [MinLength(1, ErrorMessage = "ApprovedBy cannot be empty")]
     public string ApprovedBy { get; set; } = string.Empty;
 
     /// <summary>

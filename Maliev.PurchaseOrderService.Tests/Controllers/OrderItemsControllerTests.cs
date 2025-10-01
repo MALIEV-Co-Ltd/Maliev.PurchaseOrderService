@@ -6,16 +6,17 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.Models;
+using Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
 namespace Maliev.PurchaseOrderService.Tests.Controllers;
 
-public class OrderItemsControllerTests : IClassFixture<WebApplicationFactory<Program>>
+public class OrderItemsControllerTests : IClassFixture<TestWebApplicationFactory<Program>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TestWebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public OrderItemsControllerTests(WebApplicationFactory<Program> factory)
+    public OrderItemsControllerTests(TestWebApplicationFactory<Program> factory)
     {
         _factory = factory;
         _client = _factory.CreateClient();
@@ -284,11 +285,7 @@ public class OrderItemsControllerTests : IClassFixture<WebApplicationFactory<Pro
 
     private static string GenerateJwtToken(string userId, string role, string department)
     {
-        // Mock JWT token generation - in real implementation this would create a proper JWT
-        // For now, return a simple base64 encoded string that contains the claims
-        var claims = $"{userId}:{role}:{department}";
-        var bytes = System.Text.Encoding.UTF8.GetBytes(claims);
-        return Convert.ToBase64String(bytes);
+        return TestJwtHelper.GenerateTestToken(userId, role, department);
     }
 
     private async Task<T?> DeserializeResponse<T>(HttpResponseMessage response)

@@ -125,11 +125,11 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCount(4);
-        result.TotalCount.Should().Be(4);
+        result!.Items.Should().HaveCount(4);
+        result.Pagination.TotalCount.Should().Be(4);
     }
 
     [Fact]
@@ -146,12 +146,12 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCount(1);
-        result.Data.ToArray()[0].Status.Should().Be(OrderStatus.Approved);
-        result.Data.ToArray()[0].OrderNumber.Should().Be("PO-2025-SEARCH-002");
+        result!.Items.Should().HaveCount(1);
+        result.Items.ToArray()[0].Status.Should().Be(OrderStatus.Approved);
+        result.Items.ToArray()[0].OrderNumber.Should().Be("PO-2025-SEARCH-002");
     }
 
     [Fact]
@@ -168,11 +168,11 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCount(2);
-        result.Data.Should().AllSatisfy(po => po.OrderType.Should().Be(OrderType.External));
+        result!.Items.Should().HaveCount(2);
+        result.Items.Should().AllSatisfy(po => po.OrderType.Should().Be(OrderType.External));
     }
 
     [Fact]
@@ -189,11 +189,11 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCount(2);
-        result.Data.Should().AllSatisfy(po => po.SupplierName.Should().Contain("Alpha"));
+        result!.Items.Should().HaveCount(2);
+        result.Items.Should().AllSatisfy(po => po.SupplierName.Should().Contain("Alpha"));
     }
 
     [Fact]
@@ -212,11 +212,11 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCountGreaterThan(0);
-        result.Data.Should().AllSatisfy(po =>
+        result!.Items.Should().HaveCountGreaterThan(0);
+        result.Items.Should().AllSatisfy(po =>
         {
             po.CreatedAt.Should().BeOnOrAfter(DateTime.Parse(fromDate));
             po.CreatedAt.Should().BeOnOrBefore(DateTime.Parse(toDate).AddDays(1));
@@ -237,11 +237,11 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCountGreaterThan(0);
-        result.Data.Should().AllSatisfy(po =>
+        result!.Items.Should().HaveCountGreaterThan(0);
+        result.Items.Should().AllSatisfy(po =>
         {
             po.TotalAmount.Should().BeGreaterThanOrEqualTo(10000m);
             po.TotalAmount.Should().BeLessThanOrEqualTo(20000m);
@@ -262,12 +262,12 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCount(4);
+        result!.Items.Should().HaveCount(4);
 
-        var amounts = result.Data.Select(po => po.TotalAmount).ToList();
+        var amounts = result.Items.Select(po => po.TotalAmount).ToList();
         amounts.Should().BeInDescendingOrder();
     }
 
@@ -285,16 +285,16 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCount(2);
-        result.TotalCount.Should().Be(4);
-        result.Page.Should().Be(1);
-        result.PageSize.Should().Be(2);
-        result.TotalPages.Should().Be(2);
-        result.HasNextPage.Should().BeTrue();
-        result.HasPreviousPage.Should().BeFalse();
+        result!.Items.Should().HaveCount(2);
+        result.Pagination.TotalCount.Should().Be(4);
+        result.Pagination.Page.Should().Be(1);
+        result.Pagination.PageSize.Should().Be(2);
+        result.Pagination.TotalPages.Should().Be(2);
+        result.Pagination.HasNextPage.Should().BeTrue();
+        result.Pagination.HasPreviousPage.Should().BeFalse();
     }
 
     [Fact]
@@ -311,14 +311,14 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCount(1);
-        result.Data.ToArray()[0].OrderType.Should().Be(OrderType.Internal);
-        result.Data.ToArray()[0].Status.Should().Be(OrderStatus.Pending);
-        result.Data.ToArray()[0].TotalAmount.Should().BeGreaterThan(4000m);
-        result.Data.ToArray()[0].OrderNumber.Should().Be("PO-2025-SEARCH-001");
+        result!.Items.Should().HaveCount(1);
+        result.Items.ToArray()[0].OrderType.Should().Be(OrderType.Internal);
+        result.Items.ToArray()[0].Status.Should().Be(OrderStatus.Pending);
+        result.Items.ToArray()[0].TotalAmount.Should().BeGreaterThan(4000m);
+        result.Items.ToArray()[0].OrderNumber.Should().Be("PO-2025-SEARCH-001");
     }
 
     [Fact]
@@ -335,11 +335,11 @@ public class SearchFilterTests : IntegrationTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<PaginatedResponse<PurchaseOrderDto>>(responseContent, JsonOptions);
+        var result = JsonSerializer.Deserialize<PaginatedPurchaseOrdersResponse>(responseContent, JsonOptions);
 
         result.Should().NotBeNull();
-        result!.Data.Should().HaveCount(1);
-        result.Data.ToArray()[0].OrderNumber.Should().Be("PO-2025-SEARCH-002");
+        result!.Items.Should().HaveCount(1);
+        result.Items.ToArray()[0].OrderNumber.Should().Be("PO-2025-SEARCH-002");
     }
 
     [Fact]

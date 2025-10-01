@@ -19,7 +19,7 @@ public class CreatePurchaseOrderRequest
     public int CurrencyID { get; set; }
 
     [Required]
-    public OrderType OrderType { get; set; }
+    public OrderType? OrderType { get; set; }
 
     [MaxLength(50)]
     public string? CustomerPO { get; set; }

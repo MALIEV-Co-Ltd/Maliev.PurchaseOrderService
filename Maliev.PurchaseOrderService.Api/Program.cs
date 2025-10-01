@@ -233,13 +233,24 @@ builder.Services.AddControllers()
         options.SuppressMapClientErrors = false;
         options.InvalidModelStateResponseFactory = context =>
         {
-            var problemDetails = new ValidationProblemDetails(context.ModelState)
+            var validationErrors = context.ModelState
+                .Where(kvp => kvp.Value?.Errors.Count > 0)
+                .Select(kvp => new Maliev.PurchaseOrderService.Api.DTOs.ValidationError
+                {
+                    Field = kvp.Key,
+                    Message = string.Join(", ", kvp.Value?.Errors.Select(e => e.ErrorMessage) ?? []),
+                    Code = "VALIDATION_ERROR"
+                }).ToList();
+
+            var response = new Maliev.PurchaseOrderService.Api.DTOs.ValidationErrorResponse
             {
-                Title = "Invalid request",
-                Status = StatusCodes.Status400BadRequest,
-                Instance = context.HttpContext.Request.Path
+                Message = "Invalid request data",
+                Code = "VALIDATION_FAILED",
+                Errors = validationErrors,
+                RequestId = context.HttpContext.TraceIdentifier
             };
-            return new BadRequestObjectResult(problemDetails);
+
+            return new BadRequestObjectResult(response);
         };
     });
 

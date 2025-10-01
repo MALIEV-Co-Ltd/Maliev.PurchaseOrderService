@@ -27,6 +27,7 @@ public class CancelPurchaseOrderRequest
     /// </summary>
     [Required(ErrorMessage = "Reason is required")]
     [MinLength(1, ErrorMessage = "Reason cannot be empty")]
+    [MaxLength(1000, ErrorMessage = "Reason cannot exceed 1000 characters")]
     public string Reason { get; set; } = string.Empty;
 
     /// <summary>

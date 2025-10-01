@@ -16,9 +16,9 @@ public static class MockServiceFactory
     /// <summary>
     /// Creates a configured mock for ISupplierServiceClient
     /// </summary>
-    public static Mock<ISupplierServiceClient> CreateSupplierServiceMock()
+    public static Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ISupplierServiceClient> CreateSupplierServiceMock()
     {
-        var mock = new Mock<ISupplierServiceClient>();
+        var mock = new Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ISupplierServiceClient>();
 
         // Default successful validation
         mock.Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -44,9 +44,9 @@ public static class MockServiceFactory
     /// <summary>
     /// Creates a configured mock for ICurrencyServiceClient
     /// </summary>
-    public static Mock<ICurrencyServiceClient> CreateCurrencyServiceMock()
+    public static Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ICurrencyServiceClient> CreateCurrencyServiceMock()
     {
-        var mock = new Mock<ICurrencyServiceClient>();
+        var mock = new Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ICurrencyServiceClient>();
 
         // Default currency validation
         mock.Setup(x => x.ValidateCurrencyAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -89,9 +89,9 @@ public static class MockServiceFactory
     /// <summary>
     /// Creates a configured mock for IOrderServiceClient
     /// </summary>
-    public static Mock<IOrderServiceClient> CreateOrderServiceMock()
+    public static Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IOrderServiceClient> CreateOrderServiceMock()
     {
-        var mock = new Mock<IOrderServiceClient>();
+        var mock = new Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IOrderServiceClient>();
 
         // Default order items
         mock.Setup(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -167,9 +167,9 @@ public static class MockServiceFactory
     /// <summary>
     /// Creates a configured mock for IUploadServiceClient
     /// </summary>
-    public static Mock<IUploadServiceClient> CreateUploadServiceMock()
+    public static Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IUploadServiceClient> CreateUploadServiceMock()
     {
-        var mock = new Mock<IUploadServiceClient>();
+        var mock = new Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IUploadServiceClient>();
 
         // Successful file upload
         mock.Setup(x => x.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -414,18 +414,38 @@ public static class MockServiceFactory
     {
         var mock = new Mock<IWHTCalculationService>();
 
-        // Default WHT calculation
+        // Default WHT calculation with 3 parameters
         mock.Setup(x => x.CalculateWHTAsync(It.IsAny<SupplierDto>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((SupplierDto supplier, decimal amount, string currency, CancellationToken _) =>
-                TestDataFactory.CreateWHTCalculationResult(amount, 0.03m));
+            {
+                // Determine rate based on supplier characteristics
+                var rate = supplier.IsThaiResident ? 3.0m : 15.0m;
+                return TestDataFactory.CreateWHTCalculationResult(amount, rate);
+            });
 
-        // Get WHT rate
+        // WHT calculation with custom rate (4 parameters)
+        mock.Setup(x => x.CalculateWHTAsync(It.IsAny<SupplierDto>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<decimal?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((SupplierDto supplier, decimal amount, string currency, decimal? customRate, CancellationToken _) =>
+            {
+                // Use custom rate if provided, otherwise calculate based on supplier characteristics
+                var rate = customRate ?? (supplier.IsThaiResident ? 3.0m : 15.0m);
+                return TestDataFactory.CreateWHTCalculationResult(amount, rate);
+            });
+
+        // Get WHT rate - should return rate as percentage (3.0 for 3%)
         mock.Setup(x => x.GetWHTRate(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
-            .Returns(0.03m);
+            .Returns((string supplierType, string serviceCategory, bool isThaiResident) =>
+                isThaiResident ? 3.0m : 15.0m);
 
         // Check WHT applicability
         mock.Setup(x => x.IsWHTApplicable(It.IsAny<SupplierDto>(), It.IsAny<decimal>(), It.IsAny<string>()))
-            .Returns(true);
+            .Returns((SupplierDto supplier, decimal amount, string currency) =>
+                !supplier.IsWHTExempt && amount > 1000m);
+
+        // Add currency conversion method
+        mock.Setup(x => x.ConvertToTHBAsync(It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((decimal amount, string fromCurrency, CancellationToken _) =>
+                fromCurrency == "THB" ? amount : amount * 35.25m); // Mock USD to THB rate
 
         return mock;
     }
@@ -557,9 +577,9 @@ public static class MockServiceFactory
     /// <summary>
     /// Creates a configured mock for IPdfServiceClient
     /// </summary>
-    public static Mock<IPdfServiceClient> CreatePdfServiceClientMock()
+    public static Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IPdfServiceClient> CreatePdfServiceClientMock()
     {
-        var mock = new Mock<IPdfServiceClient>();
+        var mock = new Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IPdfServiceClient>();
 
         // Successful PDF generation from HTML
         mock.Setup(x => x.GeneratePdfFromHtmlAsync(It.IsAny<string>(), It.IsAny<PdfGenerationOptionsDto>(), It.IsAny<CancellationToken>()))
@@ -708,10 +728,10 @@ public static class MockServiceFactory
     /// Configures mocks to simulate service failures
     /// </summary>
     public static void ConfigureFailureScenarios(
-        Mock<ISupplierServiceClient>? supplierMock = null,
-        Mock<ICurrencyServiceClient>? currencyMock = null,
-        Mock<IOrderServiceClient>? orderMock = null,
-        Mock<IUploadServiceClient>? uploadMock = null)
+        Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ISupplierServiceClient>? supplierMock = null,
+        Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ICurrencyServiceClient>? currencyMock = null,
+        Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IOrderServiceClient>? orderMock = null,
+        Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IUploadServiceClient>? uploadMock = null)
     {
         // Supplier service failures
         supplierMock?.Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -738,19 +758,19 @@ public static class MockServiceFactory
         foreach (var mock in mocks)
         {
             // Configure all methods to throw unauthorized exceptions
-            if (mock is Mock<ISupplierServiceClient> supplierMock)
+            if (mock is Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ISupplierServiceClient> supplierMock)
             {
                 supplierMock.Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                     .ThrowsAsync(new UnauthorizedAccessException("Invalid authentication token"));
             }
 
-            if (mock is Mock<ICurrencyServiceClient> currencyMock)
+            if (mock is Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ICurrencyServiceClient> currencyMock)
             {
                 currencyMock.Setup(x => x.ValidateCurrencyAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                     .ThrowsAsync(new UnauthorizedAccessException("Invalid authentication token"));
             }
 
-            if (mock is Mock<IOrderServiceClient> orderMock)
+            if (mock is Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IOrderServiceClient> orderMock)
             {
                 orderMock.Setup(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                     .ThrowsAsync(new UnauthorizedAccessException("Invalid authentication token"));
@@ -759,7 +779,7 @@ public static class MockServiceFactory
                     .ThrowsAsync(new UnauthorizedAccessException("Invalid authentication token"));
             }
 
-            if (mock is Mock<IPdfServiceClient> pdfMock)
+            if (mock is Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IPdfServiceClient> pdfMock)
             {
                 pdfMock.Setup(x => x.GetPdfInfoAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
                     .ThrowsAsync(new UnauthorizedAccessException("Failed to authenticate with PDF service"));

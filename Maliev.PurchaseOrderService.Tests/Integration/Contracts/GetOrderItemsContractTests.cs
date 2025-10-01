@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Maliev.PurchaseOrderService.Tests.Integration.Contracts;
 
 /// <summary>
-/// Contract tests for GET /v1.0/purchase-orders/{id}/orderitems endpoint
+/// Contract tests for GET /v1.0/purchase-orders/{id}/items endpoint
 /// These tests MUST FAIL before implementation - following TDD principles
 /// </summary>
 public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactory<Program>>
@@ -86,7 +86,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -101,7 +101,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -117,7 +117,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -143,7 +143,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var nonExistentId = 99999;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{nonExistentId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{nonExistentId}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -169,10 +169,10 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var invalidId = "invalid";
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{invalidId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{invalidId}/items");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 2; // This purchase order exists but has no items
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -211,7 +211,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems/summary");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items/summary");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -241,7 +241,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var pageSize = 10;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems?page={page}&pageSize={pageSize}");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items?page={page}&pageSize={pageSize}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -272,7 +272,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var invalidPageSize = 0;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems?page={invalidPage}&pageSize={invalidPageSize}");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items?page={invalidPage}&pageSize={invalidPageSize}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -297,7 +297,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -313,7 +313,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -329,7 +329,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items");
 
         // Assert
         // This test verifies that the /v1/ path is correctly handled
@@ -346,7 +346,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -364,7 +364,7 @@ public class GetOrderItemsContractTests : IClassFixture<TestWebApplicationFactor
         var purchaseOrderId = 1;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/orderitems");
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/items");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

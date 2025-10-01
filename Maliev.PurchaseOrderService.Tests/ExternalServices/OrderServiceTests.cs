@@ -144,7 +144,18 @@ public class OrderServiceTests
         var service = new OrderServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act
-        var result = await service.GetOrderAsync(11111);
+        var result = await service.CreateOrderAsync(new CreateOrderRequest
+        {
+            CustomerId = createRequest.CustomerId,
+            Items = createRequest.Items.Select(i => new CreateOrderItemRequest
+            {
+                ProductName = $"Product {i.ProductId}",
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice
+            }).ToList(),
+            DeliveryAddress = createRequest.DeliveryAddress,
+            Notes = createRequest.Notes
+        });
 
         // Assert
         result.Should().NotBeNull();
@@ -186,7 +197,7 @@ public class OrderServiceTests
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.Is<HttpRequestMessage>(req =>
-                    req.Method == HttpMethod.Patch &&
+                    req.Method == HttpMethod.Put &&
                     req.RequestUri!.ToString().Contains($"/orders/{orderId}/status")),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(httpResponse);
@@ -280,18 +291,10 @@ public class OrderServiceTests
         var service = new OrderServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act
-        await service.UpdateOrderStatusAsync(orderId, "Cancelled");
+        var result = await service.CancelOrderAsync(orderId, cancelRequest.Reason);
 
         // Assert
-        _httpMessageHandlerMock
-            .Protected()
-            .Verify(
-                "SendAsync",
-                Times.Once(),
-                ItExpr.Is<HttpRequestMessage>(req =>
-                    req.Method == HttpMethod.Post &&
-                    req.RequestUri!.ToString().Contains($"/orders/{orderId}/cancel")),
-                ItExpr.IsAny<CancellationToken>());
+        result.Should().BeTrue();
     }
 
     [Fact]

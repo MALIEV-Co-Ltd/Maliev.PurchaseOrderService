@@ -77,11 +77,13 @@ public interface IPurchaseOrderService
     /// </summary>
     /// <param name="id">Purchase order ID</param>
     /// <param name="deletedBy">User performing the delete</param>
+    /// <param name="rowVersion">Optional row version for concurrency control</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if deleted successfully</returns>
     Task<bool> DeletePurchaseOrderAsync(
         int id,
         string deletedBy,
+        string? rowVersion = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -42,6 +42,11 @@ public class AddressesController : ControllerBase
     /// </summary>
     /// <param name="purchaseOrderId">Optional purchase order ID for nested route</param>
     /// <param name="type">Address type filter</param>
+    /// <param name="country">Country filter</param>
+    /// <param name="city">City filter</param>
+    /// <param name="search">Search query for address fields</param>
+    /// <param name="sortBy">Sort field</param>
+    /// <param name="sortOrder">Sort order (asc/desc)</param>
     /// <param name="page">Page number (1-based)</param>
     /// <param name="pageSize">Items per page</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -55,6 +60,11 @@ public class AddressesController : ControllerBase
     public async Task<ActionResult> GetAddresses(
         [FromRoute] int? purchaseOrderId = null,
         [FromQuery] AddressType? type = null,
+        [FromQuery] string? country = null,
+        [FromQuery] string? city = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null,
         [FromQuery] int? page = null,
         [FromQuery] int? pageSize = null,
         CancellationToken cancellationToken = default)
@@ -105,6 +115,30 @@ public class AddressesController : ControllerBase
                 }
             }
 
+            // Validate sortBy parameter
+            if (!string.IsNullOrWhiteSpace(sortBy))
+            {
+                var validSortFields = new[] { "contactname", "companyname", "city", "country", "addresstype", "createdat" };
+                if (!validSortFields.Contains(sortBy.ToLower()))
+                {
+                    return BadRequest(new ValidationErrorResponse
+                    {
+                        Message = "Invalid sort field",
+                        Code = "INVALID_SORT_FIELD",
+                        Errors = new List<ValidationError>
+                        {
+                            new ValidationError
+                            {
+                                Field = "sortBy",
+                                Message = $"Sort field must be one of: {string.Join(", ", validSortFields)}",
+                                Code = "INVALID_SORT_FIELD",
+                                Value = sortBy
+                            }
+                        }
+                    });
+                }
+            }
+
             // If purchase order ID is specified (nested route), verify it exists
             if (purchaseOrderId.HasValue)
             {
@@ -142,10 +176,57 @@ public class AddressesController : ControllerBase
                 baseQuery = baseQuery.Where(a => a.AddressType == type.Value);
             }
 
+            // Apply country filter if specified
+            if (!string.IsNullOrWhiteSpace(country))
+            {
+                baseQuery = baseQuery.Where(a => a.Country.Contains(country));
+            }
+
+            // Apply city filter if specified
+            if (!string.IsNullOrWhiteSpace(city))
+            {
+                baseQuery = baseQuery.Where(a => a.City.Contains(city));
+            }
+
+            // Apply search filter if specified
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                baseQuery = baseQuery.Where(a =>
+                    a.ContactName.Contains(search) ||
+                    a.CompanyName != null && a.CompanyName.Contains(search) ||
+                    a.AddressLine1.Contains(search) ||
+                    a.AddressLine2 != null && a.AddressLine2.Contains(search) ||
+                    a.City.Contains(search) ||
+                    a.StateProvince != null && a.StateProvince.Contains(search) ||
+                    a.PostalCode.Contains(search) ||
+                    a.Country.Contains(search));
+            }
+
             // TODO: Apply user access filtering based on user role and ownership
             // For now, returning all addresses (this should be filtered by user permissions)
 
-            var query = baseQuery.OrderBy(a => a.CreatedAt);
+            // Apply sorting
+            var query = baseQuery.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(sortBy))
+            {
+                var isDescending = sortOrder?.ToLower() == "desc";
+
+                query = sortBy.ToLower() switch
+                {
+                    "contactname" => isDescending ? query.OrderByDescending(a => a.ContactName) : query.OrderBy(a => a.ContactName),
+                    "companyname" => isDescending ? query.OrderByDescending(a => a.CompanyName) : query.OrderBy(a => a.CompanyName),
+                    "city" => isDescending ? query.OrderByDescending(a => a.City) : query.OrderBy(a => a.City),
+                    "country" => isDescending ? query.OrderByDescending(a => a.Country) : query.OrderBy(a => a.Country),
+                    "addresstype" => isDescending ? query.OrderByDescending(a => a.AddressType) : query.OrderBy(a => a.AddressType),
+                    "createdat" => isDescending ? query.OrderByDescending(a => a.CreatedAt) : query.OrderBy(a => a.CreatedAt),
+                    _ => query.OrderBy(a => a.CreatedAt) // Default sort
+                };
+            }
+            else
+            {
+                query = query.OrderBy(a => a.CreatedAt);
+            }
 
             // If pagination is requested
             if (page.HasValue && pageSize.HasValue)

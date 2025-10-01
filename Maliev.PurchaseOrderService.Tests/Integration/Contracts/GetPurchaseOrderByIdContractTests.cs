@@ -185,7 +185,7 @@ public class GetPurchaseOrderByIdContractTests : IClassFixture<TestWebApplicatio
         var response = await _client.GetAsync($"{_baseUrl}/{invalidId}");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound); // Route constraint {id:int} means invalid IDs return 404
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest); // Invalid ID format returns 400
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
     }
 

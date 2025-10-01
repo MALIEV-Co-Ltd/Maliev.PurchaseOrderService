@@ -248,18 +248,23 @@ public class PurchaseOrderFilesController : ControllerBase
     /// </summary>
     /// <param name="purchaseOrderId">Purchase order ID</param>
     /// <param name="file">File to upload</param>
+    /// <param name="category">Document category</param>
+    /// <param name="description">Document description</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Upload result with file information</returns>
     [HttpPost]
     [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
     [ProducesResponseType(typeof(DocumentUploadResult), (int)HttpStatusCode.Created)]
-    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [ProducesResponseType(typeof(ValidationErrorResponse), (int)HttpStatusCode.BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    [ProducesResponseType((int)HttpStatusCode.RequestEntityTooLarge)]
     [RequestSizeLimit(52428800)] // 50MB limit
     [RequestFormLimits(MultipartBodyLengthLimit = 52428800)]
     public async Task<ActionResult<DocumentUploadResult>> UploadFile(
         int purchaseOrderId,
         IFormFile? file,
+        [FromForm] string? category = null,
+        [FromForm] string? description = null,
         CancellationToken cancellationToken = default)
     {
         try

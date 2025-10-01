@@ -230,7 +230,9 @@ public class PurchaseOrderMappingProfile : Profile
         CreateMap<PurchaseOrder, PurchaseOrderResponse>()
             .ForMember(dest => dest.RowVersion, opt => opt.MapFrom(src => src.RowVersion != null ? Convert.ToBase64String(src.RowVersion) : string.Empty))
             .ForMember(dest => dest.SubtotalAmount, opt => opt.MapFrom(src => src.SubtotalAmount))
-            .ForMember(dest => dest.TotalAmount, opt => opt.MapFrom(src => src.TotalAmount));
+            .ForMember(dest => dest.TotalAmount, opt => opt.MapFrom(src => src.TotalAmount))
+            .ForMember(dest => dest.WhtRate, opt => opt.MapFrom(src => src.WHTRate))
+            .ForMember(dest => dest.WhtAmount, opt => opt.MapFrom(src => src.WHTAmount));
 
         // PurchaseOrderDto to Response mapping
         CreateMap<PurchaseOrderDto, PurchaseOrderResponse>()

@@ -22,11 +22,11 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 {
     protected readonly TestWebApplicationFactory<Program> Factory;
     protected readonly HttpClient Client;
-    protected readonly Mock<ISupplierServiceClient> MockSupplierService;
-    protected readonly Mock<IOrderServiceClient> MockOrderService;
-    protected readonly Mock<ICurrencyServiceClient> MockCurrencyService;
+    protected readonly Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ISupplierServiceClient> MockSupplierService;
+    protected readonly Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IOrderServiceClient> MockOrderService;
+    protected readonly Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ICurrencyServiceClient> MockCurrencyService;
     // MockDomainEventService removed - using real service for database persistence
-    protected readonly Mock<IUploadServiceClient> MockUploadService;
+    protected readonly Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IUploadServiceClient> MockUploadService;
     protected readonly Mock<IPdfGenerationService> MockPdfService;
     protected readonly Mock<IWHTCalculationService> MockWHTService;
     protected readonly Mock<IDocumentManagementService> MockDocumentService;
@@ -34,11 +34,11 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
     protected IntegrationTestBase(TestWebApplicationFactory<Program> factory)
     {
-        MockSupplierService = new Mock<ISupplierServiceClient>();
-        MockOrderService = new Mock<IOrderServiceClient>();
-        MockCurrencyService = new Mock<ICurrencyServiceClient>();
+        MockSupplierService = new Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ISupplierServiceClient>();
+        MockOrderService = new Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IOrderServiceClient>();
+        MockCurrencyService = new Mock<Maliev.PurchaseOrderService.Api.ExternalServices.ICurrencyServiceClient>();
         // MockDomainEventService initialization removed - using real service
-        MockUploadService = new Mock<IUploadServiceClient>();
+        MockUploadService = new Mock<Maliev.PurchaseOrderService.Api.ExternalServices.IUploadServiceClient>();
         MockPdfService = new Mock<IPdfGenerationService>();
         MockWHTService = new Mock<IWHTCalculationService>();
         MockDocumentService = new Mock<IDocumentManagementService>();
@@ -151,19 +151,31 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     /// </summary>
     protected virtual void SetupCommonMocks()
     {
-        // Default supplier validation with consistent test data
+        // Default supplier lookup with consistent test data (this is what the service actually calls)
         var defaultSupplier = TestDataFactory.CreateSupplierDto();
-        MockSupplierService
-            .Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(defaultSupplier);
-
-        // Default supplier lookup with same consistent data
         MockSupplierService
             .Setup(x => x.GetSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(defaultSupplier);
 
-        // Default currency validation with consistent test data
+        // Also setup ValidateSupplierAsync for tests that expect it
+        MockSupplierService
+            .Setup(x => x.ValidateSupplierAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(defaultSupplier);
+
+        // Default currency lookup with consistent test data (this is what the service actually calls)
         var defaultCurrency = TestDataFactory.CreateCurrencyDto("THB", "Thai Baht");
+        var supportedCurrencies = new List<CurrencyDto>
+        {
+            defaultCurrency,
+            TestDataFactory.CreateCurrencyDto("USD", "US Dollar"),
+            TestDataFactory.CreateCurrencyDto("EUR", "Euro")
+        };
+
+        MockCurrencyService
+            .Setup(x => x.GetSupportedCurrenciesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(supportedCurrencies);
+
+        // Also setup ValidateCurrencyAsync for tests that expect it
         MockCurrencyService
             .Setup(x => x.ValidateCurrencyAsync("THB", It.IsAny<CancellationToken>()))
             .ReturnsAsync(defaultCurrency);
@@ -200,18 +212,62 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         // Default WHT calculation matching expected test scenario totals (600 subtotal)
         MockWHTService
             .Setup(x => x.CalculateWHTAsync(It.IsAny<SupplierDto>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((SupplierDto supplier, decimal amount, string currency, CancellationToken _) => new WHTCalculationResult
+            .ReturnsAsync((SupplierDto supplier, decimal amount, string currency, CancellationToken _) =>
             {
-                WHTAmount = Math.Round(amount * 0.03m, 2), // 3% of subtotal
-                NetAmount = Math.Round(amount * 0.97m, 2), // Amount minus WHT
-                WHTRate = 3.0m, // 3% stored as percentage
-                IsApplicable = true,
-                SubtotalAmount = amount,
-                TaxBase = amount,
-                CurrencyCode = currency,
-                WHTAmountTHB = Math.Round(amount * 0.03m, 2),
-                Reason = "Standard 3% WHT for Thailand suppliers"
+                var rate = supplier.IsThaiResident ? 3.0m : 15.0m;
+                var whtRateDecimal = rate / 100m;
+                return new WHTCalculationResult
+                {
+                    WHTAmount = Math.Round(amount * whtRateDecimal, 2),
+                    NetAmount = Math.Round(amount * (1 - whtRateDecimal), 2),
+                    WHTRate = rate, // Rate stored as percentage
+                    IsApplicable = true,
+                    SubtotalAmount = amount,
+                    TaxBase = amount,
+                    CurrencyCode = currency,
+                    WHTAmountTHB = Math.Round(amount * whtRateDecimal, 2),
+                    Reason = $"Standard {rate}% WHT for {(supplier.IsThaiResident ? "Thailand" : "foreign")} suppliers",
+                    TaxRegulation = supplier.IsThaiResident ? "Thailand Revenue Code Section 3" : "Thailand Revenue Code Section 70"
+                };
             });
+
+        // WHT calculation with custom rate (4 parameters) - this is what PurchaseOrderService calls
+        MockWHTService
+            .Setup(x => x.CalculateWHTAsync(It.IsAny<SupplierDto>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<decimal?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((SupplierDto supplier, decimal amount, string currency, decimal? customRate, CancellationToken _) =>
+            {
+                var rate = customRate ?? (supplier.IsThaiResident ? 3.0m : 15.0m);
+                var whtRateDecimal = rate / 100m;
+                return new WHTCalculationResult
+                {
+                    WHTAmount = Math.Round(amount * whtRateDecimal, 2),
+                    NetAmount = Math.Round(amount * (1 - whtRateDecimal), 2),
+                    WHTRate = rate, // Rate stored as percentage
+                    IsApplicable = true,
+                    SubtotalAmount = amount,
+                    TaxBase = amount,
+                    CurrencyCode = currency,
+                    WHTAmountTHB = Math.Round(amount * whtRateDecimal, 2),
+                    Reason = customRate.HasValue ? $"Custom {rate}% WHT rate applied" : $"Standard {rate}% WHT for {(supplier.IsThaiResident ? "Thailand" : "foreign")} suppliers",
+                    TaxRegulation = supplier.IsThaiResident ? "Thailand Revenue Code Section 3" : "Thailand Revenue Code Section 70"
+                };
+            });
+
+        // Add other WHT service methods
+        MockWHTService
+            .Setup(x => x.GetWHTRate(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
+            .Returns((string supplierType, string serviceCategory, bool isThaiResident) =>
+                isThaiResident ? 3.0m : 15.0m);
+
+        MockWHTService
+            .Setup(x => x.IsWHTApplicable(It.IsAny<SupplierDto>(), It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns((SupplierDto supplier, decimal amount, string currency) =>
+                !supplier.IsWHTExempt && amount > 1000m);
+
+        MockWHTService
+            .Setup(x => x.ConvertToTHBAsync(It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((decimal amount, string fromCurrency, CancellationToken _) =>
+                fromCurrency == "THB" ? amount : amount * 35.25m);
 
         // Default document management service mocks
         SetupDocumentManagementMocks();

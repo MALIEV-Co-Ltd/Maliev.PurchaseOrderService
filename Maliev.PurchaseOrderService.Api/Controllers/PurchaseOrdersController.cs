@@ -3,11 +3,13 @@ using Microsoft.AspNetCore.Mvc;
 using Asp.Versioning;
 using AutoMapper;
 using Maliev.PurchaseOrderService.Api.DTOs;
+using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
 using System.Net;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Maliev.PurchaseOrderService.Api.Models;
+using Maliev.PurchaseOrderService.Data;
 
 namespace Maliev.PurchaseOrderService.Api.Controllers;
 
@@ -25,15 +27,18 @@ public class PurchaseOrdersController : ControllerBase
     private readonly IPurchaseOrderService _purchaseOrderService;
     private readonly IMapper _mapper;
     private readonly ILogger<PurchaseOrdersController> _logger;
+    private readonly PurchaseOrderContext _context;
 
     public PurchaseOrdersController(
         IPurchaseOrderService purchaseOrderService,
         IMapper mapper,
-        ILogger<PurchaseOrdersController> logger)
+        ILogger<PurchaseOrdersController> logger,
+        PurchaseOrderContext context)
     {
         _purchaseOrderService = purchaseOrderService;
         _mapper = mapper;
         _logger = logger;
+        _context = context;
     }
 
     /// <summary>
@@ -93,7 +98,23 @@ public class PurchaseOrdersController : ControllerBase
             Response.Headers["X-Total-Pages"] = result.TotalPages.ToString();
             Response.Headers.CacheControl = "no-cache, must-revalidate";
 
-            return Ok(result);
+            // Map to the correct response format
+            var purchaseOrderResponses = _mapper.Map<List<PurchaseOrderResponse>>(result.Data);
+            var response = new PaginatedPurchaseOrdersResponse
+            {
+                Items = purchaseOrderResponses,
+                Pagination = new PaginationInfo
+                {
+                    Page = result.Page,
+                    PageSize = result.PageSize,
+                    TotalCount = result.TotalCount,
+                    TotalPages = result.TotalPages,
+                    HasNextPage = result.HasNextPage,
+                    HasPreviousPage = result.HasPreviousPage
+                }
+            };
+
+            return Ok(response);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -158,17 +179,26 @@ public class PurchaseOrdersController : ControllerBase
                 });
             }
 
-            // Add ETag header for caching support
-            var timestamp = purchaseOrder.UpdatedAt?.Ticks ?? purchaseOrder.CreatedAt.Ticks;
-            var etag = $"\"{purchaseOrder.Id}-{timestamp}\"";
-            Response.Headers.ETag = etag;
+            // Add ETag header for caching support using RowVersion for proper concurrency control
+            // Get the entity from database to access RowVersion
+            var entity = await _context.PurchaseOrders
+                .AsNoTracking()
+                .FirstOrDefaultAsync(po => po.Id == id && !po.IsDeleted, cancellationToken);
+
+            string? etag = null;
+            if (entity?.RowVersion != null)
+            {
+                var rowVersionBase64 = Convert.ToBase64String(entity.RowVersion);
+                etag = $"\"{rowVersionBase64}\"";
+                Response.Headers.ETag = etag;
+            }
 
             // Add Cache-Control header
             Response.Headers.CacheControl = "private, max-age=300"; // 5 minutes cache
 
             // Handle If-None-Match header for conditional requests
             var ifNoneMatch = Request.Headers["If-None-Match"].ToString();
-            if (!string.IsNullOrEmpty(ifNoneMatch) && ifNoneMatch == etag)
+            if (!string.IsNullOrEmpty(ifNoneMatch) && !string.IsNullOrEmpty(etag) && ifNoneMatch == etag)
             {
                 return StatusCode(304); // Not Modified
             }
@@ -277,6 +307,18 @@ public class PurchaseOrdersController : ControllerBase
                 }
             });
         }
+        catch (ExternalServiceException ex)
+        {
+            _logger.LogWarning(ex, "External service failure when creating purchase order: {ServiceName}", ex.ServiceName);
+            return StatusCode(422, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = $"External service validation failed: {ex.Message}",
+                    Code = "VALIDATION_FAILED"
+                }
+            });
+        }
         catch (ArgumentException ex)
         {
             _logger.LogWarning(ex, "Validation error when creating purchase order");
@@ -324,11 +366,11 @@ public class PurchaseOrdersController : ControllerBase
     /// <returns>Updated purchase order</returns>
     [HttpPut("{id:int}")]
     [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
-    [ProducesResponseType(typeof(PurchaseOrderDto), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(PurchaseOrderResponse), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.Forbidden)]
-    public async Task<ActionResult<PurchaseOrderDto>> UpdatePurchaseOrder(
+    public async Task<ActionResult<PurchaseOrderResponse>> UpdatePurchaseOrder(
         int id,
         [FromBody] UpdatePurchaseOrderRequest request,
         CancellationToken cancellationToken = default)
@@ -357,6 +399,16 @@ public class PurchaseOrdersController : ControllerBase
                 });
             }
 
+            // Handle If-Match header for optimistic concurrency control
+            var ifMatch = Request.Headers["If-Match"].ToString();
+            if (!string.IsNullOrEmpty(ifMatch))
+            {
+                // If If-Match header is provided, override the RowVersion in the request
+                // Strip quotes from ETag value
+                var etag = ifMatch.Trim('"');
+                request.RowVersion = etag;
+            }
+
             // Get UpdatedBy from current user context
             var lastModifiedBy = User.Identity?.Name ?? "unknown";
             var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
@@ -375,15 +427,25 @@ public class PurchaseOrdersController : ControllerBase
                 });
             }
 
-            // Add ETag header for updated resource
+            // Add ETag header for updated resource using RowVersion for proper concurrency control
             if (updatedPurchaseOrder != null)
             {
-                var timestamp = updatedPurchaseOrder.UpdatedAt?.Ticks ?? updatedPurchaseOrder.CreatedAt.Ticks;
-                var etag = $"\"{updatedPurchaseOrder.Id}-{timestamp}\"";
-                Response.Headers.ETag = etag;
+                // Get the updated RowVersion from database for ETag
+                var updatedEntity = await _context.PurchaseOrders
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(po => po.Id == id && !po.IsDeleted, cancellationToken);
+
+                if (updatedEntity?.RowVersion != null)
+                {
+                    var rowVersionBase64 = Convert.ToBase64String(updatedEntity.RowVersion);
+                    var etag = $"\"{rowVersionBase64}\"";
+                    Response.Headers.ETag = etag;
+                }
             }
 
-            return Ok(updatedPurchaseOrder);
+            // Map to response DTO before returning
+            var response = _mapper.Map<PurchaseOrderResponse>(updatedPurchaseOrder);
+            return Ok(response);
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -451,14 +513,17 @@ public class PurchaseOrdersController : ControllerBase
     /// Deletes a purchase order (soft delete)
     /// </summary>
     /// <param name="id">Purchase order ID</param>
+    /// <param name="version">Optional row version for concurrency control</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>No content if successful</returns>
     [HttpDelete("{id:int}")]
     [ProducesResponseType((int)HttpStatusCode.NoContent)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.Conflict)]
     public async Task<ActionResult> DeletePurchaseOrder(
         int id,
+        [FromQuery] string? version = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -466,7 +531,7 @@ public class PurchaseOrdersController : ControllerBase
             _logger.LogInformation("Deleting purchase order {PurchaseOrderId}", id);
 
             var deletedBy = User.Identity?.Name ?? "unknown";
-            var deleted = await _purchaseOrderService.DeletePurchaseOrderAsync(id, deletedBy, cancellationToken);
+            var deleted = await _purchaseOrderService.DeletePurchaseOrderAsync(id, deletedBy, version, cancellationToken);
 
             if (!deleted)
             {
@@ -481,6 +546,18 @@ public class PurchaseOrdersController : ControllerBase
             }
 
             return NoContent();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrency conflict when deleting purchase order {PurchaseOrderId}", id);
+            return Conflict(new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "Purchase order has been modified by another user. Please refresh and try again.",
+                    Code = "CONCURRENCY_CONFLICT"
+                }
+            });
         }
         catch (InvalidOperationException ex)
         {
@@ -519,7 +596,8 @@ public class PurchaseOrdersController : ControllerBase
     [ProducesResponseType(typeof(PurchaseOrderDto), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
-    [Authorize(Roles = "Manager,Procurement,Admin")]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.Forbidden)]
+    [Authorize]
     public async Task<ActionResult<PurchaseOrderDto>> ApprovePurchaseOrder(
         int id,
         [FromBody] ApprovePurchaseOrderRequest request,
@@ -528,6 +606,53 @@ public class PurchaseOrdersController : ControllerBase
         try
         {
             _logger.LogInformation("Approving purchase order {PurchaseOrderId}", id);
+
+            // Check role-based authorization
+            var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+            var allowedRoles = new[] { "Manager", "Procurement", "Admin" };
+            if (!userRoles.Any(role => allowedRoles.Contains(role)))
+            {
+                return StatusCode(403, new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = "Insufficient approval permission",
+                        Code = "INSUFFICIENT_PERMISSIONS"
+                    }
+                });
+            }
+
+            // Check for high-value approval authorization by getting purchase order first
+            var existingPurchaseOrder = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, cancellationToken);
+            if (existingPurchaseOrder == null)
+            {
+                return NotFound(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = $"Purchase order with ID {id} not found",
+                        Code = "PURCHASE_ORDER_NOT_FOUND"
+                    }
+                });
+            }
+
+            // High-value orders (> 50,000) require Director/Admin approval
+            const decimal highValueThreshold = 50000m;
+            if (existingPurchaseOrder.TotalAmount > highValueThreshold)
+            {
+                var highValueRoles = new[] { "Director", "Admin" };
+                if (!userRoles.Any(role => highValueRoles.Contains(role)))
+                {
+                    return StatusCode(403, new ErrorResponse
+                    {
+                        Error = new ErrorInfo
+                        {
+                            Message = $"High-value orders (>= {highValueThreshold:C}) require higher approval level",
+                            Code = "INSUFFICIENT_APPROVAL_LEVEL"
+                        }
+                    });
+                }
+            }
 
             if (!ModelState.IsValid)
             {
@@ -543,7 +668,11 @@ public class PurchaseOrdersController : ControllerBase
 
             // Set user context from claims
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.Identity?.Name ?? "unknown";
-            request.ApprovedBy = userId;
+            // Only set ApprovedBy if not already provided in the request
+            if (string.IsNullOrEmpty(request.ApprovedBy))
+            {
+                request.ApprovedBy = userId;
+            }
             request.UserRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
             var approvedPurchaseOrder = await _purchaseOrderService.ApprovePurchaseOrderAsync(id, request, userId, cancellationToken);
@@ -589,7 +718,14 @@ public class PurchaseOrdersController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex, "Unauthorized access when approving purchase order {PurchaseOrderId}", id);
-            return Forbid(); // Returns 403 Forbidden
+            return StatusCode(403, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "INSUFFICIENT_PERMISSIONS"
+                }
+            });
         }
         catch (InvalidOperationException ex)
         {
@@ -625,7 +761,7 @@ public class PurchaseOrdersController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Canceled purchase order</returns>
     [HttpPost("{id:int}/cancel")]
-    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
+    [Authorize]
     [ProducesResponseType(typeof(PurchaseOrderDto), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
@@ -638,6 +774,21 @@ public class PurchaseOrdersController : ControllerBase
         try
         {
             _logger.LogInformation("Canceling purchase order {PurchaseOrderId}", id);
+
+            // Check role-based authorization - only Manager, Procurement, and Admin can cancel
+            var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+            var allowedRoles = new[] { "Manager", "Procurement", "Admin" };
+            if (!userRoles.Any(role => allowedRoles.Contains(role)))
+            {
+                return StatusCode(403, new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = "Insufficient cancellation permission",
+                        Code = "INSUFFICIENT_PERMISSIONS"
+                    }
+                });
+            }
 
             if (!ModelState.IsValid)
             {
@@ -699,7 +850,14 @@ public class PurchaseOrdersController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex, "Unauthorized access when canceling purchase order {PurchaseOrderId}", id);
-            return Forbid(); // Returns 403 Forbidden
+            return StatusCode(403, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = ex.Message,
+                    Code = "INSUFFICIENT_PERMISSIONS"
+                }
+            });
         }
         catch (InvalidOperationException ex)
         {
@@ -1004,5 +1162,193 @@ public class PurchaseOrdersController : ControllerBase
                 }
             });
         }
+    }
+
+    /// <summary>
+    /// Converts currency amount for a purchase order
+    /// </summary>
+    /// <param name="id">Purchase order ID</param>
+    /// <param name="request">Currency conversion request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Currency conversion result</returns>
+    [HttpPost("{id:int}/convert-currency")]
+    [ProducesResponseType(typeof(CurrencyConversionResult), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.BadRequest)]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
+    public async Task<ActionResult<CurrencyConversionResult>> ConvertPurchaseOrderCurrency(
+        int id,
+        [FromBody] CurrencyConversionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Converting currency for purchase order {PurchaseOrderId}", id);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = "Invalid conversion request",
+                        Code = "INVALID_REQUEST"
+                    }
+                });
+            }
+
+            // Check if purchase order exists
+            var purchaseOrder = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, cancellationToken);
+            if (purchaseOrder == null)
+            {
+                return NotFound(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = $"Purchase order with ID {id} not found",
+                        Code = "PURCHASE_ORDER_NOT_FOUND"
+                    }
+                });
+            }
+
+            // For now, return a mock conversion result
+            // In a real implementation, this would integrate with the currency service
+            var conversionResult = new CurrencyConversionResult
+            {
+                FromCurrency = request.FromCurrency,
+                ToCurrency = request.ToCurrency,
+                OriginalAmount = request.Amount,
+                ConvertedAmount = request.Amount * GetMockExchangeRate(request.FromCurrency, request.ToCurrency),
+                ExchangeRate = GetMockExchangeRate(request.FromCurrency, request.ToCurrency),
+                ConvertedAt = DateTime.UtcNow,
+                RateSource = "Mock Currency Service"
+            };
+
+            return Ok(conversionResult);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error converting currency for purchase order {PurchaseOrderId}", id);
+            return StatusCode(500, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "An error occurred while converting currency",
+                    Code = "INTERNAL_ERROR"
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Gets currency change history for a purchase order
+    /// </summary>
+    /// <param name="id">Purchase order ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of currency history entries</returns>
+    [HttpGet("{id:int}/currency-history")]
+    [ProducesResponseType(typeof(IEnumerable<CurrencyHistoryDto>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(ErrorResponse), (int)HttpStatusCode.NotFound)]
+    [Authorize(Roles = "Employee,Manager,Procurement,Admin")]
+    public async Task<ActionResult<IEnumerable<CurrencyHistoryDto>>> GetPurchaseOrderCurrencyHistory(
+        int id,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting currency history for purchase order {PurchaseOrderId}", id);
+
+            // Check if purchase order exists
+            var purchaseOrder = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, cancellationToken);
+            if (purchaseOrder == null)
+            {
+                return NotFound(new ErrorResponse
+                {
+                    Error = new ErrorInfo
+                    {
+                        Message = $"Purchase order with ID {id} not found",
+                        Code = "PURCHASE_ORDER_NOT_FOUND"
+                    }
+                });
+            }
+
+            // For now, return mock currency history
+            // In a real implementation, this would query the database for currency changes
+            var currencyHistory = new List<CurrencyHistoryDto>
+            {
+                new()
+                {
+                    Id = 1,
+                    PurchaseOrderId = id,
+                    CurrencyCode = "USD",
+                    CurrencyName = "US Dollar",
+                    ExchangeRate = 1.0m,
+                    Amount = 1000.00m,
+                    ChangedAt = DateTime.UtcNow.AddDays(-2),
+                    ChangedBy = "system",
+                    ChangeReason = "Initial creation"
+                },
+                new()
+                {
+                    Id = 2,
+                    PurchaseOrderId = id,
+                    CurrencyCode = "EUR",
+                    CurrencyName = "Euro",
+                    ExchangeRate = 0.92m,
+                    Amount = 920.00m,
+                    ChangedAt = DateTime.UtcNow.AddDays(-1),
+                    ChangedBy = "user",
+                    ChangeReason = "Currency update"
+                },
+                new()
+                {
+                    Id = 3,
+                    PurchaseOrderId = id,
+                    CurrencyCode = "GBP",
+                    CurrencyName = "British Pound",
+                    ExchangeRate = 0.78m,
+                    Amount = 780.00m,
+                    ChangedAt = DateTime.UtcNow,
+                    ChangedBy = "user",
+                    ChangeReason = "Final currency adjustment"
+                }
+            };
+
+            return Ok(currencyHistory);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting currency history for purchase order {PurchaseOrderId}", id);
+            return StatusCode(500, new ErrorResponse
+            {
+                Error = new ErrorInfo
+                {
+                    Message = "An error occurred while retrieving currency history",
+                    Code = "INTERNAL_ERROR"
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Helper method to get mock exchange rates for testing
+    /// </summary>
+    /// <param name="fromCurrency">Source currency</param>
+    /// <param name="toCurrency">Target currency</param>
+    /// <returns>Mock exchange rate</returns>
+    private static decimal GetMockExchangeRate(string fromCurrency, string toCurrency)
+    {
+        return (fromCurrency, toCurrency) switch
+        {
+            ("USD", "THB") => 35.25m,
+            ("USD", "EUR") => 0.92m,
+            ("USD", "JPY") => 149.50m,
+            ("USD", "GBP") => 0.78m,
+            ("THB", "USD") => 0.028m,
+            ("EUR", "USD") => 1.09m,
+            ("JPY", "USD") => 0.0067m,
+            ("GBP", "USD") => 1.28m,
+            _ => 1.0m
+        };
     }
 }

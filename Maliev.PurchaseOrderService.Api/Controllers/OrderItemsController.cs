@@ -15,7 +15,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// Order Items API Controller for read-only operations and cache refresh
 /// </summary>
 [ApiController]
-[Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/orderitems")]
+[Route("v{version:apiVersion}/purchase-orders/{purchaseOrderId:int}/items")]
 [ApiVersion("1.0")]
 [ApiVersion("1")]
 [Authorize]
@@ -338,21 +338,18 @@ public class OrderItemsController : ControllerBase
                 result.ItemsRemoved = existingItems.Count;
                 result.OrderItems = _mapper.Map<List<OrderItemDto>>(newOrderItems);
 
-                // Recalculate purchase order totals if items changed
-                if (result.NewItemCount != result.PreviousItemCount)
+                // Recalculate purchase order totals (always check for price changes)
+                var newSubtotal = newOrderItems.Sum(oi => oi.TotalPrice);
+                if (purchaseOrder.SubtotalAmount != newSubtotal)
                 {
-                    var newSubtotal = newOrderItems.Sum(oi => oi.TotalPrice);
-                    if (purchaseOrder.SubtotalAmount != newSubtotal)
-                    {
-                        purchaseOrder.SubtotalAmount = newSubtotal;
-                        purchaseOrder.UpdatedAt = DateTime.UtcNow;
-                        purchaseOrder.UpdatedBy = result.RefreshedBy;
+                    purchaseOrder.SubtotalAmount = newSubtotal;
+                    purchaseOrder.UpdatedAt = DateTime.UtcNow;
+                    purchaseOrder.UpdatedBy = result.RefreshedBy;
 
-                        await _context.SaveChangesAsync(cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
 
-                        result.SubtotalUpdated = true;
-                        result.NewSubtotal = newSubtotal;
-                    }
+                    result.SubtotalUpdated = true;
+                    result.NewSubtotal = newSubtotal;
                 }
 
                 _logger.LogInformation("Order items refreshed for purchase order {PurchaseOrderId}: {ItemsAdded} added, {ItemsRemoved} removed",

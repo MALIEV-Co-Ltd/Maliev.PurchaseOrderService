@@ -173,22 +173,27 @@ public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgra
 
             // Setup basic methods that the controller might use
             orderClientMock.Setup(x => x.GetOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new List<OrderItemDto>());
+                .ReturnsAsync((int orderId, CancellationToken _) => new List<OrderItemDto>
+                {
+                    TestDataFactory.CreateOrderItemDto(id: 1, purchaseOrderId: 1, externalOrderItemId: 1, quantity: 2, unitPrice: 150.00m),
+                    TestDataFactory.CreateOrderItemDto(id: 2, purchaseOrderId: 1, externalOrderItemId: 2, quantity: 1, unitPrice: 300.00m)
+                });
 
             orderClientMock.Setup(x => x.GetOrderItemsSummaryAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new OrderItemsSummaryDto
                 {
-                    TotalItems = 0,
-                    TotalQuantity = 0,
-                    TotalValue = 0,
-                    UniqueCategories = 0
+                    TotalItems = 2,
+                    TotalQuantity = 3,
+                    TotalValue = 600.00m,
+                    UniqueCategories = 2
                 });
 
             orderClientMock.Setup(x => x.RefreshOrderItemsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new OrderItemRefreshResult
                 {
                     Success = true,
-                    RefreshedCount = 0,
+                    RefreshedCount = 2,
+                    NewItemCount = 2,
                     ErrorMessage = null
                 });
 

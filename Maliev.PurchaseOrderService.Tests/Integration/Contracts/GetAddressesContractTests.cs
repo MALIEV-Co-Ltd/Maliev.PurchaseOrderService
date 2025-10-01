@@ -166,7 +166,8 @@ public class GetAddressesContractTests : IClassFixture<TestWebApplicationFactory
         var country = "Thailand";
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}?country={country}");
+        var purchaseOrderId = 1;
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/addresses?country={country}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -195,7 +196,8 @@ public class GetAddressesContractTests : IClassFixture<TestWebApplicationFactory
         var city = "Bangkok";
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}?city={city}");
+        var purchaseOrderId = 1;
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/addresses?city={city}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -225,7 +227,8 @@ public class GetAddressesContractTests : IClassFixture<TestWebApplicationFactory
         var pageSize = 10;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}?page={page}&pageSize={pageSize}");
+        var purchaseOrderId = 1;
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/addresses?page={page}&pageSize={pageSize}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -255,7 +258,8 @@ public class GetAddressesContractTests : IClassFixture<TestWebApplicationFactory
         var invalidPageSize = 0;
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}?page={invalidPage}&pageSize={invalidPageSize}");
+        var purchaseOrderId = 1;
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/addresses?page={invalidPage}&pageSize={invalidPageSize}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -281,7 +285,8 @@ public class GetAddressesContractTests : IClassFixture<TestWebApplicationFactory
         var sortOrder = "asc";
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}?sortBy={sortBy}&sortOrder={sortOrder}");
+        var purchaseOrderId = 1;
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/addresses?sortBy={sortBy}&sortOrder={sortOrder}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -312,7 +317,8 @@ public class GetAddressesContractTests : IClassFixture<TestWebApplicationFactory
         var invalidSortBy = "InvalidField";
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}?sortBy={invalidSortBy}");
+        var purchaseOrderId = 1;
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/addresses?sortBy={invalidSortBy}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -337,7 +343,8 @@ public class GetAddressesContractTests : IClassFixture<TestWebApplicationFactory
         var searchQuery = "Bangkok";
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}?search={searchQuery}");
+        var purchaseOrderId = 1;
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/addresses?search={searchQuery}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -380,7 +387,8 @@ public class GetAddressesContractTests : IClassFixture<TestWebApplicationFactory
         var nonExistentCountry = "NonExistentCountry";
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}?country={nonExistentCountry}");
+        var purchaseOrderId = 1;
+        var response = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}/addresses?country={nonExistentCountry}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

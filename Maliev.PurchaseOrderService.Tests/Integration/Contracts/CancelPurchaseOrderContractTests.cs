@@ -43,39 +43,62 @@ public class CancelPurchaseOrderContractTests : IClassFixture<TestWebApplication
             return;
         }
 
-        // Create a test purchase order for cancellation tests
-        var (purchaseOrder, orderItems, shippingAddress, billingAddress) =
-            TestDataFactory.CreateCompletePurchaseOrderWithEntities(Data.Enums.OrderType.Internal, 2, "emp123");
+        // Create multiple test purchase orders for cancellation tests to avoid test isolation issues
+        var allAddresses = new List<Data.Entities.Address>();
+        var allPurchaseOrders = new List<Data.Entities.PurchaseOrder>();
+        var allOrderItems = new List<Data.Entities.OrderItem>();
 
-        // Set status to pending for cancellation tests
-        purchaseOrder.Status = Data.Enums.OrderStatus.Pending;
-
-        // Add addresses first
-        var addresses = new List<Data.Entities.Address>();
-        if (shippingAddress != null) addresses.Add(shippingAddress);
-        if (billingAddress != null) addresses.Add(billingAddress);
-
-        if (addresses.Count > 0)
+        for (int i = 0; i < 5; i++) // Create 5 purchase orders for different tests
         {
-            await dbContext.Addresses.AddRangeAsync(addresses);
+            var (purchaseOrder, orderItems, shippingAddress, billingAddress) =
+                TestDataFactory.CreateCompletePurchaseOrderWithEntities(Data.Enums.OrderType.Internal, 2, $"emp{i}");
+
+            // Set status to pending for cancellation tests
+            purchaseOrder.Status = Data.Enums.OrderStatus.Pending;
+
+            // Collect addresses
+            if (shippingAddress != null) allAddresses.Add(shippingAddress);
+            if (billingAddress != null) allAddresses.Add(billingAddress);
+
+            allPurchaseOrders.Add(purchaseOrder);
+            allOrderItems.AddRange(orderItems);
+        }
+
+        // Add all addresses first
+        if (allAddresses.Count > 0)
+        {
+            await dbContext.Addresses.AddRangeAsync(allAddresses);
             await dbContext.SaveChangesAsync();
         }
 
-        // Set address foreign keys
-        if (shippingAddress != null)
-            purchaseOrder.ShippingAddressId = shippingAddress.Id;
-        if (billingAddress != null)
-            purchaseOrder.BillingAddressId = billingAddress.Id;
+        // Set address foreign keys for all purchase orders
+        for (int i = 0; i < allPurchaseOrders.Count; i++)
+        {
+            var purchaseOrder = allPurchaseOrders[i];
+            var shippingAddress = allAddresses.Where(a => a.AddressType == Data.Enums.AddressType.Shipping).Skip(i).FirstOrDefault();
+            var billingAddress = allAddresses.Where(a => a.AddressType == Data.Enums.AddressType.Billing).Skip(i).FirstOrDefault();
 
-        // Add purchase order
-        await dbContext.PurchaseOrders.AddAsync(purchaseOrder);
+            if (shippingAddress != null)
+                purchaseOrder.ShippingAddressId = shippingAddress.Id;
+            if (billingAddress != null)
+                purchaseOrder.BillingAddressId = billingAddress.Id;
+        }
+
+        // Add all purchase orders
+        await dbContext.PurchaseOrders.AddRangeAsync(allPurchaseOrders);
         await dbContext.SaveChangesAsync();
 
         // Set order item foreign keys and add them
-        foreach (var item in orderItems)
-            item.PurchaseOrderId = purchaseOrder.Id;
+        for (int i = 0; i < allPurchaseOrders.Count; i++)
+        {
+            var purchaseOrder = allPurchaseOrders[i];
+            var orderItems = allOrderItems.Skip(i * 2).Take(2); // 2 items per purchase order
 
-        await dbContext.OrderItems.AddRangeAsync(orderItems);
+            foreach (var item in orderItems)
+                item.PurchaseOrderId = purchaseOrder.Id;
+        }
+
+        await dbContext.OrderItems.AddRangeAsync(allOrderItems);
         await dbContext.SaveChangesAsync();
     }
 
@@ -120,10 +143,8 @@ public class CancelPurchaseOrderContractTests : IClassFixture<TestWebApplication
         var validToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", validToken);
 
-        var purchaseOrderId = 1;
-        var request = CreateValidCancelRequest();
-        var json = JsonSerializer.Serialize(request);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
+        var purchaseOrderId = 2;
+        var (getResponse, request, content) = await PrepareCancelRequestWithETag(purchaseOrderId);
 
         // Act
         var response = await _client.PostAsync($"{_baseUrl}/{purchaseOrderId}/cancel", content);
@@ -278,10 +299,8 @@ public class CancelPurchaseOrderContractTests : IClassFixture<TestWebApplication
         var managerToken = TestJwtHelper.GenerateManagerToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
 
-        var purchaseOrderId = 1;
-        var request = CreateValidCancelRequest();
-        var json = JsonSerializer.Serialize(request);
-        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
+        var purchaseOrderId = 3;
+        var (getResponse, request, content) = await PrepareCancelRequestWithETag(purchaseOrderId);
 
         // Act
         var response = await _client.PostAsync($"{_baseUrl}/{purchaseOrderId}/cancel", content);
@@ -345,6 +364,27 @@ public class CancelPurchaseOrderContractTests : IClassFixture<TestWebApplication
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.UnsupportedMediaType);
+    }
+
+    private async Task<(HttpResponseMessage getResponse, CancelPurchaseOrderRequest request, StringContent content)> PrepareCancelRequestWithETag(int purchaseOrderId)
+    {
+        // First, GET the purchase order to obtain the current ETag
+        var getResponse = await _client.GetAsync($"{_baseUrl}/{purchaseOrderId}");
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var etag = getResponse.Headers.ETag?.Tag;
+        etag.Should().NotBeNullOrEmpty();
+
+        var request = CreateValidCancelRequest();
+        // Use the current RowVersion from the ETag
+        request.RowVersion = etag!.Trim('"'); // Remove quotes from ETag
+        var json = JsonSerializer.Serialize(request);
+        var content = new StringContent(json, Encoding.UTF8, MediaTypeHeaderValue.Parse("application/json"));
+
+        // Add If-Match header for optimistic concurrency
+        _client.DefaultRequestHeaders.IfMatch.Clear();
+        _client.DefaultRequestHeaders.IfMatch.Add(new EntityTagHeaderValue(etag));
+
+        return (getResponse, request, content);
     }
 
     private CancelPurchaseOrderRequest CreateValidCancelRequest()

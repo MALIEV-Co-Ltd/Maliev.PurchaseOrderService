@@ -155,11 +155,12 @@ public class ConcurrencyTests : IntegrationTestBase
         // Arrange - Set up authentication
         SetupEmployeeAuthentication("emp123", "test");
 
-        // Create multiple purchase orders using the test infrastructure
+        // Business Logic Alignment: Create multiple purchase orders with same user as authenticator
         var purchaseOrders = new List<PurchaseOrder>();
         for (int i = 1; i <= 5; i++)
         {
-            var testPO = await SeedPurchaseOrderAsync(OrderType.Internal, OrderStatus.Pending, "employee1");
+            // Use same user ID for authorization alignment
+            var testPO = await SeedPurchaseOrderAsync(OrderType.Internal, OrderStatus.Pending, "emp123");
             purchaseOrders.Add(testPO);
         }
 
@@ -177,7 +178,7 @@ public class ConcurrencyTests : IntegrationTestBase
 
         var responses = await Task.WhenAll(updateTasks);
 
-        // Assert - All updates should succeed (no concurrency conflicts between different orders)
+        // Assert - Business Logic Alignment: All updates should succeed (no concurrency conflicts between different orders)
         responses.Should().AllSatisfy(response =>
             response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK));
 

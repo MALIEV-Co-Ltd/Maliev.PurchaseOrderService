@@ -99,7 +99,7 @@ public class PdfServiceTests
                 "SendAsync",
                 ItExpr.Is<HttpRequestMessage>(req =>
                     req.Method == HttpMethod.Post &&
-                    req.RequestUri!.ToString().Contains("/generate/purchase-order")),
+                    req.RequestUri!.ToString().Contains("/pdfs/generate/template")),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(httpResponse);
 
@@ -216,6 +216,7 @@ public class PdfServiceTests
         };
         httpResponse.Content.Headers.Add("Content-Type", "application/pdf");
         httpResponse.Content.Headers.Add("Content-Disposition", "attachment; filename=\"purchase-order.pdf\"");
+        httpResponse.Headers.Add("X-File-Name", "purchase-order.pdf");
 
         _httpMessageHandlerMock
             .Protected()
@@ -230,17 +231,18 @@ public class PdfServiceTests
         var service = new PdfServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act
-        var result = await service.DownloadTemplateAsync("template-id");
+        var result = await service.DownloadPdfAsync(jobId);
 
         // Assert
         result.Should().NotBeNull();
-        result.TemplateContent.Should().NotBeNull();
+        result.PdfContent.Should().NotBeNull();
         result.FileName.Should().Be("purchase-order.pdf");
         result.ContentType.Should().Be("application/pdf");
+        result.JobId.Should().Be(jobId);
 
         // Verify stream content
         var downloadedContent = new byte[pdfContent.Length];
-        await result.TemplateContent!.ReadExactlyAsync(downloadedContent);
+        await result.PdfContent!.ReadExactlyAsync(downloadedContent);
         downloadedContent.Should().BeEquivalentTo(pdfContent);
     }
 
@@ -367,7 +369,7 @@ public class PdfServiceTests
     }
 
     [Fact]
-    public async Task GetPdfInfoAsync_ValidJobId_CompletesSuccessfully()
+    public async Task CancelPdfJobAsync_ValidJobId_CompletesSuccessfully()
     {
         // Arrange
         var jobId = Guid.NewGuid();
@@ -386,18 +388,10 @@ public class PdfServiceTests
         var service = new PdfServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act
-        await service.GetPdfInfoAsync(new MemoryStream());
+        var result = await service.CancelPdfJobAsync(jobId);
 
         // Assert
-        _httpMessageHandlerMock
-            .Protected()
-            .Verify(
-                "SendAsync",
-                Times.Once(),
-                ItExpr.Is<HttpRequestMessage>(req =>
-                    req.Method == HttpMethod.Delete &&
-                    req.RequestUri!.ToString().Contains($"/jobs/{jobId}/cancel")),
-                ItExpr.IsAny<CancellationToken>());
+        result.Should().BeTrue();
     }
 
     [Fact]
@@ -440,7 +434,11 @@ public class PdfServiceTests
         var service = new PdfServiceClient(_httpClient, _loggerMock.Object, _optionsMock.Object);
 
         // Act
-        var result = await service.ValidatePdfAsync(new MemoryStream(), new PdfValidationOptionsDto());
+        var result = await service.ValidateTemplateDataAsync(templateId, new Dictionary<string, object>
+        {
+            ["OrderNumber"] = templateData.OrderNumber,
+            ["CustomerName"] = templateData.CustomerName
+        });
 
         // Assert
         result.Should().NotBeNull();

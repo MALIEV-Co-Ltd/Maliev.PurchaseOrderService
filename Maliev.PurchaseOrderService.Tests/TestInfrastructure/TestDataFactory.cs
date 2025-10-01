@@ -435,6 +435,12 @@ public static class TestDataFactory
             Phone = "+66-2-555-0100",
             IsActive = isActive,
             TaxId = "1234567890123", // Consistent 13-digit Thai tax ID
+            SupplierType = "company",
+            ServiceCategory = "professional_services",
+            IsThaiResident = true, // Default to Thai resident for WHT calculations
+            IsWHTExempt = false,   // Default to not exempt
+            Currency = "THB",
+            CreatedAt = DateTime.UtcNow.AddDays(-30),
             Address = new AddressDto
             {
                 AddressLine1 = "123 Supplier Industrial Estate",
@@ -454,6 +460,7 @@ public static class TestDataFactory
         string country = "Thailand",
         bool isActive = true)
     {
+        var isThaiResident = country == "Thailand";
         return new SupplierDto
         {
             Id = Guid.NewGuid(),
@@ -463,6 +470,12 @@ public static class TestDataFactory
             Phone = "+66-2-555-0100",
             IsActive = isActive,
             TaxId = $"{Random.Shared.NextInt64(1000000000000, 9999999999999)}",
+            SupplierType = "company",
+            ServiceCategory = "professional_services",
+            IsThaiResident = isThaiResident,
+            IsWHTExempt = false,
+            Currency = isThaiResident ? "THB" : "USD",
+            CreatedAt = DateTime.UtcNow.AddDays(-30),
             Address = new AddressDto
             {
                 AddressLine1 = $"{Random.Shared.Next(1, 999)} {name} Street",
