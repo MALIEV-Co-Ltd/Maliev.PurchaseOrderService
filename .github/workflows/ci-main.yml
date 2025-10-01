@@ -56,17 +56,15 @@ jobs:
           echo "Waiting for PostgreSQL..."
           sleep 2
         done
-        # Configure PostgreSQL for better test performance
-        psql -h localhost -p 5432 -U postgres -d test_db -c "
-          ALTER SYSTEM SET fsync = off;
-          ALTER SYSTEM SET full_page_writes = off;
-          ALTER SYSTEM SET synchronous_commit = off;
-          ALTER SYSTEM SET checkpoint_segments = 32;
-          ALTER SYSTEM SET checkpoint_completion_target = 0.9;
-          ALTER SYSTEM SET wal_buffers = '16MB';
-          ALTER SYSTEM SET shared_buffers = '256MB';
-          SELECT pg_reload_conf();
-        "
+        # Configure PostgreSQL for better test performance (separate commands to avoid transaction wrapping)
+        psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET fsync = off"
+        psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET full_page_writes = off"
+        psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET synchronous_commit = off"
+        psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET checkpoint_segments = 32"
+        psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET checkpoint_completion_target = 0.9"
+        psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET wal_buffers = '16MB'"
+        psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET shared_buffers = '256MB'"
+        psql -h localhost -p 5432 -U postgres -d test_db -c "SELECT pg_reload_conf()"
       env:
         PGPASSWORD: postgres
 

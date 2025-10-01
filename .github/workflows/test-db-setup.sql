@@ -1,5 +1,13 @@
 -- PostgreSQL performance optimization script for CI testing
 -- This file contains the SQL commands used to optimize PostgreSQL for CI testing
+--
+-- IMPORTANT: These commands must be executed separately (not in a transaction block)
+-- because ALTER SYSTEM cannot run inside a transaction.
+--
+-- Usage in CI workflows:
+-- psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET fsync = off"
+-- psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET full_page_writes = off"
+-- ... (each command separately)
 
 -- Disable fsync for faster writes (safe for test environments)
 ALTER SYSTEM SET fsync = off;
