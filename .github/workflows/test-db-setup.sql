@@ -18,9 +18,6 @@ ALTER SYSTEM SET full_page_writes = off;
 -- Disable synchronous commits for faster transactions
 ALTER SYSTEM SET synchronous_commit = off;
 
--- Increase checkpoint segments for better performance
-ALTER SYSTEM SET checkpoint_segments = 32;
-
 -- Optimize checkpoint completion target
 ALTER SYSTEM SET checkpoint_completion_target = 0.9;
 

@@ -51,9 +51,9 @@ fi
 echo "🔧 Checking .NET version..."
 dotnet_version=$(dotnet --version)
 if [[ $dotnet_version == 9.* ]]; then
-    echo "✅ .NET 9.x detected: $dotnet_version"
+    echo "✅ .NET 10.x detected: $dotnet_version"
 else
-    echo "❌ Expected .NET 9.x, found: $dotnet_version"
+    echo "❌ Expected .NET 10.x, found: $dotnet_version"
     exit 1
 fi
 
