@@ -11,7 +11,6 @@ COPY nuget.config ./
 COPY Maliev.PurchaseOrderService.Api/Maliev.PurchaseOrderService.Api.csproj Maliev.PurchaseOrderService.Api/
 COPY Maliev.PurchaseOrderService.Data/Maliev.PurchaseOrderService.Data.csproj Maliev.PurchaseOrderService.Data/
 COPY Maliev.PurchaseOrderService.Common/Maliev.PurchaseOrderService.Common.csproj Maliev.PurchaseOrderService.Common/
-COPY Maliev.PurchaseOrderService.Tests/Maliev.PurchaseOrderService.Tests.csproj Maliev.PurchaseOrderService.Tests/
 
 # Restore with BuildKit secrets for private NuGet feed
 RUN --mount=type=secret,id=github_token \
