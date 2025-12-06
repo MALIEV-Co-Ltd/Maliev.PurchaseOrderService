@@ -1,21 +1,51 @@
+# MALIEV Microservices Constitution
+
 <!--
-Sync Impact Report - Constitution Update
-- Version change: 1.3.0 → 1.4.0
-- Modified principles: Principle VI - Secrets Management & Configuration Security (STRENGTHENED)
-- Added sections: Security Audit Requirements, DDOS Prevention Guidelines
-- Removed sections: None
-- Templates requiring updates:
-  ✅ COMPLETED plan-template.md (Constitution Check section)
-  ✅ COMPLETED spec-template.md (security requirements)
-  ✅ COMPLETED tasks-template.md (security audit tasks)
-- Follow-up TODOs:
-  ✅ COMPLETED: Remediate exposed production API endpoints in appsettings.json
-  ✅ COMPLETED: Remove database connection strings from source code
-  ✅ COMPLETED: Sanitize JWT references in configuration files
-  ✅ COMPLETED: Update documentation to use placeholder examples only
+SYNC IMPACT REPORT
+==================
+Version Change: 1.6.0 → 1.7.0 (Amendment: Code Quality Standards & Scalar Adoption)
+Ratification Date: 2025-12-04
+Last Amendment: 2025-12-04
+
+UPDATES:
+- Added Principle XIV: Code Quality & Library Standards (NON-NEGOTIABLE)
+  - BANNED: AutoMapper, FluentValidation, FluentAssertions
+- Updated Principle II: Replaced Swagger with Scalar for API documentation
+
+TEMPLATE UPDATES REQUIRED:
+✅ constitution.md — Added Principle XIV, Updated Principle II
+🔄 All microservices — Remove banned libraries, migrate to Scalar
+🔄 All specs — plan.md must validate compliance
+
+FOLLOW-UP ITEMS:
+- Audit all services for banned libraries
+- Schedule migration tasks for non-compliant services
 -->
 
-# MALIEV Microservices Constitution
+<!--
+PREVIOUS SYNC IMPACT REPORT
+===========================
+Version Change: 1.5.0 → 1.6.0 (Amendment: .NET Aspire Integration & GitHub Packages)
+Ratification Date: 2025-10-02
+Last Amendment: 2025-11-21
+
+UPDATES:
+- Added Principle XIII: .NET Aspire Integration (NON-NEGOTIABLE)
+- ServiceDefaults must be consumed as NuGet package from GitHub Packages
+- Docker builds must use BuildKit secrets for NuGet authentication
+- CI/CD must authenticate with GITOPS_PAT (not GITHUB_TOKEN) for cross-repo packages
+
+TEMPLATE UPDATES REQUIRED:
+✅ constitution.md — Added Principle XIII for Aspire integration
+🔄 All microservices — Must update to use PackageReference for ServiceDefaults
+🔄 All Dockerfiles — Must use BuildKit secrets syntax
+🔄 All CI workflows — Must pass NuGet credentials
+
+FOLLOW-UP ITEMS:
+- Update remaining 19 microservices to use GitHub Packages for ServiceDefaults
+- Verify all GITOPS_PAT secrets have read:packages scope
+- Update CI workflows to use BuildKit secret flags in docker build
+-->
 
 ## Core Principles
 
@@ -24,146 +54,236 @@ Sync Impact Report - Constitution Update
 Each microservice must be **self-contained**:
 
 * Own database and schema
-* Own domain logic, independent of other services' internals
-* Communicate with other services only via stable APIs or event streams
+* Own domain logic
+* Interact with others only via APIs or events
 * No direct database access to another service
+
+**Rationale:** Enables independent deployment, scaling, and ownership.
+
+---
 
 ### II. Explicit Contracts
 
-* All API endpoints must have **OpenAPI/Swagger documentation**
-* Data contracts must be versioned (MAJOR.MINOR)
-* Any schema or contract changes require backward-compatible migration or version bump
+* All APIs documented via **OpenAPI/Scalar**
+* Data contracts versioned (MAJOR.MINOR)
+* Backward-compatible migrations mandatory
+
+**Rationale:** Prevents breaking changes and preserves consumer stability. Scalar provides a more modern and performant API documentation experience.
+
+---
 
 ### III. Test-First Development (NON-NEGOTIABLE)
 
-* Unit tests mandatory for all critical functionality
-* Integration tests required for inter-service interactions
-* Code must **fail tests before implementation**; adhere to Red-Green-Refactor cycle
-* Minimum coverage: 80% for business-critical logic
+* Tests authored **immediately after specification approval**, before implementation
+* Code must **fail tests first** (Red–Green–Refactor)
+* Unit, integration, and contract tests mandatory
+* Minimum 80 % coverage for business-critical logic
+* Test code reviewed equally with production code
 
-### IV. Auditability & Observability
+**Rationale:** Ensures correctness before coding and keeps system behavior verifiable.
 
-* All operations must log structured events (JSON, stdout) with traceable user/action info
-* Audit logs must be tamper-proof and retained per company policy
-* Services must expose lightweight health checks (liveness/readiness)
+---
 
-### V. Security & Compliance
+### IV. Real Infrastructure Testing (NON-NEGOTIABLE)
 
-* JWT-based authentication for service endpoints
-* Role-based authorization enforced for all operations
-* No sensitive data stored unencrypted
-* Follow relevant regulations (e.g., GDPR, Thai taxation for withholding tax)
+* **ALL tests MUST use real infrastructure dependencies** via Testcontainers - no in-memory substitutes allowed
+* **PostgreSQL**: Real PostgreSQL instances required (no EF Core InMemoryDatabase provider permitted)
+* **RabbitMQ**: Real RabbitMQ instances required for message queue testing (no in-memory message buses)
+* **Redis**: Real Redis instances required for caching and distributed locking tests (no in-memory cache providers)
+* Integration tests MUST use Docker containers for all infrastructure (local/CI)
+* Test isolation achieved through database transactions, queue purging, or cleanup scripts
+* Test infrastructure must mirror production configuration exactly (same versions, same settings)
 
-### VI. Secrets Management & Configuration Security (NON-NEGOTIABLE)
+**Rationale:** In-memory substitutes have different behavior, concurrency handling, and constraints than real infrastructure. Testing against production-like infrastructure catches real-world issues early (distributed locking race conditions, message serialization, connection pooling, transaction isolation) and eliminates false positives from in-memory quirks. This ensures test fidelity and production confidence across all infrastructure layers.
 
-**CRITICAL SECURITY REQUIREMENTS:**
+---
 
-* **NEVER** store sensitive information in source code including:
-  - Database connection strings (username, password, server details)
-  - Production API endpoints (prevents DDOS attacks through exposed URLs)
-  - JWT signing keys, secrets, or tokens
-  - Service credentials, authentication tokens, or certificates
-  - Production environment URLs or internal service addresses
-  - Any configuration that could expose infrastructure topology
+### V. Auditability & Observability
 
-* **ALL** sensitive configuration MUST be provided via environment variables sourced from Google Secret Manager
+* Structured JSON logging with traceable user/action IDs
+* Immutable audit logs retained per policy
+* Health checks for liveness/readiness
 
-* **SOURCE CODE RESTRICTIONS:**
-  - Source code MUST contain ONLY placeholder examples marked as `<secret-value>` or `${ENVIRONMENT_VARIABLE_NAME}`
-  - Localhost/development defaults are permitted ONLY for local development scenarios
-  - Test configurations MAY contain non-production values but MUST NOT expose real infrastructure
+**Rationale:** Enables compliance, diagnostics, and operational insight.
 
-* **DDOS PREVENTION:**
-  - Public repositories MUST NOT contain production API endpoints
-  - Documentation MUST use example domains (e.g., `https://example.com/api`) or placeholder patterns
-  - Internal service URLs MUST be abstracted through environment configuration
+---
 
-* **MANDATORY SECURITY AUDIT:**
-  - ALL commits MUST be scanned for exposed secrets before merge
-  - Configuration files MUST be reviewed for production data leakage
-  - Documentation MUST be sanitized of real infrastructure references
-  - Violations MUST be remediated immediately with no exceptions
+### VI. Security & Compliance
 
-**Rationale**: Exposed endpoints enable DDOS attacks, credential leakage compromises security, and infrastructure exposure facilitates targeted attacks against production systems.
+* JWT authentication, role-based authorization
+* Sensitive data encrypted at rest and in transit
+* Compliance with GDPR, Thai tax law, and all relevant regulations
 
-### VII. Zero Warnings Policy (NON-NEGOTIABLE)
+---
 
-* All builds MUST produce **zero warnings and zero errors**
-* Exception: Preview versions of SDKs may generate warnings until stable release
-* Code analysis rules MUST be enforced without suppressions
-* Pull requests MUST NOT be merged with any build warnings
-* Warnings MUST be treated as build failures in CI/CD pipeline
+### VII. Secrets Management & Configuration Security (NON-NEGOTIABLE)
 
-**Rationale**: Warnings indicate potential bugs, maintainability issues, or deprecated patterns that can lead to production failures and technical debt.
+* No secrets in source code
+* Secrets injected from **Google Secret Manager**
+* Public repositories sanitized of real endpoints
+* Commits scanned for secrets before merge
 
-### VIII. Clean Project Artifacts (NON-NEGOTIABLE)
+**Rationale:** Prevents leaks and targeted attacks.
 
-* ALL unused files MUST be deleted from the repository including:
-  - Boilerplate files from project templates
-  - Sample/example files not relevant to the project
-  - Generated files that should be excluded (build artifacts, IDE files)
-  - Outdated documentation or configuration files
-  - Unused assets, images, or resources
-* Only project-specific artifacts that serve the current implementation MUST remain
-* Regular cleanup required during development and before each release
-* Git ignore patterns MUST exclude all generated and temporary files
+---
 
-**Rationale**: Unused files create confusion, increase repository size, and can contain outdated or conflicting information that misleads developers.
+### VIII. Zero Warnings Policy (NON-NEGOTIABLE)
 
-### IX. Simplicity & Maintainability
+* Builds must emit zero warnings
+* Warnings treated as build failures
 
-* YAGNI principle: build only what is required
-* Avoid global state; stateless services preferred
-* Favor clear, readable code over clever optimizations
-* Shared libraries allowed only if fully documented, tested, and versioned
+**Rationale:** Eliminates technical debt and instability.
+
+---
+
+### IX. Clean Project Artifacts (NON-NEGOTIABLE)
+
+* Remove unused files, outdated docs, and generated artifacts
+* `.gitignore` must exclude temporary files
+* `.dockerignore` must exclude build artifacts, specs, and IDE files
+* Cleanup enforced pre-release
+
+---
+
+### X. Docker Best Practices (NON-NEGOTIABLE)
+
+* **ALL services MUST use the built-in `app` user** from Microsoft's ASP.NET runtime images
+* **NO custom user creation** with `useradd`, `adduser`, or `addgroup` commands
+* Multi-stage builds mandatory: SDK for build, ASP.NET runtime for final image
+* Use .NET 10 base images: `mcr.microsoft.com/dotnet/sdk:10.0` and `mcr.microsoft.com/dotnet/aspnet:10.0`
+* Set ownership with `chown -R app:app /app` **BEFORE** the `USER app` directive, then COPY files as `app` user
+* Use `.dockerignore` to exclude build outputs, IDE files, specs, CI/CD files, **and Test projects**
+* BuildKit secrets mandatory for NuGet credentials: `--mount=type=secret,id=nuget_username`
+* Health checks must validate service liveness endpoint: `HEALTHCHECK CMD curl -f http://localhost:8080/[service-name]/liveness || exit 1`
+* Optimize layer caching by copying project files before source code
+* Expose port 8080: `EXPOSE 8080` and `ENV ASPNETCORE_URLS=http://+:8080`
+
+**Standard Dockerfile Pattern:**
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY nuget.config ./
+COPY ["Service.Api/Service.Api.csproj", "Service.Api/"]
+RUN --mount=type=secret,id=nuget_username \
+    --mount=type=secret,id=nuget_password \
+    NUGET_USERNAME=$(cat /run/secrets/nuget_username) \
+    NUGET_PASSWORD=$(cat /run/secrets/nuget_password) \
+    dotnet restore "Service.Api/Service.Api.csproj"
+COPY . .
+WORKDIR "/src/Service.Api"
+RUN dotnet publish -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+RUN chown -R app:app /app
+USER app
+COPY --from=build /app/publish .
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+HEALTHCHECK CMD curl -f http://localhost:8080/[service-name]/liveness || exit 1
+ENTRYPOINT ["dotnet", "Service.Api.dll"]
+```
+
+**Rationale:** Microsoft's built-in `app` user provides security without complexity. BuildKit secrets prevent credential exposure in Docker image layers. Following Docker best practices ensures consistent, secure, and efficient container images across all services.
+
+---
+
+### XI. Simplicity & Maintainability
+
+* Apply YAGNI
+* Favor readable, stateless design
+* Shared libraries must be versioned and documented
+
+---
+
+### XII. Business Metrics & Analytics (NON-NEGOTIABLE)
+
+* Every service must expose **business-relevant metrics and analytics endpoints** for use by the company's telemetry pipeline.
+* Metrics must quantify both **system health** and **business outcomes**, including (where applicable):
+
+  * Number of processed jobs, quotes, or transactions
+  * Active users, conversion rates, and session durations
+  * Production throughput, revenue per feature, or machine utilization
+* Metrics must use **structured formats** compatible with Prometheus, OpenTelemetry, or other standard collectors.
+* Services must tag metrics with:
+
+  * `service_name`
+  * `version`
+  * `region`
+  * `environment` (dev/staging/prod)
+* Each release must define a clear mapping between **business objectives** and the metrics implemented.
+* Tests must validate the **presence and format** of required metrics endpoints.
+* Metrics must not expose confidential or personally identifiable information.
+
+**Rationale:** Analytics convert operational data into measurable business intelligence. This enables data-driven decisions for product strategy, cost optimization, and growth.
+
+---
+
+### XIII. .NET Aspire Integration (NON-NEGOTIABLE)
+
+* **ServiceDefaults as NuGet Package**: All microservices MUST consume `Maliev.Aspire.ServiceDefaults` as a NuGet package from GitHub Packages, NOT as a project reference
+* **Package Source Configuration**: Each repository MUST have a `nuget.config` file pointing to GitHub Packages with credential placeholders
+* **CI/CD Authentication**: Workflows MUST use `GITOPS_PAT` (with `read:packages` scope) for NuGet authentication - `GITHUB_TOKEN` is insufficient for cross-repo packages
+* **Docker BuildKit Secrets**: Dockerfiles MUST use BuildKit secrets (`--mount=type=secret`) for NuGet credentials - using `ARG` for credentials is FORBIDDEN (exposes in image layers)
+* **Program.cs Integration**: All services MUST call `builder.AddServiceDefaults()` and `app.MapDefaultEndpoints()`
+* **nuget.config Mandatory**: Repository root MUST contain `nuget.config` with GitHub Packages source and `%NUGET_USERNAME%`/`%NUGET_PASSWORD%` placeholders
+
+**Rationale:** Each microservice has its own Git repository. Project references (`../../Maliev.Aspire/...`) fail in CI because the Aspire repository is not present in the microservice's checkout context. Using a NuGet package from GitHub Packages enables independent CI/CD pipelines while maintaining shared observability standards. BuildKit secrets prevent credential exposure in Docker image layers.
+
+---
+
+### XIV. Code Quality & Library Standards (NON-NEGOTIABLE)
+
+* **NO AutoMapper**: Explicit mapping only.
+  * **Rationale**: AutoMapper hides references, makes refactoring difficult, and introduces runtime errors that should be compile-time errors. Explicit mapping is explicit, searchable, and performant.
+* **NO FluentValidation**: Use standard .NET DataAnnotations or manual validation logic.
+  * **Rationale**: FluentValidation adds unnecessary complexity and abstraction. Standard validation is built-in, sufficient, and reduces dependency bloat.
+* **NO FluentAssertions**: Use standard xUnit `Assert`.
+  * **Rationale**: FluentAssertions adds a large dependency and encourages readable but sometimes ambiguous assertions. Standard `Assert` is part of the test framework, faster, and sufficient.
+
+---
 
 ## Deployment & Operations Standards
 
-* All services must support containerization (Docker)
-* Environment-specific configurations via environment variables
-* Backups, scaling, monitoring, and recovery handled at infrastructure level
-* Rate limiting and concurrency safeguards for critical endpoints
+* All services containerized via Docker
+* Configurable solely by environment variables
+* Rate limiting and recovery mechanisms mandatory
+* Services must emit metrics consumable by the central telemetry gateway
+* Metrics availability verified during deployment pipeline
+
+---
 
 ## Development Workflow
 
-* Feature branches named `XXX-description` with automated CI/CD
-* PRs must pass tests, code style, and review checks before merge
-* Changes to contracts, critical logic, or infrastructure require explicit review and approval
-* Versioning and changelogs mandatory for all service releases
+**Mandatory sequence:**
+
+1. Specification
+2. **Test Definition (includes metrics tests)**
+3. Implementation
+4. Validation (tests, coverage, analytics endpoints)
+5. Refactor
+
+* Pull requests without analytics instrumentation will be rejected.
+* CI/CD must verify both functional tests and metrics schema compliance.
+
+---
 
 ## Security Compliance & Audit Requirements
 
-### Pre-Commit Security Checklist
+* Pre-commit scans for secrets and sensitive endpoints
+* Compromised credentials rotated within 24 hours
+* Quarterly audits of metrics exposure to ensure no PII leakage
 
-**MANDATORY** verification before ANY commit to public repositories:
-
-* ✅ No production API endpoints in configuration files
-* ✅ No database connection strings with real credentials
-* ✅ No JWT signing keys or authentication secrets
-* ✅ No production service URLs or internal addresses
-* ✅ Documentation uses only placeholder/example domains
-* ✅ Test configurations contain no production references
-
-### Security Violation Response
-
-* **IMMEDIATE REMEDIATION REQUIRED** for any exposed secrets or endpoints
-* Compromised credentials MUST be rotated within 24 hours
-* Production systems MUST be monitored for unauthorized access following exposure
-* Security incidents MUST be reported to engineering leadership immediately
-
-### Continuous Security Monitoring
-
-* Automated scanning for secrets in all pull requests
-* Regular audit of configuration files and documentation
-* Quarterly review of security compliance across all services
-* Security training mandatory for all developers with repository access
+---
 
 ## Governance
 
-* Constitution supersedes any individual developer preference
-* All PRs must verify compliance with constitution principles AND security requirements
-* Amendments require documentation, approval by engineering leadership, and a migration plan
-* Violations must be flagged and corrected before merge or deployment
-* Security violations result in immediate pull request rejection
+* Constitution supersedes developer preference.
+* All PRs validated for constitutional and analytics compliance.
+* Amendments require leadership approval and documented migration plan.
+* Violations block merge or deployment.
 
-**Version**: 1.4.0 | **Ratified**: 2025-09-18 | **Last Amended**: 2025-09-22
+---
+
+**Version:** 1.7.0 | **Ratified:** 2025-12-04 | **Last Amended:** 2025-12-04

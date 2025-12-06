@@ -9,22 +9,6 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: test_db
-          POSTGRES_INITDB_ARGS: "--auth-host=trust"
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -34,13 +18,11 @@ jobs:
         with:
           dotnet-version: "10.x"
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+      - name: Switch to PackageReference for CI build
+        run: |
+          # Replace ProjectReference with PackageReference in all service csproj files
+          find . -name "*.csproj" -type f -exec sed -i 's|<ProjectReference Include=".*Maliev.Aspire.ServiceDefaults.*.csproj" />|<PackageReference Include="Maliev.Aspire.ServiceDefaults" Version="1.0.*" />|g' {} \;
+          echo "Switched to PackageReference for ServiceDefaults"
 
       - name: Restore dependencies
         run: dotnet restore Maliev.PurchaseOrderService.sln
@@ -51,44 +33,9 @@ jobs:
       - name: Build
         run: dotnet build Maliev.PurchaseOrderService.sln --no-restore
 
-      - name: Setup test database
-        run: |
-          # Wait for PostgreSQL to be ready
-          until pg_isready -h localhost -p 5432 -U postgres; do
-            echo "Waiting for PostgreSQL..."
-            sleep 2
-          done
-          # Configure PostgreSQL for better test performance (separate commands to avoid transaction wrapping)
-          psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET fsync = off"
-          psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET full_page_writes = off"
-          psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET synchronous_commit = off"
-          psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET checkpoint_completion_target = 0.9"
-          psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET wal_buffers = '16MB'"
-          psql -h localhost -p 5432 -U postgres -d test_db -c "ALTER SYSTEM SET shared_buffers = '256MB'"
-          psql -h localhost -p 5432 -U postgres -d test_db -c "SELECT pg_reload_conf()"
-        env:
-          PGPASSWORD: postgres
-
       - name: Test
-        run: dotnet test Maliev.PurchaseOrderService.sln --no-build --verbosity normal --logger trx --results-directory TestResults
+        run: dotnet test Maliev.PurchaseOrderService.sln --no-build --verbosity normal
         working-directory: ${{ github.workspace }}
-        env:
-          ConnectionStrings__PurchaseOrderDbContext: "Host=localhost;Port=5432;Database=test_db;Username=postgres;Password=postgres;"
-          JWT_SIGNING_KEY: "test-signing-key-that-is-at-least-32-characters-long-for-testing-purposes"
-          JWT_ISSUER: "test-issuer"
-          JWT_AUDIENCE: "test-audience"
-          SUPPLIER_SERVICE_URL: "http://mock-supplier-service"
-          ORDER_SERVICE_URL: "http://mock-order-service"
-          CURRENCY_SERVICE_URL: "http://mock-currency-service"
-          UPLOAD_SERVICE_URL: "http://mock-upload-service"
-          PDF_SERVICE_URL: "http://mock-pdf-service"
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results-staging
-          path: TestResults/*.trx
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -100,7 +47,6 @@ jobs:
         with:
           project_id: maliev-website
 
-
       - name: Build and push Docker image
         run: |
           gcloud auth configure-docker asia-southeast1-docker.pkg.dev
@@ -108,9 +54,8 @@ jobs:
           NUGET_USERNAME=${{ github.actor }} NUGET_PASSWORD=${{ secrets.GITOPS_PAT }} docker build \
             --secret id=nuget_username,env=NUGET_USERNAME \
             --secret id=nuget_password,env=NUGET_PASSWORD \
-            -t asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchaseorder-service:$RELEASE_VERSION \
-            -f Dockerfile .
-          docker push asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchaseorder-service:$RELEASE_VERSION
+            -t asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchase-order-service:$RELEASE_VERSION -f Maliev.PurchaseOrderService.Api/Dockerfile .
+          docker push asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchase-order-service:$RELEASE_VERSION
 
       - name: Checkout maliev-gitops repository
         uses: actions/checkout@v5
@@ -127,16 +72,45 @@ jobs:
       - name: Update image tag in maliev-gitops using Kustomize
         run: |
           export RELEASE_VERSION=$(echo ${{ github.ref }} | sed -e 's,.*/v,,g')
-          cd maliev-gitops/3-apps/maliev-purchaseorder-service/overlays/staging
-          kustomize edit set image asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact/maliev-purchaseorder-service=asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchaseorder-service:$RELEASE_VERSION
+          cd maliev-gitops/3-apps/maliev-purchase-order-service/overlays/staging
+          kustomize edit set image asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact/maliev-purchase-order-service=asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchase-order-service:$RELEASE_VERSION
 
-      - name: Commit and push changes
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_PAT }}
+          PR_BODY: |
+            Automated deployment of purchase-order-service to staging environment.
+
+            Release: $RELEASE_VERSION
+            Tag: ${{ github.ref }}
+            Triggered by: ${{ github.actor }}
+            Workflow: ${{ github.workflow }}
         run: |
           cd maliev-gitops
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add .
+
+          # Extract release version
           export RELEASE_VERSION=$(echo ${{ github.ref }} | sed -e 's,.*/v,,g')
-          git commit -m "Update purchaseorder-service image to $RELEASE_VERSION" || exit 0
-          git pull --rebase origin $(git branch --show-current) || true
-          git push
+
+          # Create a new branch for this update
+          BRANCH_NAME="purchase-order-service/staging-$RELEASE_VERSION"
+          git checkout -b $BRANCH_NAME
+
+          # Commit and push changes to the new branch
+          git add .
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "Update purchase-order-service image to $RELEASE_VERSION"
+          git push origin $BRANCH_NAME
+
+          # Create pull request using GitHub CLI
+          gh pr create \
+            --title "Deploy purchase-order-service $RELEASE_VERSION to staging" \
+            --body "$PR_BODY" \
+            --base main \
+            --head $BRANCH_NAME \
+            --repo MALIEV-Co-Ltd/maliev-gitops
