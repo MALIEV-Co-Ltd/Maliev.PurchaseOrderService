@@ -26,11 +26,11 @@ info:
     name: Maliev Co. Ltd.
     email: support@maliev.com
 servers:
-  - url: https://api.maliev.com/purchaseorders/v1
+  - url: https://api.maliev.com/purchase-orders/v1
     description: Production server (API v1)
-  - url: https://staging.api.maliev.com/purchaseorders/v1
+  - url: https://staging.api.maliev.com/purchase-orders/v1
     description: Staging server (API v1)
-  - url: https://dev.api.maliev.com/purchaseorders/v1
+  - url: https://dev.api.maliev.com/purchase-orders/v1
     description: Development server (API v1)
 
 security:
@@ -753,8 +753,26 @@ components:
         orderType:
           $ref: '#/components/schemas/OrderType'
         customerPO:
-          type: string
+          type: string (allows all characters - numeric, alphanumeric, special chars)
           maxLength: 50
+        items:
+          type: array
+          description: Optional array for partial ordering. If provided, only these items are included in the PO. If omitted, all items from the quotation are fetched.
+          items:
+            type: object
+            required:
+              - externalOrderItemId
+              - quantity
+            properties:
+              externalOrderItemId:
+                type: integer
+                format: int32
+                description: Reference to the item ID in OrderService/QuotationService
+              quantity:
+                type: number
+                format: decimal
+                minimum: 0.001
+                description: Quantity for this item (can differ from quotation quantity)
           description: Optional customer purchase order number for external POs
         expectedDeliveryDate:
           type: string
@@ -785,8 +803,26 @@ components:
           format: int32
           description: ID of the currency in CurrencyService (optional, triggers recalculation)
         customerPO:
-          type: string
+          type: string (allows all characters - numeric, alphanumeric, special chars)
           maxLength: 50
+        items:
+          type: array
+          description: Optional array for partial ordering. If provided, only these items are included in the PO. If omitted, all items from the quotation are fetched.
+          items:
+            type: object
+            required:
+              - externalOrderItemId
+              - quantity
+            properties:
+              externalOrderItemId:
+                type: integer
+                format: int32
+                description: Reference to the item ID in OrderService/QuotationService
+              quantity:
+                type: number
+                format: decimal
+                minimum: 0.001
+                description: Quantity for this item (can differ from quotation quantity)
           description: Optional customer purchase order number for external POs
         expectedDeliveryDate:
           type: string
@@ -962,8 +998,26 @@ components:
         orderNumber:
           type: string
         customerPO:
-          type: string
+          type: string (allows all characters - numeric, alphanumeric, special chars)
           nullable: true
+        items:
+          type: array
+          description: Optional array for partial ordering. If provided, only these items are included in the PO. If omitted, all items from the quotation are fetched.
+          items:
+            type: object
+            required:
+              - externalOrderItemId
+              - quantity
+            properties:
+              externalOrderItemId:
+                type: integer
+                format: int32
+                description: Reference to the item ID in OrderService/QuotationService
+              quantity:
+                type: number
+                format: decimal
+                minimum: 0.001
+                description: Quantity for this item (can differ from quotation quantity)
           description: Optional customer purchase order number for external POs
         supplierID:
           type: integer
@@ -1046,6 +1100,9 @@ components:
         rowVersion:
           type: string
           format: byte
+        isStale:
+          type: boolean
+          description: Indicates if the underlying Order/Quotation has changed since the PO was created. Client should warn user.
 
     PurchaseOrderDetailResponse:
       allOf:

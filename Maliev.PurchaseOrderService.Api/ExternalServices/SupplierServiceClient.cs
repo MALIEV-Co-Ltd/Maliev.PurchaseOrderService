@@ -1,293 +1,90 @@
-using System.Net;
-using System.Text.Json;
-using Microsoft.Extensions.Options;
-using Maliev.PurchaseOrderService.Api.Configuration;
-using Maliev.PurchaseOrderService.Api.DTOs;
+using System.Net.Http.Json;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;
 
 /// <summary>
-/// HTTP client implementation for Supplier Service integration
-/// Handles supplier validation, address management, and product catalog operations
+/// Implementation of SupplierService client
 /// </summary>
 public class SupplierServiceClient : ISupplierServiceClient
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<SupplierServiceClient> _logger;
-    private readonly ExternalServiceOptions _options;
-    private readonly JsonSerializerOptions _jsonOptions;
 
-    public SupplierServiceClient(
-        HttpClient httpClient,
-        ILogger<SupplierServiceClient> logger,
-        IOptions<ExternalServiceOptions> options)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SupplierServiceClient"/> class.
+    /// </summary>
+    /// <param name="httpClientFactory">The HTTP client factory.</param>
+    /// <param name="logger">The logger instance.</param>
+    public SupplierServiceClient(IHttpClientFactory httpClientFactory, ILogger<SupplierServiceClient> logger)
     {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true
-        };
+        _httpClient = httpClientFactory.CreateClient("SupplierService");
+        _logger = logger;
     }
 
-    /// <inheritdoc />
+    /// <inheritdoc/>
     public async Task<SupplierDto?> GetSupplierAsync(int supplierId, CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Getting supplier information for ID: {SupplierId}", supplierId);
+            var response = await _httpClient.GetAsync($"{supplierId}", cancellationToken);
 
-            var response = await _httpClient.GetAsync($"/suppliers/{supplierId}", cancellationToken);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
+            if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Supplier not found for ID: {SupplierId}", supplierId);
+                _logger.LogWarning("Failed to fetch supplier {SupplierId}: {StatusCode}", supplierId, response.StatusCode);
                 return null;
             }
 
-            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                _logger.LogError("Authentication failure while getting supplier {SupplierId}", supplierId);
-                throw new UnauthorizedAccessException($"Supplier service authentication failed while getting supplier {supplierId}");
-            }
-
-            response.EnsureSuccessStatusCode();
-
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var supplier = JsonSerializer.Deserialize<SupplierDto>(content, _jsonOptions);
-
-            _logger.LogInformation("Successfully retrieved supplier information for ID: {SupplierId}", supplierId);
-            return supplier;
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "HTTP error occurred while getting supplier {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to get supplier {supplierId}: {ex.Message}", ex);
-        }
-        catch (TaskCanceledException ex)
-        {
-            _logger.LogError(ex, "Timeout occurred while getting supplier {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Timeout while getting supplier {supplierId}", ex);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError(ex, "JSON deserialization error while getting supplier {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Invalid response format while getting supplier {supplierId}", ex);
+            return await response.Content.ReadFromJsonAsync<SupplierDto>(cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error occurred while getting supplier {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to get supplier {supplierId}: {ex.Message}", ex);
+            _logger.LogError(ex, "Error fetching supplier {SupplierId}", supplierId);
+            throw new ExternalServiceException($"Failed to fetch supplier {supplierId}", ex);
         }
     }
 
-    /// <inheritdoc />
-    public async Task<SupplierContactDto?> GetSupplierContactAsync(int supplierId, CancellationToken cancellationToken = default)
+    /// <inheritdoc/>
+    public async Task<bool> ValidateSupplierExistsAsync(int supplierId, CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Getting supplier contact information for ID: {SupplierId}", supplierId);
-
-            var response = await _httpClient.GetAsync($"/suppliers/{supplierId}/contact", cancellationToken);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                _logger.LogWarning("Supplier contact not found for ID: {SupplierId}", supplierId);
-                return null;
-            }
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                _logger.LogError("Authentication failure while getting supplier contact {SupplierId}", supplierId);
-                throw new UnauthorizedAccessException($"Supplier service authentication failed while getting supplier contact {supplierId}");
-            }
-
-            response.EnsureSuccessStatusCode();
-
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var contact = JsonSerializer.Deserialize<SupplierContactDto>(content, _jsonOptions);
-
-            _logger.LogInformation("Successfully retrieved supplier contact for ID: {SupplierId}", supplierId);
-            return contact;
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "HTTP error occurred while getting supplier contact {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to get supplier contact {supplierId}: {ex.Message}", ex);
-        }
-        catch (TaskCanceledException ex)
-        {
-            _logger.LogError(ex, "Timeout occurred while getting supplier contact {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Timeout while getting supplier contact {supplierId}", ex);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError(ex, "JSON deserialization error while getting supplier contact {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Invalid response format while getting supplier contact {supplierId}", ex);
+            var response = await _httpClient.GetAsync($"{supplierId}", cancellationToken);
+            return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error occurred while getting supplier contact {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to get supplier contact {supplierId}: {ex.Message}", ex);
-        }
-    }
-
-    /// <inheritdoc />
-    public async Task<SupplierDto?> ValidateSupplierAsync(int supplierId, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            _logger.LogInformation("Validating supplier for ID: {SupplierId}", supplierId);
-
-            var response = await _httpClient.GetAsync($"/suppliers/{supplierId}/validate", cancellationToken);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                _logger.LogWarning("Supplier validation failed - not found for ID: {SupplierId}", supplierId);
-                return null;
-            }
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                _logger.LogError("Authentication failure while validating supplier {SupplierId}", supplierId);
-                throw new UnauthorizedAccessException($"Supplier service authentication failed while validating supplier {supplierId}");
-            }
-
-            response.EnsureSuccessStatusCode();
-
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var supplier = JsonSerializer.Deserialize<SupplierDto>(content, _jsonOptions);
-
-            _logger.LogInformation("Supplier validation successful for ID {SupplierId}", supplierId);
-            return supplier;
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "HTTP error occurred while validating supplier {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to validate supplier {supplierId}: {ex.Message}", ex);
-        }
-        catch (TaskCanceledException ex)
-        {
-            _logger.LogError(ex, "Timeout occurred while validating supplier {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Timeout while validating supplier {supplierId}", ex);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError(ex, "JSON deserialization error while validating supplier {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Invalid response format while validating supplier {supplierId}", ex);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error occurred while validating supplier {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to validate supplier {supplierId}: {ex.Message}", ex);
-        }
-    }
-
-    /// <inheritdoc />
-    public async Task<IEnumerable<SupplierProductDto>> GetSupplierProductsAsync(int supplierId, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            _logger.LogInformation("Getting supplier products for ID: {SupplierId}", supplierId);
-
-            var response = await _httpClient.GetAsync($"/suppliers/{supplierId}/products", cancellationToken);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                _logger.LogWarning("Supplier products not found for ID: {SupplierId}", supplierId);
-                return Enumerable.Empty<SupplierProductDto>();
-            }
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                _logger.LogError("Authentication failure while getting supplier products {SupplierId}", supplierId);
-                throw new UnauthorizedAccessException($"Supplier service authentication failed while getting supplier products {supplierId}");
-            }
-
-            response.EnsureSuccessStatusCode();
-
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var products = JsonSerializer.Deserialize<IEnumerable<SupplierProductDto>>(content, _jsonOptions) ??
-                          Enumerable.Empty<SupplierProductDto>();
-
-            _logger.LogInformation("Successfully retrieved {ProductCount} products for supplier ID: {SupplierId}",
-                products.Count(), supplierId);
-            return products;
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "HTTP error occurred while getting supplier products {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to get supplier products {supplierId}: {ex.Message}", ex);
-        }
-        catch (TaskCanceledException ex)
-        {
-            _logger.LogError(ex, "Timeout occurred while getting supplier products {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Timeout while getting supplier products {supplierId}", ex);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError(ex, "JSON deserialization error while getting supplier products {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Invalid response format while getting supplier products {supplierId}", ex);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error occurred while getting supplier products {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to get supplier products {supplierId}: {ex.Message}", ex);
-        }
-    }
-
-    /// <inheritdoc />
-    public async Task<SupplierPaymentTermsDto?> GetSupplierPaymentTermsAsync(int supplierId, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            _logger.LogInformation("Getting supplier payment terms for ID: {SupplierId}", supplierId);
-
-            var response = await _httpClient.GetAsync($"/suppliers/{supplierId}/payment-terms", cancellationToken);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                _logger.LogWarning("Supplier payment terms not found for ID: {SupplierId}", supplierId);
-                return null;
-            }
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                _logger.LogError("Authentication failure while getting supplier payment terms {SupplierId}", supplierId);
-                throw new UnauthorizedAccessException($"Supplier service authentication failed while getting supplier payment terms {supplierId}");
-            }
-
-            response.EnsureSuccessStatusCode();
-
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var paymentTerms = JsonSerializer.Deserialize<SupplierPaymentTermsDto>(content, _jsonOptions);
-
-            _logger.LogInformation("Successfully retrieved supplier payment terms for ID: {SupplierId}", supplierId);
-            return paymentTerms;
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "HTTP error occurred while getting supplier payment terms {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to get supplier payment terms {supplierId}: {ex.Message}", ex);
-        }
-        catch (TaskCanceledException ex)
-        {
-            _logger.LogError(ex, "Timeout occurred while getting supplier payment terms {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Timeout while getting supplier payment terms {supplierId}", ex);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError(ex, "JSON deserialization error while getting supplier payment terms {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Invalid response format while getting supplier payment terms {supplierId}", ex);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error occurred while getting supplier payment terms {SupplierId}", supplierId);
-            throw new ExternalServiceException($"Failed to get supplier payment terms {supplierId}: {ex.Message}", ex);
+            _logger.LogError(ex, "Error validating supplier {SupplierId}", supplierId);
+            return false;
         }
     }
 }
 
+/// <summary>
+/// Exception thrown when an external service call fails.
+/// </summary>
+public class ExternalServiceException : Exception
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExternalServiceException"/> class.
+    /// </summary>
+    public ExternalServiceException() { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExternalServiceException"/> class with a specified error message.
+    /// </summary>
+    /// <param name="message">The message that describes the error.</param>
+    public ExternalServiceException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExternalServiceException"/> class with a specified error message
+    /// and a reference to the inner exception that is the cause of this exception.
+    /// </summary>
+    /// <param name="message">The error message that explains the reason for the exception.</param>
+    /// <param name="innerException">The exception that is the cause of the current exception, or a null reference
+    /// if no inner exception is specified.</param>
+    public ExternalServiceException(string message, Exception innerException) : base(message, innerException) { }
+}

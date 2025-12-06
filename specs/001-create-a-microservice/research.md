@@ -1,13 +1,13 @@
-# Research: .NET 9 Microservices Best Practices for PurchaseOrderService
+# Research: .NET 10 Microservices Best Practices for PurchaseOrderService
 
 ## Executive Summary
 
-This research provides comprehensive guidance for building production-ready .NET 9 WebAPI microservices suitable for a purchase order management system with enterprise-grade requirements including role-based access control, audit trails, optimistic concurrency control, high performance, and Kubernetes deployment.
+This research provides comprehensive guidance for building production-ready .NET 10 WebAPI microservices suitable for a purchase order management system with enterprise-grade requirements including role-based access control, audit trails, optimistic concurrency control, high performance, and Kubernetes deployment.
 
-## 1. .NET 9 WebAPI Project Structure and Configuration
+## 1. .NET 10 WebAPI Project Structure and Configuration
 
 ### Decision: Layered Architecture with Standard .NET Project Structure
-**Rationale**: .NET 9 provides enhanced microservices features with up to 50% better performance. Following proven layered architecture patterns ensures maintainability and testability.
+**Rationale**: .NET 10 provides enhanced microservices features with up to 50% better performance. Following proven layered architecture patterns ensures maintainability and testability.
 
 **Alternatives Considered**: Clean Architecture, Hexagonal Architecture
 - **Clean Architecture**: More complex setup, better for larger teams
@@ -16,13 +16,13 @@ This research provides comprehensive guidance for building production-ready .NET
 ### Key Recommendations:
 - Use modular monolith approach initially with clear domain boundaries
 - Implement route grouping for cleaner endpoint organization
-- Leverage .NET 9's enhanced parameter binding for simplified controllers
+- Leverage .NET 10's enhanced parameter binding for simplified controllers
 - Auto-generate OpenAPI documentation for better API discoverability
 
-## 2. Entity Framework Core 9.0 Optimistic Concurrency Control
+## 2. Entity Framework Core 10.0 Optimistic Concurrency Control
 
 ### Decision: RowVersion/Timestamp Pattern with Automatic Retry Logic
-**Rationale**: Database-managed concurrency tokens provide minimal overhead (8 bytes) with reliable conflict detection. EF Core 9.0 provides enhanced performance for PostgreSQL with better query compilation.
+**Rationale**: Database-managed concurrency tokens provide minimal overhead (8 bytes) with reliable conflict detection. EF Core 10.0 provides enhanced performance for PostgreSQL with better query compilation.
 
 **Alternatives Considered**:
 - **ConcurrencyCheck Attribute**: Application-managed but requires manual token handling
@@ -47,7 +47,7 @@ public class PurchaseOrder
 ## 3. JWT Bearer Authentication with Role-Based Authorization
 
 ### Decision: Centralized JWT Authentication with Role-Based Policies
-**Rationale**: JWT provides stateless authentication ideal for microservices. .NET 9's enhanced JWT authentication offers improved performance optimizations.
+**Rationale**: JWT provides stateless authentication ideal for microservices. .NET 10's enhanced JWT authentication offers improved performance optimizations.
 
 **Alternatives Considered**:
 - **Cookie Authentication**: Not suitable for microservices
@@ -68,7 +68,7 @@ public class PurchaseOrder
 ## 4. Serilog Structured Logging Configuration
 
 ### Decision: Serilog with Console/Stdout Output for Container Environments
-**Rationale**: .NET 9's runtime optimizations with Serilog deliver up to 50% better logging performance. Stdout-only logging is optimal for Kubernetes log aggregation.
+**Rationale**: .NET 10's runtime optimizations with Serilog deliver up to 50% better logging performance. Stdout-only logging is optimal for Kubernetes log aggregation.
 
 **Alternatives Considered**:
 - **Built-in .NET Logging**: Less feature-rich for structured logging
@@ -95,8 +95,8 @@ public class PurchaseOrder
 
 ## 5. PostgreSQL Integration and Performance Optimization
 
-### Decision: EF Core 9.0 with Connection Pooling and Query Optimization
-**Rationale**: EF Core 9.0 provides significant PostgreSQL performance improvements including better query compilation, improved change tracking, and enhanced connection management.
+### Decision: EF Core 10.0 with Connection Pooling and Query Optimization
+**Rationale**: EF Core 10.0 provides significant PostgreSQL performance improvements including better query compilation, improved change tracking, and enhanced connection management.
 
 **Alternatives Considered**:
 - **Dapper**: Better performance but more manual mapping
@@ -131,7 +131,7 @@ private static readonly Func<PurchaseOrderContext, string, Task<PurchaseOrder>>
 ## 6. Docker Containerization Best Practices
 
 ### Decision: Multi-Stage Dockerfile with Security-First Approach
-**Rationale**: .NET 9 containerization benefits from multi-stage builds that minimize image size while maintaining security. Non-root user execution is essential for production security.
+**Rationale**: .NET 10 containerization benefits from multi-stage builds that minimize image size while maintaining security. Non-root user execution is essential for production security.
 
 **Alternatives Considered**:
 - **Single-stage builds**: Larger images with build tools
@@ -140,16 +140,17 @@ private static readonly Func<PurchaseOrderContext, string, Task<PurchaseOrder>>
 
 ### Security Implementation:
 ```dockerfile
-# Create non-root user
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-RUN chown -R appuser:appgroup /app
-USER appuser
+# Ensure 'app' owns the workdir (app user already exists in ASP.NET runtime image)
+RUN chown -R app:app /app
+
+# Switch to non-root user
+USER app
 ```
 
 ### Health Check Configuration:
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/purchaseorders/liveness || exit 1
+    CMD curl -f http://localhost:8080/purchase-orders/liveness || exit 1
 ```
 
 ### Performance Optimizations:
@@ -162,8 +163,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 | Component | Decision | Primary Benefit |
 |-----------|----------|-----------------|
-| **Framework** | .NET 9 WebAPI | 50% performance improvement, enhanced microservices features |
-| **Database Access** | EF Core 9.0 with PostgreSQL | Best-in-class performance, strong typing, migration support |
+| **Framework** | .NET 10 WebAPI | 50% performance improvement, enhanced microservices features |
+| **Database Access** | EF Core 10.0 with PostgreSQL | Best-in-class performance, strong typing, migration support |
 | **Authentication** | JWT Bearer with role-based policies | Stateless, scalable, microservices-ready |
 | **Logging** | Serilog with stdout output | Container-optimized, structured data, high performance |
 | **Concurrency** | Optimistic with RowVersion | Minimal overhead, database-managed, scalable |
@@ -226,7 +227,7 @@ ExternalServices__AuthService__TimeoutInSeconds=180
 
 ### HttpClient Configuration
 - Named clients for each service with specific timeout and retry policies
-- Polly integration for resilience patterns
+- `Microsoft.Extensions.Http.Resilience` integration for resilience patterns
 - Automatic service discovery through environment-based configuration
 - Health check integration for external service availability monitoring
 

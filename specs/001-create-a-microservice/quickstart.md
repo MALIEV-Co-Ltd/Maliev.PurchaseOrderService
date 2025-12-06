@@ -34,7 +34,7 @@ The token must contain role claims:
 #### 1.1 Create a Purchase Order from Customer Quotation
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders
+POST /purchase-orders/v1/purchase-orders
 Content-Type: application/json
 Authorization: Bearer <employee-token>
 
@@ -98,7 +98,7 @@ Content-Type: application/json
 #### 1.2 View Created Order
 **Request:**
 ```http
-GET /purchaseorders/v1/purchase-orders/12345
+GET /purchase-orders/v1/purchase-orders/12345
 Authorization: Bearer <employee-token>
 ```
 
@@ -204,7 +204,7 @@ Content-Type: application/json
 #### 2.2 Approve the Purchase Order
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders/12345/approve
+POST /purchase-orders/v1/purchase-orders/12345/approve
 Content-Type: application/json
 Authorization: Bearer <manager-token>
 
@@ -234,7 +234,7 @@ Content-Type: application/json
 #### 3.1 Update Order with Concurrency Control
 **Request:**
 ```http
-PUT /purchaseorders/v1/purchase-orders/12345
+PUT /purchase-orders/v1/purchase-orders/12345
 Content-Type: application/json
 Authorization: Bearer <employee-token>
 
@@ -265,7 +265,7 @@ Content-Type: application/json
 #### 3.2 Concurrency Conflict Example
 **Request with Outdated RowVersion:**
 ```http
-PUT /purchaseorders/v1/purchase-orders/12345
+PUT /purchase-orders/v1/purchase-orders/12345
 Content-Type: application/json
 Authorization: Bearer <employee-token>
 
@@ -341,7 +341,7 @@ Authorization: Bearer <procurement-token>
 #### 5.1 Refresh Order Items from External Service
 **Request:**
 ```http
-GET /purchaseorders/v1/purchase-orders/12345/items?refresh=true
+GET /purchase-orders/v1/purchase-orders/12345/items?refresh=true
 Authorization: Bearer <employee-token>
 ```
 
@@ -372,7 +372,7 @@ Content-Type: application/json
 #### 5.2 Handle External Service Validation Errors
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders
+POST /purchase-orders/v1/purchase-orders
 Content-Type: application/json
 Authorization: Bearer <employee-token>
 
@@ -408,7 +408,7 @@ Content-Type: application/json
 #### 6.1 Update Purchase Order with WHT
 **Request:**
 ```http
-PUT /purchaseorders/v1/purchase-orders/12345
+PUT /purchase-orders/v1/purchase-orders/12345
 Content-Type: application/json
 Authorization: Bearer <procurement-token>
 
@@ -440,7 +440,7 @@ Content-Type: application/json
 #### 6.2 WHT Validation Error Example
 **Request:**
 ```http
-PUT /purchaseorders/v1/purchase-orders/12345
+PUT /purchase-orders/v1/purchase-orders/12345
 Content-Type: application/json
 Authorization: Bearer <procurement-token>
 
@@ -475,7 +475,7 @@ Content-Type: application/json
 #### 7.1 Cancel Order with Reason
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders/12345/cancel
+POST /purchase-orders/v1/purchase-orders/12345/cancel
 Content-Type: application/json
 Authorization: Bearer <manager-token>
 
@@ -505,7 +505,7 @@ Content-Type: application/json
 #### 8.1 Create Purchase Order with Different Currency (THB)
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders
+POST /purchase-orders/v1/purchase-orders
 Content-Type: application/json
 Authorization: Bearer <employee-token>
 
@@ -563,7 +563,7 @@ Content-Type: application/json
 #### 8.2 Update Purchase Order Currency (Triggers Recalculation)
 **Request:**
 ```http
-PUT /purchaseorders/v1/purchase-orders/12349
+PUT /purchase-orders/v1/purchase-orders/12349
 Content-Type: application/json
 Authorization: Bearer <employee-token>
 
@@ -608,7 +608,7 @@ Content-Type: application/json
 #### 8.3 Handle Invalid CurrencyID Error
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders
+POST /purchase-orders/v1/purchase-orders
 Content-Type: application/json
 Authorization: Bearer <employee-token>
 
@@ -643,7 +643,7 @@ Content-Type: application/json
 #### 8.4 Handle CurrencyService Unavailable Error
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders
+POST /purchase-orders/v1/purchase-orders
 Content-Type: application/json
 Authorization: Bearer <employee-token>
 
@@ -679,7 +679,7 @@ Content-Type: application/json
 #### 9.1 Upload Customer PO Document
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders/12345/files
+POST /purchase-orders/v1/purchase-orders/12345/files
 Content-Type: multipart/form-data
 Authorization: Bearer <employee-token>
 
@@ -721,7 +721,7 @@ Content-Type: application/json
 #### 9.2 Get All Documents for Purchase Order
 **Request:**
 ```http
-GET /purchaseorders/v1/purchase-orders/12345/files
+GET /purchase-orders/v1/purchase-orders/12345/files
 Authorization: Bearer <employee-token>
 ```
 
@@ -773,7 +773,7 @@ Content-Type: application/json
 #### 9.3 Download Document
 **Request:**
 ```http
-GET /purchaseorders/v1/purchase-orders/12345/files/501
+GET /purchase-orders/v1/purchase-orders/12345/files/501
 Authorization: Bearer <employee-token>
 ```
 
@@ -799,7 +799,7 @@ HTTP/1.1 204 No Content
 #### 9.5 Handle File Upload Error (File Too Large)
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders/12345/files
+POST /purchase-orders/v1/purchase-orders/12345/files
 Content-Type: multipart/form-data
 Authorization: Bearer <employee-token>
 
@@ -826,7 +826,7 @@ Content-Type: application/json
 #### 9.6 Handle UploadService Unavailable Error
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders/12345/files
+POST /purchase-orders/v1/purchase-orders/12345/files
 Content-Type: multipart/form-data
 Authorization: Bearer <employee-token>
 
@@ -855,7 +855,7 @@ Content-Type: application/json
 ### Validation Error
 **Request:**
 ```http
-POST /purchaseorders/v1/purchase-orders
+POST /purchase-orders/v1/purchase-orders
 Content-Type: application/json
 Authorization: Bearer <employee-token>
 
@@ -892,7 +892,7 @@ Content-Type: application/json
 ### Authorization Error
 **Request:**
 ```http
-GET /purchaseorders/v1/purchase-orders/99999
+GET /purchase-orders/v1/purchase-orders/99999
 Authorization: Bearer <employee-token>
 ```
 
@@ -913,7 +913,7 @@ Content-Type: application/json
 ### Resource Not Found
 **Request:**
 ```http
-GET /purchaseorders/v1/purchase-orders/99999
+GET /purchase-orders/v1/purchase-orders/99999
 Authorization: Bearer <admin-token>
 ```
 

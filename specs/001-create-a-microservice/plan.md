@@ -32,13 +32,13 @@
 ## Summary
 Primary requirement: Create a microservice for managing purchase orders (internal and external) with integration to SupplierService, OrderService, CurrencyService, UploadService, and PdfService. Purchase orders are linked to existing suppliers, orders, and currencies, with items derived from external services. Includes document management with file uploads to UploadService, automatic PDF generation via PdfService with event-driven processing, customer PO number tracking, Withholding Tax (WHT) calculation and validation according to Thailand tax regulations. Full CRUD operations on purchase orders, independent database, JWT authentication, role-based access control, audit trail, and optimistic concurrency control.
 
-Technical approach: .NET 9 WebAPI microservice with Entity Framework Core, PostgreSQL database, JWT Bearer authentication, external service integration patterns for five services, document management with UploadService integration, automatic PDF generation with PdfService integration using event-driven architecture, WHT calculation engine with Thailand tax compliance, Serilog logging, containerization with Docker, following layered architecture (API → Application → Domain → Data).
+Technical approach: .NET 10 WebAPI microservice with Entity Framework Core, PostgreSQL database, JWT Bearer authentication, external service integration patterns for five services, document management with UploadService integration, automatic PDF generation with PdfService integration using event-driven architecture, WHT calculation engine with Thailand tax compliance, Serilog logging, containerization with Docker, following layered architecture (API → Application → Domain → Data).
 
 ## Technical Context
-**Language/Version**: .NET 9.0
-**Primary Dependencies**: ASP.NET Core 9.0, Entity Framework Core 9.0, PostgreSQL, Serilog.AspNetCore, HttpClientFactory for external services
+**Language/Version**: .NET 10.0
+**Primary Dependencies**: ASP.NET Core 10.0, Entity Framework Core 10.0.0, PostgreSQL, Serilog.AspNetCore 9.0.0, HttpClientFactory for external services
 **Storage**: PostgreSQL database (purchaseorder_app_db)
-**Testing**: xUnit, Moq, FluentAssertions, minimum 80% coverage
+**Testing**: xUnit, Moq, FluentAssertions, Testcontainers minimum 80% coverage
 **Target Platform**: Linux containers, Kubernetes deployment
 **Project Type**: single (microservice API only)
 
@@ -47,11 +47,13 @@ Technical approach: .NET 9 WebAPI microservice with Entity Framework Core, Postg
 - `Maliev.PurchaseOrderService.Data` → EF Core DbContext, entities, migrations
 - `Maliev.PurchaseOrderService.Tests` → unit and integration tests
 
-**Architecture & Design**: Layered architecture (API → Application → Domain → Data), stateless microservice with all persistent state in PostgreSQL, optimistic concurrency control, comprehensive audit trail, DTOs for API input/output mapped to domain entities
+**Architecture & Design**: Layered architecture (API → Application → Domain → Data), stateless microservice with all persistent state in PostgreSQL. The service will be orchestrated by a central .NET Aspire project and will incorporate `ServiceDefaults` for resilience, health checks, and telemetry. Optimistic concurrency control, comprehensive audit trail, DTOs for API input/output mapped to domain entities.
 
 **Environment Configuration**:
+- **With Aspire**: Service discovery via the central `Maliev.Aspire.AppHost` will manage service-to-service communication.
+- **Without Aspire (standalone/production)**: Environment variables via Google Secret Manager with structured configuration.
 - Database: `ConnectionStrings__PurchaseOrderDbContext` (purchaseorder_app_db)
-- Service Endpoints: Environment variables via Google Secret Manager with structured configuration
+- Service Endpoints: 
   - `ExternalServices__SupplierService__BaseUrl` → Service base URL including service path (e.g., `https://{BaseUrl}/suppliers`)
   - `ExternalServices__OrderService__BaseUrl` → Service base URL including service path (e.g., `https://{BaseUrl}/orders`)
   - `ExternalServices__CurrencyService__BaseUrl` → Service base URL including service path (e.g., `https://{BaseUrl}/currencies`)
@@ -70,9 +72,9 @@ Technical approach: .NET 9 WebAPI microservice with Entity Framework Core, Postg
 - Headers: `Authorization, Content-Type`
 
 **API Design**:
-- **API Version**: All endpoints must use `/purchaseorders/v1` where v1 is the API version
-- Swagger UI: `/purchaseorders/swagger` (development only)
-- Health Endpoints: `/purchaseorders/liveness`, `/purchaseorders/readiness`
+- **API Version**: All endpoints must use `/purchase-orders/v1` where v1 is the API version
+- Scalar UI: `/purchase-orders/scalar` (development only)
+- Health Endpoints: `/purchase-orders/liveness`, `/purchase-orders/readiness` (enhanced by Aspire ServiceDefaults)
 - Automatic database migrations on startup
 - Rate limiting for critical endpoints
 - Zero warnings policy for build and test
@@ -83,7 +85,7 @@ Technical approach: .NET 9 WebAPI microservice with Entity Framework Core, Postg
 
 **Scale/Scope**: Enterprise procurement team usage, role-based access (employee/manager/procurement/admin), external service dependencies with environment-specific endpoints, Thailand tax compliance requirements, event-driven PDF generation for internal POs only
 
-**External Integrations**: All service endpoints loaded from environment variables (no hardcoded URLs)
+**External Integrations**: All service endpoints loaded from environment variables (no hardcoded URLs) or discovered via the central .NET Aspire AppHost.
 - **SupplierService**: `/suppliers/v1` - supplier validation and address management
 - **OrderService**: `/orders/v1` - order items derivation (read-only from OrderService/QuotationService)
 - **CurrencyService**: `/currencies/v1` - currency validation and caching
@@ -107,7 +109,7 @@ Technical approach: .NET 9 WebAPI microservice with Entity Framework Core, Postg
 - ✅ **No direct database access**: No access to other services' databases
 
 ### II. Explicit Contracts
-- ✅ **OpenAPI documentation**: Complete Swagger/OpenAPI 3.0 specification for all endpoints
+- ✅ **OpenAPI documentation**: Complete Scalar/OpenAPI 3.0 specification for all endpoints
 - ✅ **Contract versioning**: API versioned as MAJOR.MINOR format
 - ✅ **Backward compatibility**: Schema changes require migration strategy
 
@@ -120,7 +122,7 @@ Technical approach: .NET 9 WebAPI microservice with Entity Framework Core, Postg
 ### IV. Auditability & Observability
 - ✅ **Structured logging**: JSON format to stdout via Serilog
 - ✅ **Audit trail**: Tamper-proof logs for all operations including external service calls, WHT calculations, document operations, PDF generation events
-- ✅ **Health checks**: Liveness and readiness probes for Kubernetes
+- ✅ **Health checks**: Liveness and readiness probes for Kubernetes, enhanced by ServiceDefaults
 - ✅ **Traceable operations**: User/action tracking in all logs
 
 ### V. Security & Compliance
@@ -150,43 +152,47 @@ specs/001-create-a-microservice/
 
 ### Source Code (repository root)
 ```
-# Single microservice project structure
-Maliev.PurchaseOrderService.Api/     # Main WebAPI project
-├── Controllers/                     # REST API controllers
-├── DTOs/                           # Data Transfer Objects
-├── Services/                       # Business logic services
-├── MappingProfiles/               # AutoMapper profiles
-├── Program.cs                     # Application entry point
-└── Dockerfile                     # Container definition
-
-Maliev.PurchaseOrderService.Data/   # Data access layer
-├── Entities/                      # Domain entities
-├── PurchaseOrderContext.cs        # DbContext
-└── Migrations/                    # EF Core migrations
-
-Maliev.PurchaseOrderService.Common/ # Shared models/enums
-└── Enumerations/                  # Shared enums
-
-Maliev.PurchaseOrderService.Tests/  # Test project
-├── Controllers/                   # Controller tests
-├── Services/                     # Service tests
-└── Integration/                  # Integration tests
-
-Maliev.PurchaseOrderService.sln     # Solution file
+# Service solution structure
+Maliev.PurchaseOrderService/
+├── Maliev.PurchaseOrderService.Api/     # Main WebAPI project
+│   ├── Controllers/                     # REST API controllers
+│   ├── DTOs/                           # Data Transfer Objects
+│   ├── Services/                       # Business logic services
+│   ├── MappingProfiles/               # AutoMapper profiles
+│   ├── Program.cs                     # Application entry point
+│   └── Dockerfile                     # Container definition
+│
+├── Maliev.PurchaseOrderService.Data/   # Data access layer
+│   ├── Entities/                      # Domain entities
+│   ├── PurchaseOrderContext.cs        # DbContext
+│   └── Migrations/                    # EF Core migrations
+│
+├── Maliev.PurchaseOrderService.Common/ # Shared models/enums
+│   └── Enumerations/                  # Shared enums
+│
+├── Maliev.PurchaseOrderService.Tests/  # Test project
+│   ├── Controllers/                   # Controller tests
+│   ├── Services/                     # Service tests
+│   └── Integration/                  # Integration tests
+│
+├── nuget.config                        # NuGet configuration for private feeds
+└── Maliev.PurchaseOrderService.sln     # Solution file
 ```
 
-**Structure Decision**: Single microservice project following .NET solution conventions
+**Structure Decision**: Single microservice project following .NET solution conventions. The `Maliev.Aspire.ServiceDefaults` project will be consumed as a NuGet package to provide standard resilience and telemetry. Orchestration is handled by a separate, central .NET Aspire project.
 
 ## Phase 0: Outline & Research
 All technical context is well-defined from the provided implementation plan. No NEEDS CLARIFICATION items remain from the specification analysis.
 
 **Research Tasks**:
-1. .NET 9 WebAPI best practices for microservices
+1. .NET 10 WebAPI best practices for microservices
 2. Entity Framework Core optimistic concurrency patterns
 3. JWT authentication implementation with role-based authorization
 4. Serilog structured logging configuration for containers
 5. PostgreSQL connection and performance optimization
-6. Docker containerization for .NET 9 applications
+6. Docker containerization for .NET 10 applications
+7. Integrating a service with a .NET Aspire AppHost and using ServiceDefaults.
+8. Using `Microsoft.Extensions.Http.Resilience` for http client resilience.
 
 **Output**: research.md documenting technology decisions and best practices
 
@@ -224,40 +230,46 @@ All technical context is well-defined from the provided implementation plan. No 
 *This section describes what the /tasks command will do - DO NOT execute during /plan*
 
 **Task Generation Strategy**:
-- Generate solution and project structure tasks following constitutional requirements and .NET 9 naming conventions (Maliev.PurchaseOrderService.Api/Data/Tests)
-- Create Entity Framework entities and DbContext with five external service integration, WHT fields, document management, event sourcing, and internal/external PO classification (Constitution: Service Autonomy)
-- Implement repository pattern for data access with caching (in-memory/Redis) (Constitution: Simplicity & Maintainability)
-- Create DTOs and AutoMapper profiles for external service data, WHT calculations, document management, and PDF generation
-- Build REST API controllers with CRUD operations, five external service integration, WHT support, document endpoints, event publishing, and environment-specific configuration (Constitution: Explicit Contracts)
-- Implement comprehensive OpenAPI/Swagger documentation for all endpoints with development-only access at `/purchaseorders/swagger` (Constitution: Explicit Contracts)
-- Implement environment-specific configuration management for all service endpoints via environment variables (Google Secret Manager integration)
-- Implement CORS configuration for environment-specific frontend origins (dev/staging/production)
-- Implement document management service with UploadService integration (upload, download, delete)
-- Implement automatic PDF generation service with PdfService integration and event-driven processing for **internal POs only**
-- Implement event-driven architecture for PurchaseOrderCreated/Updated events with async PDF generation for internal POs
-- Implement external service clients with HttpClientFactory and versioned endpoint configuration (Constitution: Service Autonomy):
-  - SupplierService client: `/suppliers/v1` endpoints
-  - OrderService client: `/orders/v1` endpoints
-  - CurrencyService client: `/currencies/v1` endpoints
-  - UploadService client: `/uploads/v1` endpoints
-  - PdfService client: `/pdfs/v1` endpoints
-  - AuthenticationService client: `/auth/v1` endpoints
-- Add resilience patterns (circuit breakers, retry policies, timeouts) for all external services
-- Implement JWT authentication and role-based authorization with environment-specific configuration (Constitution: Security & Compliance)
-- Implement API rate limiting for critical endpoints and performance optimization
-- Implement caching strategies (in-memory/Redis) for frequently accessed data
-- Implement WHT calculation engine with Thailand tax regulations validation and legal limit checks (Constitution: Security & Compliance)
-- Add comprehensive audit trail functionality including external service call logging, WHT operations, document operations, and PDF generation events (Constitution: Auditability & Observability)
-- Create optimistic concurrency control with rate limiting safeguards
-- Implement health check endpoints at `/purchaseorders/liveness` and `/purchaseorders/readiness`
-- Implement automatic database migration execution on startup
-- Write comprehensive unit and integration tests with external service mocking, WHT scenarios, document management workflows, PDF generation workflows for internal POs, and environment configuration testing (Constitution: Test-First Development)
-- Ensure 80% minimum test coverage for business-critical logic with zero warnings policy (Constitution: Test-First Development)
-- Configure Docker containerization with environment-based configuration (Constitution: Deployment & Operations Standards)
-- Set up health checks and monitoring including external service health (Constitution: Auditability & Observability)
-- Implement structured JSON logging to stdout via Serilog with no file logging (Constitution: Auditability & Observability)
-- Implement async endpoints with non-blocking I/O for performance optimization
-- Enforce zero warnings policy for `dotnet build` and `dotnet test`
+- **Aspire Integration**:
+  - Add the existing `Maliev.Aspire.ServiceDefaults` project to the `Maliev.PurchaseOrderService.sln`.
+  - In `Maliev.PurchaseOrderService.Api`, add a project reference to `Maliev.Aspire.ServiceDefaults`.
+  - In `Maliev.PurchaseOrderService.Api/Program.cs`, call the `AddServiceDefaults()` extension method.
+  - **Manual Step**: Update the central .NET Aspire AppHost project to add the `Maliev.PurchaseOrderService.Api` as a new project resource for orchestration.
+- **Service Implementation**:
+  - Generate `Maliev.PurchaseOrderService` project structure following constitutional requirements and .NET 10 naming conventions (Maliev.PurchaseOrderService.Api/Data/Tests)
+  - Create Entity Framework entities and DbContext with five external service integration, WHT fields, document management, event sourcing, and internal/external PO classification (Constitution: Service Autonomy)
+  - Implement repository pattern for data access with caching (in-memory/Redis) (Constitution: Simplicity & Maintainability)
+  - Create DTOs and AutoMapper profiles for external service data, WHT calculations, document management, and PDF generation
+  - Build REST API controllers with CRUD operations, five external service integration, WHT support, document endpoints, event publishing, and environment-specific configuration (Constitution: Explicit Contracts)
+  - Implement comprehensive OpenAPI/Scalar documentation for all endpoints with development-only access at `/purchase-orders/scalar` (Constitution: Explicit Contracts)
+  - Implement environment-specific configuration management for all service endpoints via environment variables (Google Secret Manager integration) for non-Aspire environments.
+  - Implement CORS configuration for environment-specific frontend origins (dev/staging/production)
+  - Implement document management service with UploadService integration (upload, download, delete)
+  - Implement automatic PDF generation service with PdfService integration and event-driven processing for **internal POs only**
+  - Implement event-driven architecture for PurchaseOrderCreated/Updated events with async PDF generation for internal POs
+  - Implement external service clients with HttpClientFactory and versioned endpoint configuration, leveraging Aspire service discovery and `Microsoft.Extensions.Http.Resilience` (Constitution: Service Autonomy):
+    - SupplierService client: `/suppliers/v1` endpoints
+    - OrderService client: `/orders/v1` endpoints
+    - CurrencyService client: `/currencies/v1` endpoints
+    - UploadService client: `/uploads/v1` endpoints
+    - PdfService client: `/pdfs/v1` endpoints
+    - AuthenticationService client: `/auth/v1` endpoints
+  - Add resilience patterns (circuit breakers, retry policies, timeouts) for all external services, using `Microsoft.Extensions.Http.Resilience` and defaults from `ServiceDefaults`.
+  - Implement JWT authentication and role-based authorization with environment-specific configuration (Constitution: Security & Compliance)
+  - Implement API rate limiting for critical endpoints and performance optimization
+  - Implement caching strategies (in-memory/Redis) for frequently accessed data
+  - Implement WHT calculation engine with Thailand tax regulations validation and legal limit checks (Constitution: Security & Compliance)
+  - Add comprehensive audit trail functionality including external service call logging, WHT operations, document operations, and PDF generation events (Constitution: Auditability & Observability)
+  - Create optimistic concurrency control with rate limiting safeguards
+  - Implement health check endpoints at `/purchase-orders/liveness` and `/purchase-orders/readiness`, enhanced by `ServiceDefaults`.
+  - Implement automatic database migration execution on startup
+  - Write comprehensive unit and integration tests with external service mocking, WHT scenarios, document management workflows, PDF generation workflows for internal POs, and environment configuration testing (Constitution: Test-First Development)
+  - Ensure 80% minimum test coverage for business-critical logic with zero warnings policy (Constitution: Test-First Development)
+  - Configure Docker containerization with environment-based configuration (Constitution: Deployment & Operations Standards)
+  - Set up health checks and monitoring including external service health (Constitution: Auditability & Observability)
+  - Implement structured JSON logging to stdout via Serilog with no file logging (Constitution: Auditability & Observability)
+  - Implement async endpoints with non-blocking I/O for performance optimization
+  - Enforce zero warnings policy for `dotnet build` and `dotnet test`
 
 **Ordering Strategy**:
 - TDD order: Tests before implementation (Constitution: Test-First Development NON-NEGOTIABLE)
@@ -306,7 +318,7 @@ All technical context is well-defined from the provided implementation plan. No 
 
 **Phase Status**:
 - [x] Phase 0: Research complete (/plan command) - Updated with API versioning and external service endpoints
-- [x] Phase 1: Design complete (/plan command) - All contracts updated with versioned endpoints (/purchaseorders/v1, external services /v1)
+- [x] Phase 1: Design complete (/plan command) - All contracts updated with versioned endpoints (/purchase-orders/v1, external services /v1)
 - [x] Phase 2: Task planning complete (/plan command - describe approach only)
 - [x] Phase 3: Tasks generated (/tasks command) - ALL 90 TASKS COMPLETED (100%)
 - [x] Phase 4: Implementation complete - Production-ready microservice with comprehensive features

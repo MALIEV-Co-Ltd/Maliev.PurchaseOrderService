@@ -1,93 +1,101 @@
-using Maliev.PurchaseOrderService.Api.DTOs;
-
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;
 
 /// <summary>
-/// Interface for Order Service external API client
+/// Client for interacting with OrderService
 /// </summary>
 public interface IOrderServiceClient
 {
     /// <summary>
-    /// Gets order information by ID
+    /// Retrieves an order by its ID asynchronously.
     /// </summary>
-    /// <param name="orderId">The order ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Order information or null if not found</returns>
+    /// <param name="orderId">The ID of the order to retrieve.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>An <see cref="OrderDto"/> if found, otherwise null.</returns>
     Task<OrderDto?> GetOrderAsync(int orderId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets order status by ID
+    /// Retrieves order items for a specific order asynchronously.
     /// </summary>
-    /// <param name="orderId">The order ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Order status information or null if not found</returns>
-    Task<OrderStatusDto?> GetOrderStatusAsync(int orderId, CancellationToken cancellationToken = default);
+    /// <param name="orderId">The ID of the order.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A list of <see cref="OrderItemDto"/>.</returns>
+    Task<List<OrderItemDto>> GetOrderItemsAsync(int orderId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Updates order status
+    /// Validates if an order with the specified ID exists asynchronously.
     /// </summary>
-    /// <param name="orderId">The order ID</param>
-    /// <param name="status">The new status</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True if update was successful</returns>
-    Task<bool> UpdateOrderStatusAsync(int orderId, string status, CancellationToken cancellationToken = default);
+    /// <param name="orderId">The ID of the order to validate.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>True if the order exists, false otherwise.</returns>
+    Task<bool> ValidateOrderExistsAsync(int orderId, CancellationToken cancellationToken = default);
+}
 
+/// <summary>
+/// Data transfer object for order information.
+/// </summary>
+public class OrderDto
+{
     /// <summary>
-    /// Gets order items for a specific order
+    /// Gets or sets the unique identifier of the order.
     /// </summary>
-    /// <param name="orderId">The order ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of order items</returns>
-    Task<IEnumerable<OrderItemDto>> GetOrderItemsAsync(int orderId, CancellationToken cancellationToken = default);
+    public int Id { get; set; }
+    /// <summary>
+    /// Gets or sets the order number.
+    /// </summary>
+    public string OrderNumber { get; set; } = string.Empty;
+    /// <summary>
+    /// Gets or sets the date the order was placed.
+    /// </summary>
+    public DateTime OrderDate { get; set; }
+    /// <summary>
+    /// Gets or sets the current status of the order.
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+    /// <summary>
+    /// Gets or sets the list of items in the order.
+    /// </summary>
+    public List<OrderItemDto> Items { get; set; } = new();
+}
 
+/// <summary>
+/// Data transfer object for order item information.
+/// </summary>
+public class OrderItemDto
+{
     /// <summary>
-    /// Validates if an order exists and is in a valid state for purchase order creation
+    /// Gets or sets the unique identifier of the order item.
     /// </summary>
-    /// <param name="orderId">The order ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True if order is valid for purchase order creation</returns>
-    Task<bool> ValidateOrderForPurchaseOrderAsync(int orderId, CancellationToken cancellationToken = default);
-
+    public int Id { get; set; }
     /// <summary>
-    /// Gets order delivery information
+    /// Gets or sets the product code.
     /// </summary>
-    /// <param name="orderId">The order ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Order delivery information or null if not found</returns>
-    Task<OrderDeliveryDto?> GetOrderDeliveryInfoAsync(int orderId, CancellationToken cancellationToken = default);
-
+    public string? ProductCode { get; set; }
     /// <summary>
-    /// Links a purchase order to an order
+    /// Gets or sets the name of the product.
     /// </summary>
-    /// <param name="orderId">The order ID</param>
-    /// <param name="purchaseOrderId">The purchase order ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True if linking was successful</returns>
-    Task<bool> LinkPurchaseOrderAsync(int orderId, int purchaseOrderId, CancellationToken cancellationToken = default);
-
+    public string ProductName { get; set; } = string.Empty;
     /// <summary>
-    /// Gets orders by customer ID with optional filtering
+    /// Gets or sets the quantity of the product.
     /// </summary>
-    /// <param name="customerId">The customer ID</param>
-    /// <param name="status">Optional status filter</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of orders for the customer</returns>
-    Task<IEnumerable<OrderDto>> GetOrdersByCustomerAsync(int customerId, string? status = null, CancellationToken cancellationToken = default);
-
+    public decimal Quantity { get; set; }
     /// <summary>
-    /// Creates a new order
+    /// Gets or sets the unit of measure for the product.
     /// </summary>
-    /// <param name="createRequest">Order creation request</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Created order information</returns>
-    Task<OrderDto?> CreateOrderAsync(CreateOrderRequest createRequest, CancellationToken cancellationToken = default);
-
+    public string UnitOfMeasure { get; set; } = string.Empty;
     /// <summary>
-    /// Cancels an order
+    /// Gets or sets the unit price of the product.
     /// </summary>
-    /// <param name="orderId">The order ID</param>
-    /// <param name="reason">Cancellation reason</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True if cancellation was successful</returns>
-    Task<bool> CancelOrderAsync(int orderId, string reason, CancellationToken cancellationToken = default);
+    public decimal UnitPrice { get; set; }
+    /// <summary>
+    /// Gets or sets the total price for the order item.
+    /// </summary>
+    public decimal TotalPrice { get; set; }
+    /// <summary>
+    /// Gets or sets the currency of the price.
+    /// </summary>
+    public string Currency { get; set; } = string.Empty;
+    /// <summary>
+    /// Gets or sets additional notes for the order item.
+    /// </summary>
+    public string? Notes { get; set; }
 }

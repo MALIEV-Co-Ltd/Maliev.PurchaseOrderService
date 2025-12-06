@@ -1,0 +1,40 @@
+# Build artifacts
+bin/
+obj/
+*.log
+*.tmp
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Documentation
+README.md
+*.md
+!specs/
+
+# Environment
+.env*
+
+# Test files
+*.Tests/
+
+# Docker
+Dockerfile*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Coverage
+coverage/

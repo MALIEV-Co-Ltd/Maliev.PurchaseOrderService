@@ -1,85 +1,50 @@
-using Maliev.PurchaseOrderService.Api.DTOs;
-
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;
 
 /// <summary>
-/// Interface for Currency Service external API client
+/// Client for interacting with CurrencyService
 /// </summary>
 public interface ICurrencyServiceClient
 {
     /// <summary>
-    /// Gets current exchange rate between two currencies
+    /// Retrieves a currency by its ID asynchronously.
     /// </summary>
-    /// <param name="fromCurrency">Source currency code (e.g., USD)</param>
-    /// <param name="toCurrency">Target currency code (e.g., THB)</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Exchange rate information or null if not found</returns>
-    Task<ExchangeRateDto?> GetExchangeRateAsync(string fromCurrency, string toCurrency, CancellationToken cancellationToken = default);
+    /// <param name="currencyId">The ID of the currency to retrieve.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A <see cref="CurrencyDto"/> if found, otherwise null.</returns>
+    Task<CurrencyDto?> GetCurrencyAsync(int currencyId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Converts amount from one currency to another
+    /// Validates if a currency with the specified ID exists asynchronously.
     /// </summary>
-    /// <param name="amount">Amount to convert</param>
-    /// <param name="fromCurrency">Source currency code</param>
-    /// <param name="toCurrency">Target currency code</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Currency conversion result</returns>
-    Task<CurrencyConversionDto?> ConvertCurrencyAsync(decimal amount, string fromCurrency, string toCurrency, CancellationToken cancellationToken = default);
+    /// <param name="currencyId">The ID of the currency to validate.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>True if the currency exists, false otherwise.</returns>
+    Task<bool> ValidateCurrencyExistsAsync(int currencyId, CancellationToken cancellationToken = default);
+}
 
+/// <summary>
+/// Data transfer object for currency information.
+/// </summary>
+public class CurrencyDto
+{
     /// <summary>
-    /// Gets list of supported currencies
+    /// Gets or sets the unique identifier of the currency.
     /// </summary>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of supported currencies</returns>
-    Task<IEnumerable<CurrencyDto>> GetSupportedCurrenciesAsync(CancellationToken cancellationToken = default);
-
+    public int Id { get; set; }
     /// <summary>
-    /// Validates if a currency code is supported and returns currency information
+    /// Gets or sets the ISO 4217 currency code (e.g., "USD", "THB").
     /// </summary>
-    /// <param name="currencyCode">Currency code to validate</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Currency information if supported, null otherwise</returns>
-    Task<CurrencyDto?> ValidateCurrencyAsync(string currencyCode, CancellationToken cancellationToken = default);
-
+    public string Code { get; set; } = string.Empty;
     /// <summary>
-    /// Gets historical exchange rates for a currency pair
+    /// Gets or sets the symbol used for the currency (e.g., "$", "฿").
     /// </summary>
-    /// <param name="fromCurrency">Source currency code</param>
-    /// <param name="toCurrency">Target currency code</param>
-    /// <param name="startDate">Start date for historical data</param>
-    /// <param name="endDate">End date for historical data</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Historical exchange rates</returns>
-    Task<IEnumerable<HistoricalExchangeRateDto>> GetHistoricalExchangeRatesAsync(
-        string fromCurrency,
-        string toCurrency,
-        DateTime startDate,
-        DateTime endDate,
-        CancellationToken cancellationToken = default);
-
+    public string Symbol { get; set; } = string.Empty;
     /// <summary>
-    /// Gets currency information by code
+    /// Gets or sets the full name of the currency (e.g., "United States Dollar").
     /// </summary>
-    /// <param name="currencyCode">Currency code</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Currency information or null if not found</returns>
-    Task<CurrencyDto?> GetCurrencyInfoAsync(string currencyCode, CancellationToken cancellationToken = default);
-
+    public string Name { get; set; } = string.Empty;
     /// <summary>
-    /// Converts currency using external service (alternative signature for tests)
+    /// Gets or sets the exchange rate relative to a base currency.
     /// </summary>
-    /// <param name="fromCurrency">Source currency code</param>
-    /// <param name="toCurrency">Target currency code</param>
-    /// <param name="amount">Amount to convert</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Currency conversion result</returns>
-    Task<CurrencyConversionResult> ConvertCurrencyAsync(string fromCurrency, string toCurrency, decimal amount, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Validates if a currency code is supported
-    /// </summary>
-    /// <param name="currencyCode">Currency code to validate</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True if currency is valid and supported, false otherwise</returns>
-    Task<bool> ValidateCurrencyCodeAsync(string currencyCode, CancellationToken cancellationToken = default);
+    public decimal ExchangeRate { get; set; }
 }

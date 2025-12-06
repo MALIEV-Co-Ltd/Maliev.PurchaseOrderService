@@ -1,49 +1,50 @@
-using Maliev.PurchaseOrderService.Api.DTOs;
-
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;
 
 /// <summary>
-/// Interface for Supplier Service external API client
+/// Client for interacting with SupplierService
 /// </summary>
 public interface ISupplierServiceClient
 {
     /// <summary>
-    /// Gets supplier information by ID
+    /// Retrieves a supplier by its ID asynchronously.
     /// </summary>
-    /// <param name="supplierId">The supplier ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Supplier information or null if not found</returns>
+    /// <param name="supplierId">The ID of the supplier to retrieve.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A <see cref="SupplierDto"/> if found, otherwise null.</returns>
     Task<SupplierDto?> GetSupplierAsync(int supplierId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets supplier contact information by ID
+    /// Validates if a supplier with the specified ID exists asynchronously.
     /// </summary>
-    /// <param name="supplierId">The supplier ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Supplier contact information or null if not found</returns>
-    Task<SupplierContactDto?> GetSupplierContactAsync(int supplierId, CancellationToken cancellationToken = default);
+    /// <param name="supplierId">The ID of the supplier to validate.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>True if the supplier exists, false otherwise.</returns>
+    Task<bool> ValidateSupplierExistsAsync(int supplierId, CancellationToken cancellationToken = default);
+}
 
+/// <summary>
+/// Data transfer object for supplier information.
+/// </summary>
+public class SupplierDto
+{
     /// <summary>
-    /// Validates if a supplier exists and is active, returning supplier information
+    /// Gets or sets the unique identifier of the supplier.
     /// </summary>
-    /// <param name="supplierId">The supplier ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Supplier information if valid and active, null otherwise</returns>
-    Task<SupplierDto?> ValidateSupplierAsync(int supplierId, CancellationToken cancellationToken = default);
-
+    public int Id { get; set; }
     /// <summary>
-    /// Gets supplier product catalog
+    /// Gets or sets the name of the supplier.
     /// </summary>
-    /// <param name="supplierId">The supplier ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of supplier products</returns>
-    Task<IEnumerable<SupplierProductDto>> GetSupplierProductsAsync(int supplierId, CancellationToken cancellationToken = default);
-
+    public string Name { get; set; } = string.Empty;
     /// <summary>
-    /// Gets supplier payment terms
+    /// Gets or sets the contact information for the supplier.
     /// </summary>
-    /// <param name="supplierId">The supplier ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Supplier payment terms or null if not found</returns>
-    Task<SupplierPaymentTermsDto?> GetSupplierPaymentTermsAsync(int supplierId, CancellationToken cancellationToken = default);
+    public string ContactInfo { get; set; } = string.Empty;
+    /// <summary>
+    /// Gets or sets the email address of the supplier.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+    /// <summary>
+    /// Gets or sets the phone number of the supplier.
+    /// </summary>
+    public string Phone { get; set; } = string.Empty;
 }

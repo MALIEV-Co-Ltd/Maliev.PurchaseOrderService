@@ -58,6 +58,22 @@ When creating this spec from a user prompt:
 
 ---
 
+## Clarifications
+
+### Session 2025-11-26
+- Q: For automatic PDF generation failures on internal POs, what should be the retry policy? → A: 3 retries with exponential backoff (configurable via appsettings.json).
+- Q: When an underlying Order/Quotation is modified after a Purchase Order is created, how should this notification be delivered? → A: A status flag on the PO endpoint (e.g., `isStale: true`). The UI would be responsible for polling/displaying this.
+- Q: What should be the caching duration (Time-To-Live) for data from `CurrencyService`? → A: 1 Hour with LRU eviction and manual invalidation endpoint.
+- Q: What is the specific 'archive' strategy for Audit Logs after 5 years? → A: Move data to JSON Lines (.jsonl.gz) format in GCS bucket, partitioned by year-month.
+- Q: Do we need to support partial ordering (creating a PO for only some items from a quotation)? → A: Yes, users can select specific items and quantities via optional items array.
+- Q: What format should `CustomerPONumber` accept? → A: All characters allowed (numeric, alphanumeric, special chars) up to 50 characters.
+- Q: What should happen if UploadService succeeds but DB update fails? → A: Two-phase with compensating transaction: upload first, then save to DB, attempt deletion on failure.
+- Q: What is the performance SLA for the `isStale` check? → A: 2-second timeout, defaults to false on failure, circuit breaker pattern.
+- Q: How should cache testing be handled? → A: ISystemClock abstraction with configurable TTL in test configuration.
+- Q: Can archiving be triggered manually? → A: Yes, via admin API endpoint POST /admin/archive/audit-logs.
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### Primary User Story
@@ -79,14 +95,14 @@ As a procurement team member at Maliev Co. Ltd., I need to create purchase order
 7. **Given** a customer sends their own purchase order, **When** I store it in the system, **Then** the system captures the customer’s purchase order number, uploads their document, and links it to the related quotation/order for traceability.
 
 ### Edge Cases
-* What happens when referenced Order/Quotation is cancelled or modified after PO creation? The system must detect changes from OrderService/QuotationService and notify the user; PO items remain based on snapshot at creation unless user triggers update.
+* What happens when referenced Order/Quotation is cancelled or modified after PO creation? The system must detect changes from OrderService/QuotationService and expose a status flag (e.g., `isStale: true`) in the API response. PO items remain based on the snapshot at creation time unless the user explicitly triggers an update.
 * What happens when attempting to create a PO for an OrderID already linked to another purchase order? The system must prevent duplicates, returning a 409 Conflict unless overridden by an admin role.
 * How does the system handle duplicate purchase order numbers or conflicting order references? Unique constraints enforced; system logs conflicts and prevents creation.
 * What occurs when required information (SupplierID, OrderID, CurrencyID) is missing or invalid? The system returns a 400 Bad Request with clear validation messages.
 * How does the system handle addresses coming from SupplierService vs CustomerService? Addresses are resolved based on PO type; conflicts prompt user confirmation before saving.
 * How does the system behave when attempting to delete a purchase order that has associated financial transactions? Deletion is blocked; user must cancel PO instead, retaining audit trail.
 * How should withholding tax updates be handled if the PO is modified? Withholding tax is recalculated automatically and stored in PO record; audit trail must capture previous and updated values.
-* How should automatic PDF generation failures be handled for internal POs? Should retries or alerts be triggered? The system retries up to N times, logs failures, marks PO as `PDF Pending`, and triggers alert to procurement team.
+* How should automatic PDF generation failures be handled for internal POs? The system MUST retry up to 3 times with an exponential backoff policy (1, 5, and 15 minutes). If all retries fail, it logs the failure, marks the PO as `PDF Pending`, and triggers an alert to the procurement team.
 * How does the system handle customer-sent POs uploaded as documents without generating PDF? System stores uploaded document metadata and links to PO; no PDF generation occurs for ExternalPO.
 * How long are uploaded documents retained and what is the deletion/archive policy? Documents are retained for 5 years, then archived automatically; access controls apply throughout lifecycle.
 * How are concurrency conflicts on simultaneous PO updates handled? Optimistic concurrency checks enforce update restrictions; conflicting updates return 409 Conflict with user-friendly message.
@@ -103,7 +119,7 @@ As a procurement team member at Maliev Co. Ltd., I need to create purchase order
   * Currency via CurrencyID (referencing CurrencyService)
   * Addresses derived from SupplierService or CustomerService
   * Classification: InternalPO or ExternalPO (customer-sent)
-    The purchase order items are automatically derived from the referenced order/quotation. Invalid SupplierID, OrderID, or CurrencyID must be rejected with a 400 Bad Request.
+    The purchase order items are automatically derived from the referenced order/quotation. The system MUST allow users to select specific items and quantities (partial ordering) from the source quotation. Invalid SupplierID, OrderID, or CurrencyID must be rejected with a 400 Bad Request.
 * **FR-002**: System MUST assign unique purchase order numbers automatically upon creation.
 * **FR-003**: System MUST support updating existing purchase order details including delivery information, currency, withholding tax, and status; items remain read-only.
 * **FR-004**: System MUST provide search and filtering capabilities for purchase orders by SupplierID, OrderID, CurrencyID, date range, status, order number, and PO type (internal/external).
@@ -122,7 +138,7 @@ As a procurement team member at Maliev Co. Ltd., I need to create purchase order
 * **FR-012**: System MUST provide audit trail functionality.
   * Log all create, update, cancel, and approval actions
   * Include user ID, role, timestamp, action type, previous and updated values
-  * Retain audit logs for 5 years, then archive.
+  * Retain audit logs for 5 years in the active database, then move to cold storage (e.g., GCS bucket) for long-term compliance.
 * **FR-013**: System MUST handle concurrent access to purchase orders with optimistic concurrency.
   * Conflicts return HTTP 409
   * Applies to update, approve, cancel, delete operations.
@@ -147,12 +163,17 @@ As a procurement team member at Maliev Co. Ltd., I need to create purchase order
     * Generated PDF is uploaded to UploadService using the defined ObjectName/path
     * PurchaseOrderService stores metadata of generated PDF in the PO record
     * Automatic regeneration occurs whenever an internal PO is updated
-    * If PDF generation fails, the PO MUST be marked as `PDF Pending` and the system MUST retry up to N times and log the failure
+    * If PDF generation fails, the PO MUST be marked as `PDF Pending`, log the failure, and retry using an exponential backoff policy (3 retries over ~21 minutes).
     * Front-end applications should **not** trigger PDF generation; they only retrieve the generated PDF
 * **FR-017**: System MUST support capturing and storing **Customer Purchase Order Number** for ExternalPOs.
   * CustomerPONumber is required when classifying as ExternalPO
   * Stored alongside uploaded customer PO document for full traceability
-* **FR-018**: System MUST prevent duplicate purchase orders for the same OrderID unless explicitly overridden by an admin role.
+* **FR-018**: System MUST allow multiple Purchase Orders for a single OrderID (to support partial fulfillment) but MUST validate that the total quantity ordered across all POs does not exceed the source quotation quantity.
+* **FR-019**: System MUST expose a boolean status flag (e.g., `isStale`) on the purchase order API endpoint to indicate if the underlying Order/Quotation has changed since the PO was created. It is the client's responsibility to surface this to the user.
+
+### Non-Functional Requirements
+
+* **NFR-001**: Data retrieved from the external `CurrencyService` MUST be cached with a Time-To-Live (TTL) of 1 hour to balance performance and data freshness.
 
 ---
 
@@ -201,4 +222,9 @@ As a procurement team member at Maliev Co. Ltd., I need to create purchase order
 * [x] Entities identified
 * [ ] Review checklist passed
 
----
+---- 
+- Q: What format should `CustomerPONumber` accept? → A: All characters allowed (numeric, alphanumeric, special chars) up to 50 characters.
+- Q: What should happen if UploadService succeeds but DB update fails? → A: Two-phase with compensating transaction: upload first, then save to DB, attempt deletion on failure.
+- Q: What is the performance SLA for the `isStale` check? → A: 2-second timeout, defaults to false on failure, circuit breaker pattern.
+- Q: How should cache testing be handled? → A: ISystemClock abstraction with configurable TTL in test configuration.
+- Q: Can archiving be triggered manually? → A: Yes, via admin API endpoint POST /admin/archive/audit-logs.

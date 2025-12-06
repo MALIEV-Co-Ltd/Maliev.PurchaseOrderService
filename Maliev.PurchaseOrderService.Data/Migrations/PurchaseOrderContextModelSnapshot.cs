@@ -17,7 +17,7 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.9")
+                .HasAnnotation("ProductVersion", "10.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -64,29 +64,12 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<string>("EmailAddress")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<bool>("IsValidated")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
@@ -97,55 +80,13 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
                     b.Property<string>("StateProvince")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime?>("ValidatedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("AddressType")
-                        .HasDatabaseName("IX_Addresses_AddressType");
-
-                    b.HasIndex("City")
-                        .HasDatabaseName("IX_Addresses_City");
-
-                    b.HasIndex("Country")
-                        .HasDatabaseName("IX_Addresses_Country");
-
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("IX_Addresses_CreatedAt");
-
-                    b.HasIndex("IsDeleted")
-                        .HasDatabaseName("IX_Addresses_IsDeleted");
-
-                    b.HasIndex("PostalCode")
-                        .HasDatabaseName("IX_Addresses_PostalCode");
-
-                    b.HasIndex("AddressType", "Country")
-                        .HasDatabaseName("IX_Addresses_AddressType_Country");
-
-                    b.HasIndex("Country", "City")
-                        .HasDatabaseName("IX_Addresses_Country_City");
-
-                    b.ToTable("Addresses", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_Addresses_EmailAddress_Format", "\"EmailAddress\" IS NULL OR \"EmailAddress\" ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'");
-                        });
+                    b.ToTable("Addresses", (string)null);
                 });
 
             modelBuilder.Entity("Maliev.PurchaseOrderService.Data.Entities.AuditLog", b =>
@@ -159,17 +100,9 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<int>("Action")
                         .HasColumnType("integer");
 
-                    b.Property<string>("ApplicationVersion")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<string>("ChangeReason")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<string>("CorrelationId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("EntityId")
                         .IsRequired()
@@ -180,14 +113,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
-
-                    b.Property<string>("Environment")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("ExternalServiceName")
                         .HasMaxLength(50)
@@ -200,24 +125,11 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                         .HasMaxLength(45)
                         .HasColumnType("character varying(45)");
 
-                    b.Property<bool>("IsSuccessful")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Metadata")
-                        .HasColumnType("text");
-
                     b.Property<string>("NewValues")
                         .HasColumnType("text");
 
                     b.Property<string>("OldValues")
                         .HasColumnType("text");
-
-                    b.Property<long?>("OperationDurationMs")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("RequestId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone");
@@ -238,45 +150,14 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Action")
-                        .HasDatabaseName("IX_AuditLogs_Action");
-
-                    b.HasIndex("EntityId")
-                        .HasDatabaseName("IX_AuditLogs_EntityId");
-
-                    b.HasIndex("EntityType")
-                        .HasDatabaseName("IX_AuditLogs_EntityType");
-
-                    b.HasIndex("ExternalServiceName")
-                        .HasDatabaseName("IX_AuditLogs_ExternalServiceName");
-
                     b.HasIndex("Timestamp")
-                        .HasDatabaseName("IX_AuditLogs_Timestamp");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("IX_AuditLogs_UserId");
-
-                    b.HasIndex("EntityType", "Action")
-                        .HasDatabaseName("IX_AuditLogs_EntityType_Action");
+                        .HasDatabaseName("IX_AuditLog_Timestamp");
 
                     b.HasIndex("EntityType", "EntityId")
-                        .HasDatabaseName("IX_AuditLogs_EntityType_EntityId");
-
-                    b.HasIndex("ExternalServiceName", "Timestamp")
-                        .HasDatabaseName("IX_AuditLogs_ExternalServiceName_Timestamp")
-                        .HasFilter("\"ExternalServiceName\" IS NOT NULL");
-
-                    b.HasIndex("Timestamp", "Action")
-                        .HasDatabaseName("IX_AuditLogs_Timestamp_Action");
+                        .HasDatabaseName("IX_AuditLog_EntityType_EntityId");
 
                     b.HasIndex("UserId", "Timestamp")
-                        .HasDatabaseName("IX_AuditLogs_UserId_Timestamp");
-
-                    b.HasIndex("EntityType", "EntityId", "Timestamp")
-                        .HasDatabaseName("IX_AuditLogs_EntityType_EntityId_Timestamp");
-
-                    b.HasIndex("UserRole", "Action", "Timestamp")
-                        .HasDatabaseName("IX_AuditLogs_UserRole_Action_Timestamp");
+                        .HasDatabaseName("IX_AuditLog_UserId_Timestamp");
 
                     b.ToTable("AuditLogs", (string)null);
                 });
@@ -308,14 +189,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("EventHeaders")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EventSource")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<string>("EventType")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -324,48 +197,21 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<int>("EventVersion")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<bool>("IsProcessed")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
+                        .HasColumnType("boolean");
 
                     b.Property<string>("LastProcessingError")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<int>("MaxRetryAttempts")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("NextRetryAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateTime>("OccurredAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PartitionKey")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("ProcessedByHandler")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<int>("ProcessingAttempts")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<string>("ProcessingResult")
-                        .HasColumnType("text");
+                        .HasColumnType("integer");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -374,55 +220,19 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AggregateId")
-                        .HasDatabaseName("IX_DomainEvents_AggregateId");
-
-                    b.HasIndex("AggregateType")
-                        .HasDatabaseName("IX_DomainEvents_AggregateType");
-
                     b.HasIndex("CorrelationId")
                         .HasDatabaseName("IX_DomainEvents_CorrelationId");
 
-                    b.HasIndex("EventType")
-                        .HasDatabaseName("IX_DomainEvents_EventType");
+                    b.HasIndex("ProcessingAttempts")
+                        .HasDatabaseName("IX_DomainEvents_ProcessingAttempts");
 
-                    b.HasIndex("IsProcessed")
-                        .HasDatabaseName("IX_DomainEvents_IsProcessed");
-
-                    b.HasIndex("OccurredAt")
-                        .HasDatabaseName("IX_DomainEvents_OccurredAt");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("IX_DomainEvents_UserId");
-
-                    b.HasIndex("AggregateType", "AggregateId")
-                        .HasDatabaseName("IX_DomainEvents_AggregateType_AggregateId");
-
-                    b.HasIndex("CorrelationId", "OccurredAt")
-                        .HasDatabaseName("IX_DomainEvents_CorrelationId_OccurredAt");
-
-                    b.HasIndex("EventType", "OccurredAt")
-                        .HasDatabaseName("IX_DomainEvents_EventType_OccurredAt");
+                    b.HasIndex("EventType", "AggregateId")
+                        .HasDatabaseName("IX_DomainEvents_EventType_AggregateId");
 
                     b.HasIndex("IsProcessed", "OccurredAt")
                         .HasDatabaseName("IX_DomainEvents_IsProcessed_OccurredAt");
 
-                    b.HasIndex("IsProcessed", "ProcessingAttempts")
-                        .HasDatabaseName("IX_DomainEvents_IsProcessed_ProcessingAttempts");
-
-                    b.HasIndex("AggregateType", "AggregateId", "OccurredAt")
-                        .HasDatabaseName("IX_DomainEvents_AggregateType_AggregateId_OccurredAt");
-
-                    b.HasIndex("IsProcessed", "ProcessingAttempts", "OccurredAt")
-                        .HasDatabaseName("IX_DomainEvents_Processing_Queue")
-                        .HasFilter("\"IsProcessed\" = false");
-
-                    b.ToTable("DomainEvents", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_DomainEvents_EventVersion_Positive", "\"EventVersion\" > 0");
-
-                            t.HasCheckConstraint("CK_DomainEvents_ProcessingAttempts_NonNegative", "\"ProcessingAttempts\" >= 0");
-                        });
+                    b.ToTable("DomainEvents", (string)null);
                 });
 
             modelBuilder.Entity("Maliev.PurchaseOrderService.Data.Entities.OrderItem", b =>
@@ -436,9 +246,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<DateTime>("CachedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasMaxLength(3)
@@ -450,27 +257,8 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<int>("ExternalOrderItemId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("ExternalStatus")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("ExternalVersion")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<bool>("ExternallyModified")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<bool>("IsSyncSuccessful")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("LastSyncError")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
@@ -491,11 +279,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<decimal>("Quantity")
                         .HasColumnType("decimal(10,3)");
 
-                    b.Property<string>("SourceService")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<decimal>("TotalPrice")
                         .HasColumnType("decimal(18,2)");
 
@@ -507,19 +290,7 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("CachedAt")
-                        .HasDatabaseName("IX_OrderItems_CachedAt");
-
-                    b.HasIndex("ExternalOrderItemId")
-                        .HasDatabaseName("IX_OrderItems_ExternalOrderItemId");
-
-                    b.HasIndex("ExternallyModified")
-                        .HasDatabaseName("IX_OrderItems_ExternallyModified");
 
                     b.HasIndex("ProductCode")
                         .HasDatabaseName("IX_OrderItems_ProductCode");
@@ -527,24 +298,7 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.HasIndex("PurchaseOrderId")
                         .HasDatabaseName("IX_OrderItems_PurchaseOrderId");
 
-                    b.HasIndex("ExternallyModified", "CachedAt")
-                        .HasDatabaseName("IX_OrderItems_ExternallyModified_CachedAt");
-
-                    b.HasIndex("PurchaseOrderId", "ExternalOrderItemId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_OrderItems_PurchaseOrderId_ExternalOrderItemId_Unique");
-
-                    b.HasIndex("PurchaseOrderId", "ProductCode")
-                        .HasDatabaseName("IX_OrderItems_PurchaseOrderId_ProductCode");
-
-                    b.ToTable("OrderItems", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_OrderItems_Quantity_Positive", "\"Quantity\" > 0");
-
-                            t.HasCheckConstraint("CK_OrderItems_TotalPrice_Positive", "\"TotalPrice\" >= 0");
-
-                            t.HasCheckConstraint("CK_OrderItems_UnitPrice_Positive", "\"UnitPrice\" >= 0");
-                        });
+                    b.ToTable("OrderItems", (string)null);
                 });
 
             modelBuilder.Entity("Maliev.PurchaseOrderService.Data.Entities.PurchaseOrder", b =>
@@ -565,13 +319,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<int?>("BillingAddressId")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CancelledBy")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -579,11 +326,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
 
                     b.Property<string>("CurrencyCode")
                         .IsRequired()
@@ -612,23 +354,15 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<DateTime?>("ExpectedDeliveryDate")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int?>("GeneratedPdfFileId")
-                        .HasColumnType("integer");
-
                     b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
+                        .HasColumnType("boolean");
 
-                    b.Property<bool>("IsPdfGenerated")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("IsPdfGenerationEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
+                    b.Property<string>("LastModifiedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
@@ -642,21 +376,15 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
 
                     b.Property<string>("OrderNumber")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<int>("OrderType")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("PdfGeneratedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PdfGeneratedBy")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
+                        .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("bytea");
 
@@ -684,13 +412,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<decimal>("TotalAmount")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<decimal?>("WHTAmount")
                         .HasColumnType("decimal(18,2)");
 
@@ -704,51 +425,25 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("IX_PurchaseOrders_CreatedAt");
 
-                    b.HasIndex("GeneratedPdfFileId");
-
-                    b.HasIndex("IsDeleted")
-                        .HasDatabaseName("IX_PurchaseOrders_IsDeleted");
-
-                    b.HasIndex("OrderDate")
-                        .HasDatabaseName("IX_PurchaseOrders_OrderDate");
-
                     b.HasIndex("OrderID")
                         .HasDatabaseName("IX_PurchaseOrders_OrderID");
 
                     b.HasIndex("OrderNumber")
                         .IsUnique()
-                        .HasDatabaseName("IX_PurchaseOrders_OrderNumber_Unique");
-
-                    b.HasIndex("OrderType")
-                        .HasDatabaseName("IX_PurchaseOrders_OrderType");
+                        .HasDatabaseName("IX_PurchaseOrders_OrderNumber");
 
                     b.HasIndex("ShippingAddressId");
-
-                    b.HasIndex("Status")
-                        .HasDatabaseName("IX_PurchaseOrders_Status");
 
                     b.HasIndex("SupplierID")
                         .HasDatabaseName("IX_PurchaseOrders_SupplierID");
 
-                    b.HasIndex("CreatedAt", "Status")
-                        .HasDatabaseName("IX_PurchaseOrders_CreatedAt_Status");
+                    b.HasIndex("CreatedBy", "Status")
+                        .HasDatabaseName("IX_PurchaseOrders_CreatedBy_Status");
 
                     b.HasIndex("Status", "OrderType")
                         .HasDatabaseName("IX_PurchaseOrders_Status_OrderType");
 
-                    b.HasIndex("SupplierID", "Status")
-                        .HasDatabaseName("IX_PurchaseOrders_SupplierID_Status");
-
-                    b.ToTable("PurchaseOrders", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_PurchaseOrders_SubtotalAmount_Positive", "\"SubtotalAmount\" >= 0");
-
-                            t.HasCheckConstraint("CK_PurchaseOrders_TotalAmount_Positive", "\"TotalAmount\" >= 0");
-
-                            t.HasCheckConstraint("CK_PurchaseOrders_WHT_Amount_Valid", "\"WHTAmount\" IS NULL OR \"WHTAmount\" >= 0");
-
-                            t.HasCheckConstraint("CK_PurchaseOrders_WHT_Rate_Valid", "\"WHTRate\" IS NULL OR (\"WHTRate\" >= 0 AND \"WHTRate\" <= 100)");
-                        });
+                    b.ToTable("PurchaseOrders", (string)null);
                 });
 
             modelBuilder.Entity("Maliev.PurchaseOrderService.Data.Entities.PurchaseOrderFile", b =>
@@ -771,22 +466,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<int>("DocumentType")
                         .HasColumnType("integer");
 
-                    b.Property<int>("DownloadCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<string>("ExternalUrl")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime?>("ExternalUrlExpiration")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FileHash")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -795,27 +474,8 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<long>("FileSize")
                         .HasColumnType("bigint");
 
-                    b.Property<bool>("IsAvailable")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
                     b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<bool>("IsSystemGenerated")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<DateTime?>("LastDownloadedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastDownloadedBy")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("ObjectName")
                         .IsRequired()
@@ -825,18 +485,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<int>("PurchaseOrderId")
                         .HasColumnType("integer");
 
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<DateTime>("UploadedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -845,59 +493,28 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<DateTime?>("VirusScanCompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("VirusScanStatus")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValue("Pending");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("ContentType")
-                        .HasDatabaseName("IX_PurchaseOrderFiles_ContentType");
 
                     b.HasIndex("DocumentType")
                         .HasDatabaseName("IX_PurchaseOrderFiles_DocumentType");
 
-                    b.HasIndex("IsDeleted")
-                        .HasDatabaseName("IX_PurchaseOrderFiles_IsDeleted");
-
                     b.HasIndex("ObjectName")
                         .IsUnique()
-                        .HasDatabaseName("IX_PurchaseOrderFiles_ObjectName_Unique");
+                        .HasDatabaseName("IX_PurchaseOrderFiles_ObjectName");
 
                     b.HasIndex("PurchaseOrderId")
                         .HasDatabaseName("IX_PurchaseOrderFiles_PurchaseOrderId");
 
-                    b.HasIndex("UploadedAt")
-                        .HasDatabaseName("IX_PurchaseOrderFiles_UploadedAt");
-
                     b.HasIndex("UploadedBy")
                         .HasDatabaseName("IX_PurchaseOrderFiles_UploadedBy");
 
-                    b.HasIndex("IsDeleted", "PurchaseOrderId")
-                        .HasDatabaseName("IX_PurchaseOrderFiles_IsDeleted_PurchaseOrderId");
-
-                    b.HasIndex("PurchaseOrderId", "DocumentType")
-                        .HasDatabaseName("IX_PurchaseOrderFiles_PurchaseOrderId_DocumentType");
-
-                    b.HasIndex("UploadedAt", "DocumentType")
-                        .HasDatabaseName("IX_PurchaseOrderFiles_UploadedAt_DocumentType");
-
-                    b.ToTable("PurchaseOrderFiles", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_PurchaseOrderFiles_FileSize_Positive", "\"FileSize\" > 0");
-                        });
+                    b.ToTable("PurchaseOrderFiles", (string)null);
                 });
 
             modelBuilder.Entity("Maliev.PurchaseOrderService.Data.Entities.OrderItem", b =>
                 {
                     b.HasOne("Maliev.PurchaseOrderService.Data.Entities.PurchaseOrder", "PurchaseOrder")
-                        .WithMany("OrderItems")
+                        .WithMany("Items")
                         .HasForeignKey("PurchaseOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -908,23 +525,16 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
             modelBuilder.Entity("Maliev.PurchaseOrderService.Data.Entities.PurchaseOrder", b =>
                 {
                     b.HasOne("Maliev.PurchaseOrderService.Data.Entities.Address", "BillingAddress")
-                        .WithMany("BillingPurchaseOrders")
-                        .HasForeignKey("BillingAddressId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Maliev.PurchaseOrderService.Data.Entities.PurchaseOrderFile", "GeneratedPdfFile")
                         .WithMany()
-                        .HasForeignKey("GeneratedPdfFileId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("BillingAddressId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Maliev.PurchaseOrderService.Data.Entities.Address", "ShippingAddress")
-                        .WithMany("ShippingPurchaseOrders")
+                        .WithMany()
                         .HasForeignKey("ShippingAddressId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("BillingAddress");
-
-                    b.Navigation("GeneratedPdfFile");
 
                     b.Navigation("ShippingAddress");
                 });
@@ -932,7 +542,7 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
             modelBuilder.Entity("Maliev.PurchaseOrderService.Data.Entities.PurchaseOrderFile", b =>
                 {
                     b.HasOne("Maliev.PurchaseOrderService.Data.Entities.PurchaseOrder", "PurchaseOrder")
-                        .WithMany("PurchaseOrderFiles")
+                        .WithMany("Files")
                         .HasForeignKey("PurchaseOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -940,18 +550,11 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Navigation("PurchaseOrder");
                 });
 
-            modelBuilder.Entity("Maliev.PurchaseOrderService.Data.Entities.Address", b =>
-                {
-                    b.Navigation("BillingPurchaseOrders");
-
-                    b.Navigation("ShippingPurchaseOrders");
-                });
-
             modelBuilder.Entity("Maliev.PurchaseOrderService.Data.Entities.PurchaseOrder", b =>
                 {
-                    b.Navigation("OrderItems");
+                    b.Navigation("Files");
 
-                    b.Navigation("PurchaseOrderFiles");
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

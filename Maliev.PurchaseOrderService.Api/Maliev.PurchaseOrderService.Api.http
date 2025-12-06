@@ -1,0 +1,83 @@
+@Maliev.PurchaseOrderService.Api_HostAddress = http://localhost:5029
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+### Health Check - Liveness
+GET {{Maliev.PurchaseOrderService.Api_HostAddress}}/purchase-orders/liveness
+Accept: application/json
+
+###
+
+### Health Check - Readiness
+GET {{Maliev.PurchaseOrderService.Api_HostAddress}}/purchase-orders/readiness
+Accept: application/json
+
+###
+
+### OpenAPI Specification
+GET {{Maliev.PurchaseOrderService.Api_HostAddress}}/purchase-orders/openapi/v1.json
+Accept: application/json
+
+###
+
+### Scalar API Documentation
+GET {{Maliev.PurchaseOrderService.Api_HostAddress}}/purchase-orders/scalar
+
+###
+
+### Create Purchase Order
+POST {{Maliev.PurchaseOrderService.Api_HostAddress}}/purchase-orders/v1/purchase-orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "supplierID": 1,
+  "orderID": 100,
+  "currencyID": 1,
+  "orderType": "ExternalPO",
+  "expectedDeliveryDate": "2025-12-31",
+  "whtRate": 3.0,
+  "customerPO": "CUST-PO-001",
+  "notes": "Test purchase order",
+  "shippingAddress": {
+    "contactName": "John Doe",
+    "addressLine1": "123 Main St",
+    "city": "Bangkok",
+    "postalCode": "10110",
+    "country": "Thailand"
+  }
+}
+
+###
+
+### Get Purchase Order by ID
+GET {{Maliev.PurchaseOrderService.Api_HostAddress}}/purchase-orders/v1/purchase-orders/1
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### Search Purchase Orders
+GET {{Maliev.PurchaseOrderService.Api_HostAddress}}/purchase-orders/v1/purchase-orders?page=1&pageSize=10&sortBy=createdAt&sortDirection=desc
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### Update Purchase Order
+PUT {{Maliev.PurchaseOrderService.Api_HostAddress}}/purchase-orders/v1/purchase-orders/1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "rowVersion": "AAAAAAAAAAA=",
+  "whtRate": 5.0,
+  "notes": "Updated notes"
+}
+
+###
+
+### Cancel Purchase Order
+POST {{Maliev.PurchaseOrderService.Api_HostAddress}}/purchase-orders/v1/purchase-orders/1/cancel
+Authorization: Bearer {{token}}
+
+###

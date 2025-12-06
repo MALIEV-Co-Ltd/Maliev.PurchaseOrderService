@@ -3,51 +3,35 @@ namespace Maliev.PurchaseOrderService.Api.DTOs;
 /// <summary>
 /// Generic paginated response
 /// </summary>
-/// <typeparam name="T">Type of data items</typeparam>
+/// <typeparam name="T">The type of the items in the paginated list.</typeparam>
 public class PaginatedResponse<T>
 {
     /// <summary>
-    /// Data items for current page
+    /// Gets or sets the list of items for the current page.
     /// </summary>
-    public IEnumerable<T> Data { get; set; } = Enumerable.Empty<T>();
-
+    public List<T> Items { get; set; } = new();
     /// <summary>
-    /// Current page number (1-based)
+    /// Gets or sets the current page number (1-based).
     /// </summary>
     public int Page { get; set; }
-
     /// <summary>
-    /// Number of items per page
+    /// Gets or sets the number of items per page.
     /// </summary>
     public int PageSize { get; set; }
-
     /// <summary>
-    /// Total number of items across all pages
+    /// Gets or sets the total number of items across all pages.
     /// </summary>
     public int TotalCount { get; set; }
-
     /// <summary>
-    /// Total number of pages
+    /// Gets the total number of pages.
     /// </summary>
-    public int TotalPages { get; set; }
-
+    public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
     /// <summary>
-    /// Whether there is a previous page
+    /// Gets a value indicating whether there is a previous page.
     /// </summary>
-    public bool HasPreviousPage { get; set; }
-
+    public bool HasPrevious => Page > 1;
     /// <summary>
-    /// Whether there is a next page
+    /// Gets a value indicating whether there is a next page.
     /// </summary>
-    public bool HasNextPage { get; set; }
-
-    /// <summary>
-    /// Applied filters and search criteria
-    /// </summary>
-    public object? Filters { get; set; }
-
-    /// <summary>
-    /// Sort information
-    /// </summary>
-    public object? Sort { get; set; }
+    public bool HasNext => Page < TotalPages;
 }
