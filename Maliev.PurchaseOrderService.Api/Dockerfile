@@ -13,10 +13,10 @@ COPY Maliev.PurchaseOrderService.Data/Maliev.PurchaseOrderService.Data.csproj Ma
 COPY Maliev.PurchaseOrderService.Common/Maliev.PurchaseOrderService.Common.csproj Maliev.PurchaseOrderService.Common/
 
 # Restore with BuildKit secrets for private NuGet feed
-RUN --mount=type=secret,id=github_token \
-    --mount=type=secret,id=github_username \
-    export GITHUB_TOKEN=$(cat /run/secrets/github_token 2>/dev/null || echo "") && \
-    export GITHUB_USERNAME=$(cat /run/secrets/github_username 2>/dev/null || echo "") && \
+RUN --mount=type=secret,id=nuget_username \
+    --mount=type=secret,id=nuget_password \
+    NUGET_USERNAME=$(cat /run/secrets/nuget_username) \
+    NUGET_PASSWORD=$(cat /run/secrets/nuget_password) \
     dotnet restore Maliev.PurchaseOrderService.Api/Maliev.PurchaseOrderService.Api.csproj
 
 # Copy source code
