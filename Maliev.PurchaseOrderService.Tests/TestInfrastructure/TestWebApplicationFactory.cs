@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using WireMock.Server;
 using Testcontainers.PostgreSql;
 using Microsoft.EntityFrameworkCore;
+using MassTransit;
+using Moq;
 
 namespace Maliev.PurchaseOrderService.Tests.TestInfrastructure;
 
@@ -104,6 +106,10 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
             services.AddHttpClient("CurrencyService", client => client.BaseAddress = new Uri(_currencyServiceUrl + "/v1/"));
             services.AddHttpClient("UploadService", client => client.BaseAddress = new Uri(_uploadServiceUrl + "/v1/"));
             services.AddHttpClient("PdfService", client => client.BaseAddress = new Uri(_pdfServiceUrl + "/v1/"));
+
+            // Mock IPublishEndpoint Since MassTransit is disabled in Testing environment
+            var mockPublishEndpoint = new Mock<IPublishEndpoint>();
+            services.AddSingleton(mockPublishEndpoint.Object);
         });
     }
 }

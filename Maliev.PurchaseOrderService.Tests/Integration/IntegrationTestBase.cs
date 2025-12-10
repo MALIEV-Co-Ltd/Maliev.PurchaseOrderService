@@ -50,7 +50,7 @@ public class IntegrationTestBase : IAsyncLifetime
 
         // Start PostgreSQL container
         _postgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:17-alpine")
+            .WithImage("postgres:18-alpine")
             .WithDatabase("purchaseorder_test_db")
             .WithUsername("postgres")
             .WithPassword("postgres")
@@ -58,6 +58,9 @@ public class IntegrationTestBase : IAsyncLifetime
             .Build();
 
         await _postgresContainer.StartAsync();
+
+        // Set connection string environment variable for eager configuration in Program.cs
+        Environment.SetEnvironmentVariable("ConnectionStrings__PurchaseOrderDbContext", _postgresContainer.GetConnectionString());
 
         // Start WireMock servers for external services
         SupplierServiceMock = WireMockServer.Start();
