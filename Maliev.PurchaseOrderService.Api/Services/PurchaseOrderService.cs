@@ -5,6 +5,8 @@ using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Data.Entities;
 using Maliev.PurchaseOrderService.Common.Enumerations;
+using MassTransit;
+using Maliev.PurchaseOrderService.Common.Events;
 
 namespace Maliev.PurchaseOrderService.Api.Services;
 
@@ -18,6 +20,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     private readonly IOrderServiceClient _orderClient;
     private readonly ICurrencyServiceClient _currencyClient;
     private readonly IWHTCalculationService _whtService;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<PurchaseOrderService> _logger;
 
     /// <summary>
@@ -28,6 +31,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     /// <param name="orderClient">The order service client.</param>
     /// <param name="currencyClient">The currency service client.</param>
     /// <param name="whtService">The WHT calculation service.</param>
+    /// <param name="publishEndpoint">The mass transit publish endpoint.</param>
     /// <param name="logger">The logger instance.</param>
     public PurchaseOrderService(
         PurchaseOrderContext context,
@@ -35,6 +39,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         IOrderServiceClient orderClient,
         ICurrencyServiceClient currencyClient,
         IWHTCalculationService whtService,
+        IPublishEndpoint publishEndpoint,
         ILogger<PurchaseOrderService> logger)
     {
         _context = context;
@@ -42,6 +47,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         _orderClient = orderClient;
         _currencyClient = currencyClient;
         _whtService = whtService;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
 
@@ -131,7 +137,15 @@ public class PurchaseOrderService : IPurchaseOrderService
         _context.PurchaseOrders.Add(purchaseOrder);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // TODO: Publish domain event for PDF generation if InternalPO
+        if (purchaseOrder.OrderType == OrderType.Internal)
+        {
+            await _publishEndpoint.Publish(new PurchaseOrderCreatedEvent
+            {
+                PurchaseOrderId = purchaseOrder.Id,
+                OrderNumber = purchaseOrder.OrderNumber,
+                CreatedAt = purchaseOrder.CreatedAt
+            }, cancellationToken);
+        }
 
         _logger.LogInformation("Created purchase order {OrderNumber} for user {UserId}",
             purchaseOrder.OrderNumber, userId);

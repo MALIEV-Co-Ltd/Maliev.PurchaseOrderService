@@ -10,6 +10,7 @@ builder.AddGoogleSecretManagerVolume(); // Load secrets from /mnt/secrets if ava
 
 // --- Infrastructure & Observability ---
 builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
+builder.AddMassTransitWithRabbitMq(); // RabbitMQ messaging
 builder.AddServiceMeters("purchase-orders"); // Register service meters for OpenTelemetry business metrics
 
 builder.AddRedisDistributedCache(instanceName: "PurchaseOrder:"); // Redis with in-memory fallback
