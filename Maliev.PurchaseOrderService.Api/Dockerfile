@@ -49,6 +49,6 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/purchase-orders/liveness || exit 1
+    CMD curl -f http://localhost:8080/purchase-order/liveness || exit 1
 
 ENTRYPOINT ["dotnet", "Maliev.PurchaseOrderService.Api.dll"]

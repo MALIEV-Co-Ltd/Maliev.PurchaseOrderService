@@ -11,9 +11,9 @@ builder.AddGoogleSecretManagerVolume(); // Load secrets from /mnt/secrets if ava
 // --- Infrastructure & Observability ---
 builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
 builder.AddMassTransitWithRabbitMq(); // RabbitMQ messaging
-builder.AddServiceMeters("purchase-orders"); // Register service meters for OpenTelemetry business metrics
+builder.AddServiceMeters("purchase-orders-meter"); // Register service meters for OpenTelemetry business metrics
 
-builder.AddRedisDistributedCache(instanceName: "PurchaseOrder:"); // Redis with in-memory fallback
+builder.AddRedisDistributedCache(instanceName: "purchase-order:"); // Redis with in-memory fallback
 builder.AddPostgresDbContext<PurchaseOrderContext>(connectionStringName: "PurchaseOrderDbContext"); // PostgreSQL with retry logic
 
 // --- API Configuration ---
@@ -137,10 +137,10 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Map Aspire default endpoints (/health, /alive, /metrics)
-app.MapDefaultEndpoints(servicePrefix: "purchase-orders");
+app.MapDefaultEndpoints(servicePrefix: "purchase-order");
 
 // Map OpenAPI and Scalar documentation (dev/staging only)
-app.MapApiDocumentation(servicePrefix: "purchase-orders");
+app.MapApiDocumentation(servicePrefix: "purchase-order");
 
 logger.LogInformation("PurchaseOrderService started successfully");
 logger.LogInformation("Environment: {Environment}", builder.Environment.EnvironmentName);

@@ -52,7 +52,7 @@ public class UpdatePurchaseOrderRequest
 
     /// <summary>
     /// Concurrency token (base64 encoded row version)
+    /// Optional for PostgreSQL compatibility
     /// </summary>
-    [Required]
-    public string RowVersion { get; set; } = string.Empty;
+    public string? RowVersion { get; set; }
 }
