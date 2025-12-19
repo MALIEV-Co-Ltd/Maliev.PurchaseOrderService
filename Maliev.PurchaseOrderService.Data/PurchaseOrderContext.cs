@@ -1,5 +1,6 @@
 using Maliev.PurchaseOrderService.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Maliev.Aspire.ServiceDefaults.Database;
 
 namespace Maliev.PurchaseOrderService.Data;
 
@@ -115,11 +116,9 @@ public class PurchaseOrderContext : DbContext
             entity.Property(e => e.DeletedBy)
                 .HasMaxLength(50);
 
-            // Optimistic concurrency
-            entity.Property(e => e.RowVersion)
-                .IsRowVersion()
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // Optimistic concurrency - Ignore RowVersion for PostgreSQL
+            // PostgreSQL doesn't support byte[] row versioning like SQL Server
+            entity.Ignore(e => e.RowVersion);
 
             // Indexes for performance
             entity.HasIndex(e => e.SupplierID)
@@ -378,5 +377,8 @@ public class PurchaseOrderContext : DbContext
             entity.HasIndex(e => e.ProcessingAttempts)
                 .HasDatabaseName("IX_DomainEvents_ProcessingAttempts");
         });
+
+        // Apply PostgreSQL snake_case naming convention globally
+        SnakeCaseNamingHelper.ApplySnakeCaseNaming(modelBuilder);
     }
 }
