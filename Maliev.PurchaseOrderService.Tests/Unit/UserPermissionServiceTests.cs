@@ -48,7 +48,7 @@ public class UserPermissionServiceTests
 
         _cacheMock.Setup(m => m.TryGetValue(It.IsAny<object>(), out cacheEntry))
             .Returns(false);
-            
+
         var cacheEntryMock = new Mock<ICacheEntry>();
         _cacheMock.Setup(m => m.CreateEntry(It.IsAny<object>()))
             .Returns(cacheEntryMock.Object);

@@ -27,7 +27,7 @@ public static class PurchaseOrderPermissions
 
     public static string[] All => new[]
     {
-        Orders.Create, Orders.Read, Orders.Update, Orders.Delete, 
+        Orders.Create, Orders.Read, Orders.Update, Orders.Delete,
         Orders.Approve, Orders.Cancel, Orders.Receive, Orders.Export,
         Suppliers.View, Suppliers.Select,
         Budgets.Check
@@ -54,8 +54,8 @@ public static class PurchaseOrderPredefinedRoles
     {
         RoleId = "purchase-order.employee",
         Description = "Purchase Order Employee",
-        Permissions = new[] { 
-            PurchaseOrderPermissions.Orders.Read, 
+        Permissions = new[] {
+            PurchaseOrderPermissions.Orders.Read,
             PurchaseOrderPermissions.Orders.Create,
             PurchaseOrderPermissions.Suppliers.View
         }

@@ -13,8 +13,8 @@ public class IAMRegistrationTests : IntegrationTestBase
     {
         // Arrange
         // Background registration has a short delay
-        await Task.Delay(3000); 
-        
+        await Task.Delay(3000);
+
         // Assert
         var requests = IAMServiceMock.FindLogEntries(
             Request.Create().WithPath("/iam/v1/permissions/register").UsingPost()

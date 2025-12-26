@@ -33,11 +33,11 @@ public class TestWebApplicationFactory : BaseIntegrationTestFactory<Program, Pur
 
         // Configure WireMock URLs for external services
         // The trailing slash is critical for HttpClient base address
-                    config["SupplierService:BaseUrl"] = $"{SupplierServiceMock.Urls[0]}/v1/suppliers/";
-                    config["OrderService:BaseUrl"] = $"{OrderServiceMock.Urls[0]}/v1/orders/";
-                    config["CurrencyService:BaseUrl"] = $"{CurrencyServiceMock.Urls[0]}/v1/currencies/";
-                    config["UploadService:BaseUrl"] = $"{UploadServiceMock.Urls[0]}/v1/uploads/";
-                    config["PdfService:BaseUrl"] = $"{PdfServiceMock.Urls[0]}/v1/pdfs/";        config["IAMService:BaseUrl"] = $"{IAMServiceMock.Urls[0]}/iam/v1/";
+        config["SupplierService:BaseUrl"] = $"{SupplierServiceMock.Urls[0]}/v1/suppliers/";
+        config["OrderService:BaseUrl"] = $"{OrderServiceMock.Urls[0]}/v1/orders/";
+        config["CurrencyService:BaseUrl"] = $"{CurrencyServiceMock.Urls[0]}/v1/currencies/";
+        config["UploadService:BaseUrl"] = $"{UploadServiceMock.Urls[0]}/v1/uploads/";
+        config["PdfService:BaseUrl"] = $"{PdfServiceMock.Urls[0]}/v1/pdfs/"; config["IAMService:BaseUrl"] = $"{IAMServiceMock.Urls[0]}/iam/v1/";
 
         return config;
     }

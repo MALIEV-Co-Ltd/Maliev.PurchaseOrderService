@@ -32,7 +32,8 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             .Given(Request.Create().WithPath("/v1/suppliers/1").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
-                .WithBodyAsJson(new {
+                .WithBodyAsJson(new
+                {
                     id = 1,
                     name = "Test Supplier",
                     contactInfo = "test@supplier.com",
@@ -62,7 +63,8 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             .Given(Request.Create().WithPath("/v1/currencies/1").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
-                .WithBodyAsJson(new {
+                .WithBodyAsJson(new
+                {
                     id = 1,
                     code = "THB",
                     symbol = "฿",
@@ -166,7 +168,8 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             .Given(Request.Create().WithPath("/v1/suppliers/2").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
-                .WithBodyAsJson(new {
+                .WithBodyAsJson(new
+                {
                     id = 2,
                     name = "Supplier 2",
                     contactInfo = "supplier2@test.com",
@@ -198,7 +201,8 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             .Given(Request.Create().WithPath("/v1/currencies/2").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
-                .WithBodyAsJson(new {
+                .WithBodyAsJson(new
+                {
                     id = 2,
                     code = "USD",
                     symbol = "$",
@@ -496,7 +500,8 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             .Given(Request.Create().WithPath("/v1/currencies/2").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
-                .WithBodyAsJson(new {
+                .WithBodyAsJson(new
+                {
                     id = 2,
                     code = "USD",
                     symbol = "$",

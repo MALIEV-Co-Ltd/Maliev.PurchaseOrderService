@@ -333,17 +333,17 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
     public HttpClient CreateAuthenticatedClient(string userId = "test-user", string[]? roles = null, string[]? permissions = null)
     {
         var token = CreateTestJwtToken(userId, roles, permissions);
-        
+
         var options = new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("http://localhost/"),
             AllowAutoRedirect = true,
             HandleCookies = true
         };
-        
+
         var client = CreateClient(options);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
-        
+
         return client;
     }
 }

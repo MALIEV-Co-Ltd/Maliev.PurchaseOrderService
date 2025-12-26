@@ -14,7 +14,7 @@ public class PurchaseOrdersControllerPermissionTests : IntegrationTestBase
     private void SetupExternalServiceMocks()
     {
         // NOTE: The base URL in TestWebApplicationFactory already includes "/v1/" or "/iam/v1/"
-        
+
         SupplierServiceMock.Given(Request.Create().WithPath("/v1/suppliers/1").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200).WithBodyAsJson(new { id = 1, name = "Supplier 1" }));
 
@@ -22,17 +22,17 @@ public class PurchaseOrdersControllerPermissionTests : IntegrationTestBase
             .RespondWith(Response.Create().WithStatusCode(200).WithBodyAsJson(new { id = 1, orderNumber = "ORD-1" }));
 
         OrderServiceMock.Given(Request.Create().WithPath("/v1/orders/1/items").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(200).WithBodyAsJson(new[] 
-            { 
-                new { id = 1, productCode = "P1", productName = "Product 1", quantity = 10, unitPrice = 100, totalPrice = 1000, currency = "THB", unitOfMeasure = "pcs" } 
+            .RespondWith(Response.Create().WithStatusCode(200).WithBodyAsJson(new[]
+            {
+                new { id = 1, productCode = "P1", productName = "Product 1", quantity = 10, unitPrice = 100, totalPrice = 1000, currency = "THB", unitOfMeasure = "pcs" }
             }));
 
         CurrencyServiceMock.Given(Request.Create().WithPath("/v1/currencies/1").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200).WithBodyAsJson(new { id = 1, code = "THB", symbol = "B" }));
-            
+
         IAMServiceMock.Given(Request.Create().WithPath("/iam/v1/permissions/register").UsingPost())
             .RespondWith(Response.Create().WithStatusCode(200));
-            
+
         IAMServiceMock.Given(Request.Create().WithPath("/iam/v1/roles/register").UsingPost())
             .RespondWith(Response.Create().WithStatusCode(200));
     }
@@ -95,7 +95,7 @@ public class PurchaseOrdersControllerPermissionTests : IntegrationTestBase
         // Arrange
         SetupExternalServiceMocks();
         var setupClient = CreateAuthenticatedClient(permissions: new[] { PurchaseOrderPermissions.Orders.Create, PurchaseOrderPermissions.Orders.Read });
-        
+
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -134,7 +134,7 @@ public class PurchaseOrdersControllerPermissionTests : IntegrationTestBase
         // Arrange
         SetupExternalServiceMocks();
         var setupClient = CreateAuthenticatedClient(permissions: new[] { PurchaseOrderPermissions.Orders.Create, PurchaseOrderPermissions.Orders.Read });
-        
+
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -160,7 +160,7 @@ public class PurchaseOrdersControllerPermissionTests : IntegrationTestBase
         // Arrange
         SetupExternalServiceMocks();
         var setupClient = CreateAuthenticatedClient(permissions: new[] { PurchaseOrderPermissions.Orders.Create, PurchaseOrderPermissions.Orders.Read });
-        
+
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,
@@ -186,7 +186,7 @@ public class PurchaseOrdersControllerPermissionTests : IntegrationTestBase
         // Arrange
         SetupExternalServiceMocks();
         var setupClient = CreateAuthenticatedClient(permissions: new[] { PurchaseOrderPermissions.Orders.Create, PurchaseOrderPermissions.Orders.Read });
-        
+
         var createRequest = new CreatePurchaseOrderRequest
         {
             SupplierID = 1,

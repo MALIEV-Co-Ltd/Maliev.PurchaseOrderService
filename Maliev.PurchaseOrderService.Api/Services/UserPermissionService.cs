@@ -52,10 +52,10 @@ public class UserPermissionService : IUserPermissionService
         }
 
         _logger.LogInformation("Fetching permissions for user {UserId} from IAM", userId);
-        
+
         // TODO: Implement actual IAM call when HttpClient is configured
         // For now, returning empty or placeholder to satisfy tests
-        permissions = new List<string>(); 
+        permissions = new List<string>();
 
         var cacheEntryOptions = new MemoryCacheEntryOptions()
             .SetAbsoluteExpiration(CacheDuration);
