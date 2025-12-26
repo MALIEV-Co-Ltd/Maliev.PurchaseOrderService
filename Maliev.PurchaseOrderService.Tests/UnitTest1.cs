@@ -1,4 +1,4 @@
-﻿namespace Maliev.PurchaseOrderService.Tests;
+namespace Maliev.PurchaseOrderService.Tests;
 
 public class UnitTest1
 {

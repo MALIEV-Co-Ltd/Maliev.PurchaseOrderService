@@ -23,6 +23,7 @@ public class IntegrationTestBase : IAsyncLifetime
     protected WireMockServer CurrencyServiceMock => Factory.CurrencyServiceMock;
     protected WireMockServer UploadServiceMock => Factory.UploadServiceMock;
     protected WireMockServer PdfServiceMock => Factory.PdfServiceMock;
+    protected WireMockServer IAMServiceMock => Factory.IAMServiceMock;
 
     public async Task InitializeAsync()
     {
@@ -51,6 +52,7 @@ public class IntegrationTestBase : IAsyncLifetime
             CurrencyServiceMock?.Stop();
             UploadServiceMock?.Stop();
             PdfServiceMock?.Stop();
+            IAMServiceMock?.Stop();
 
             await Factory.DisposeAsync();
         }
@@ -68,9 +70,9 @@ public class IntegrationTestBase : IAsyncLifetime
     /// <summary>
     /// Creates HTTP client with JWT Bearer token authentication
     /// </summary>
-    protected HttpClient CreateAuthenticatedClient(string userId = "test-user", string[]? roles = null)
+    protected HttpClient CreateAuthenticatedClient(string userId = "test-user", string[]? roles = null, string[]? permissions = null)
     {
-        return Factory.CreateAuthenticatedClient(userId, roles);
+        return Factory.CreateAuthenticatedClient(userId, roles, permissions);
     }
 
     protected static readonly string[] EmployeeRoles = { "employee" };

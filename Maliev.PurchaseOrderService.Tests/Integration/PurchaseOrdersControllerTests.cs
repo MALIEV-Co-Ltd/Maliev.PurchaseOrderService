@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Maliev.PurchaseOrderService.Api.DTOs;
+using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Common.Enumerations;
 using Microsoft.EntityFrameworkCore;
 using WireMock.RequestBuilders;
@@ -24,11 +25,11 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     {
         // Arrange
         // Use a new client for this test to avoid sharing the base Client
-        var client = Factory.CreateAuthenticatedClient("user123", EmployeeRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Create, PurchaseOrderPermissions.Orders.Read });
 
         // Mock external service responses
         SupplierServiceMock!
-            .Given(Request.Create().WithPath("/v1/1").UsingGet())
+            .Given(Request.Create().WithPath("/v1/suppliers/1").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBodyAsJson(new {
@@ -39,7 +40,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
                 }));
 
         OrderServiceMock!
-            .Given(Request.Create().WithPath("/v1/100").UsingGet())
+            .Given(Request.Create().WithPath("/v1/orders/100").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBodyAsJson(new
@@ -49,7 +50,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
                 }));
 
         OrderServiceMock!
-            .Given(Request.Create().WithPath("/v1/100/items").UsingGet())
+            .Given(Request.Create().WithPath("/v1/orders/100/items").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBodyAsJson(new[]
@@ -58,7 +59,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
                 }));
 
         CurrencyServiceMock!
-            .Given(Request.Create().WithPath("/v1/1").UsingGet())
+            .Given(Request.Create().WithPath("/v1/currencies/1").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBodyAsJson(new {
@@ -88,7 +89,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         };
 
         // Act
-        var response = await client.PostAsJsonAsync("/purchase-orders/v1/purchase-orders", request);
+        var response = await client.PostAsJsonAsync("/purchase-order/v1/purchase-orders", request);
 
         // Assert
         if (!response.IsSuccessStatusCode)
@@ -111,11 +112,11 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task CreatePurchaseOrder_WithInvalidSupplier_ReturnsBadRequest()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", EmployeeRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Create });
 
         // Mock supplier not found
         SupplierServiceMock!
-            .Given(Request.Create().WithPath("/v1/9999").UsingGet())
+            .Given(Request.Create().WithPath("/v1/suppliers/9999").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(404));
 
         var request = new CreatePurchaseOrderRequest
@@ -128,7 +129,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         };
 
         // Act
-        var response = await client.PostAsJsonAsync("/purchase-orders/v1/purchase-orders", request);
+        var response = await client.PostAsJsonAsync("/purchase-order/v1/purchase-orders", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -148,7 +149,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         };
 
         // Act
-        var response = await Client!.PostAsJsonAsync("/purchase-orders/v1/purchase-orders", request);
+        var response = await Client!.PostAsJsonAsync("/purchase-order/v1/purchase-orders", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -158,11 +159,11 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task CreatePurchaseOrder_WithPartialOrdering_CreatesOrderWithSelectedItems()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", EmployeeRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Create, PurchaseOrderPermissions.Orders.Read });
 
         // Mock responses
         SupplierServiceMock!
-            .Given(Request.Create().WithPath("/v1/2").UsingGet())
+            .Given(Request.Create().WithPath("/v1/suppliers/2").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBodyAsJson(new {
@@ -173,7 +174,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
                 }));
 
         OrderServiceMock!
-            .Given(Request.Create().WithPath("/v1/200").UsingGet())
+            .Given(Request.Create().WithPath("/v1/orders/200").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBodyAsJson(new
@@ -183,7 +184,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
                 }));
 
         OrderServiceMock!
-            .Given(Request.Create().WithPath("/v1/200/items").UsingGet())
+            .Given(Request.Create().WithPath("/v1/orders/200/items").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBodyAsJson(new[]
@@ -194,7 +195,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
                 }));
 
         CurrencyServiceMock!
-            .Given(Request.Create().WithPath("/v1/2").UsingGet())
+            .Given(Request.Create().WithPath("/v1/currencies/2").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBodyAsJson(new {
@@ -220,7 +221,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         };
 
         // Act
-        var response = await client.PostAsJsonAsync("/purchase-orders/v1/purchase-orders", request);
+        var response = await client.PostAsJsonAsync("/purchase-order/v1/purchase-orders", request);
 
         // Assert
         if (!response.IsSuccessStatusCode)
@@ -250,7 +251,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task GetPurchaseOrderById_WithExistingOrder_ReturnsOrder()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", EmployeeRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Read });
 
         // Create test data
         var dbContext = GetDbContext();
@@ -278,7 +279,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         await dbContext.SaveChangesAsync();
 
         // Act
-        var response = await client.GetAsync($"/purchase-orders/v1/purchase-orders/{po.Id}");
+        var response = await client.GetAsync($"/purchase-order/v1/purchase-orders/{po.Id}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -293,10 +294,10 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task GetPurchaseOrderById_WithNonExistingOrder_ReturnsNotFound()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", EmployeeRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Read });
 
         // Act
-        var response = await client.GetAsync("/purchase-orders/v1/purchase-orders/99999");
+        var response = await client.GetAsync("/purchase-order/v1/purchase-orders/99999");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -331,10 +332,11 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         dbContext.PurchaseOrders.Add(otherUserPO);
         await dbContext.SaveChangesAsync();
 
-        var client = Factory.CreateAuthenticatedClient("user123", EmployeeRoles);
+        // Use 'employee' role via permissions (simulated as not having enough permission or being restricted by ownership)
+        var client = Factory.CreateAuthenticatedClient("user123", roles: new[] { "employee" }, permissions: new[] { PurchaseOrderPermissions.Orders.Read });
 
         // Act
-        var response = await client.GetAsync($"/purchase-orders/v1/purchase-orders/{otherUserPO.Id}");
+        var response = await client.GetAsync($"/purchase-order/v1/purchase-orders/{otherUserPO.Id}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -344,7 +346,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task SearchPurchaseOrders_WithFilters_ReturnsFilteredResults()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", ManagerRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Read });
 
         // Create test data
         var dbContext = GetDbContext();
@@ -392,7 +394,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         await dbContext.SaveChangesAsync();
 
         // Act - Search for Pending status
-        var response = await client.GetAsync("/purchase-orders/v1/purchase-orders?Status=Pending&Page=1&PageSize=10");
+        var response = await client.GetAsync("/purchase-order/v1/purchase-orders?Status=Pending&Page=1&PageSize=10");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -406,7 +408,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task SearchPurchaseOrders_WithPagination_ReturnsPagedResults()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", ProcurementRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Read });
 
         // Create test data - 15 purchase orders
         var dbContext = GetDbContext();
@@ -434,7 +436,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         await dbContext.SaveChangesAsync();
 
         // Act - Get page 1 with 10 items
-        var response = await client.GetAsync("/purchase-orders/v1/purchase-orders?Page=1&PageSize=10");
+        var response = await client.GetAsync("/purchase-order/v1/purchase-orders?Page=1&PageSize=10");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -455,7 +457,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task UpdatePurchaseOrder_WithValidRequest_UpdatesOrder()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", ManagerRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Update, PurchaseOrderPermissions.Orders.Read });
 
         // Create test data
         var dbContext = GetDbContext();
@@ -491,7 +493,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
 
         // Mock currency service for updated currency
         CurrencyServiceMock!
-            .Given(Request.Create().WithPath("/v1/2").UsingGet())
+            .Given(Request.Create().WithPath("/v1/currencies/2").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithBodyAsJson(new {
@@ -510,7 +512,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         };
 
         // Act
-        var response = await client.PutAsJsonAsync($"/purchase-orders/v1/purchase-orders/{po.Id}", updateRequest);
+        var response = await client.PutAsJsonAsync($"/purchase-order/v1/purchase-orders/{po.Id}", updateRequest);
 
         // Assert
         // Assert
@@ -530,7 +532,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task UpdatePurchaseOrder_WithConcurrencyConflict_ReturnsConflict()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", ManagerRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Update });
 
         // Create test data
         var dbContext = GetDbContext();
@@ -563,7 +565,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         };
 
         // Act
-        var response = await client.PutAsJsonAsync($"/purchase-orders/v1/purchase-orders/{po.Id}", updateRequest);
+        var response = await client.PutAsJsonAsync($"/purchase-order/v1/purchase-orders/{po.Id}", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -573,7 +575,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task UpdatePurchaseOrder_AsEmployee_ReturnsForbidden()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", EmployeeRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", roles: new[] { "employee" }, permissions: new[] { "some.other.permission" });
 
         var updateRequest = new UpdatePurchaseOrderRequest
         {
@@ -582,7 +584,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         };
 
         // Act
-        var response = await client.PutAsJsonAsync("/purchase-orders/v1/purchase-orders/1", updateRequest);
+        var response = await client.PutAsJsonAsync("/purchase-order/v1/purchase-orders/1", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -592,7 +594,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task CancelPurchaseOrder_WithExistingOrder_CancelsOrder()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", ManagerRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Cancel });
 
         // Create test data
         var dbContext = GetDbContext();
@@ -619,7 +621,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         await dbContext.SaveChangesAsync();
 
         // Act
-        var response = await client.PostAsync($"/purchase-orders/v1/purchase-orders/{po.Id}/cancel", null);
+        var response = await client.PostAsync($"/purchase-order/v1/purchase-orders/{po.Id}/cancel", null);
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -633,10 +635,10 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task CancelPurchaseOrder_WithNonExistingOrder_ReturnsNotFound()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", ManagerRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Cancel });
 
         // Act
-        var response = await client.PostAsync("/purchase-orders/v1/purchase-orders/99999/cancel", null);
+        var response = await client.PostAsync("/purchase-order/v1/purchase-orders/99999/cancel", null);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -646,10 +648,10 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     public async Task CancelPurchaseOrder_AsEmployee_ReturnsForbidden()
     {
         // Arrange
-        var client = Factory.CreateAuthenticatedClient("user123", EmployeeRoles);
+        var client = Factory.CreateAuthenticatedClient("user123", roles: new[] { "employee" }, permissions: new[] { "some.other.permission" });
 
         // Act
-        var response = await client.PostAsync("/purchase-orders/v1/purchase-orders/1/cancel", null);
+        var response = await client.PostAsync("/purchase-order/v1/purchase-orders/1/cancel", null);
 
         // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
