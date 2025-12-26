@@ -168,7 +168,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             .Include(po => po.Files)
             .AsQueryable();
 
-        // Apply role-based filtering
+        // Apply role-based filtering (Ownership check)
         if (userRole == "employee")
         {
             query = query.Where(po => po.CreatedBy == userId);
@@ -198,7 +198,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     {
         var query = _context.PurchaseOrders.AsQueryable();
 
-        // Apply role-based filtering
+        // Apply role-based filtering (Ownership check)
         if (userRole == "employee")
         {
             query = query.Where(po => po.CreatedBy == userId);
@@ -286,11 +286,19 @@ public class PurchaseOrderService : IPurchaseOrderService
         string userRole,
         CancellationToken cancellationToken = default)
     {
-        var purchaseOrder = await _context.PurchaseOrders
+        var query = _context.PurchaseOrders
             .Include(po => po.Items)
             .Include(po => po.ShippingAddress)
             .Include(po => po.BillingAddress)
-            .FirstOrDefaultAsync(po => po.Id == id, cancellationToken);
+            .AsQueryable();
+
+        // Maintain resource-level ownership check (IDOR protection)
+        if (userRole == "employee")
+        {
+            query = query.Where(po => po.CreatedBy == userId);
+        }
+
+        var purchaseOrder = await query.FirstOrDefaultAsync(po => po.Id == id, cancellationToken);
 
         if (purchaseOrder == null)
         {
@@ -357,8 +365,15 @@ public class PurchaseOrderService : IPurchaseOrderService
         string userRole,
         CancellationToken cancellationToken = default)
     {
-        var purchaseOrder = await _context.PurchaseOrders
-            .FirstOrDefaultAsync(po => po.Id == id, cancellationToken);
+        var query = _context.PurchaseOrders.AsQueryable();
+
+        // Maintain resource-level ownership check (IDOR protection)
+        if (userRole == "employee")
+        {
+            query = query.Where(po => po.CreatedBy == userId);
+        }
+
+        var purchaseOrder = await query.FirstOrDefaultAsync(po => po.Id == id, cancellationToken);
 
         if (purchaseOrder == null)
         {

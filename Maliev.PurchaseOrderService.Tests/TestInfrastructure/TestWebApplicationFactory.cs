@@ -12,6 +12,7 @@ public class TestWebApplicationFactory : BaseIntegrationTestFactory<Program, Pur
     public WireMockServer CurrencyServiceMock { get; private set; } = null!;
     public WireMockServer UploadServiceMock { get; private set; } = null!;
     public WireMockServer PdfServiceMock { get; private set; } = null!;
+    public WireMockServer IAMServiceMock { get; private set; } = null!;
 
     public TestWebApplicationFactory()
     {
@@ -21,21 +22,23 @@ public class TestWebApplicationFactory : BaseIntegrationTestFactory<Program, Pur
         CurrencyServiceMock = WireMockServer.Start();
         UploadServiceMock = WireMockServer.Start();
         PdfServiceMock = WireMockServer.Start();
+        IAMServiceMock = WireMockServer.Start();
     }
 
     protected override string DbConnectionStringName => "PurchaseOrderDbContext";
 
-    protected override void ConfigureEnvironmentVariables()
+    protected override Dictionary<string, string?> GetAdditionalConfiguration()
     {
-        base.ConfigureEnvironmentVariables();
+        var config = base.GetAdditionalConfiguration();
 
-        // Configure WireMock URLs as environment variables for external services
-        // Include /v1/ path prefix with trailing slash to match test mock configurations
-        // The trailing slash is critical - without it, HttpClient treats "1" as replacing "/v1" instead of appending
-        Environment.SetEnvironmentVariable("ExternalServices:SupplierService:BaseUrl", $"{SupplierServiceMock.Urls[0]}/v1/");
-        Environment.SetEnvironmentVariable("ExternalServices:OrderService:BaseUrl", $"{OrderServiceMock.Urls[0]}/v1/");
-        Environment.SetEnvironmentVariable("ExternalServices:CurrencyService:BaseUrl", $"{CurrencyServiceMock.Urls[0]}/v1/");
-        Environment.SetEnvironmentVariable("ExternalServices:UploadService:BaseUrl", $"{UploadServiceMock.Urls[0]}/v1/");
-        Environment.SetEnvironmentVariable("ExternalServices:PdfService:BaseUrl", $"{PdfServiceMock.Urls[0]}/v1/");
+        // Configure WireMock URLs for external services
+        // The trailing slash is critical for HttpClient base address
+        config["SupplierService:BaseUrl"] = $"{SupplierServiceMock.Urls[0]}/v1/suppliers/";
+        config["OrderService:BaseUrl"] = $"{OrderServiceMock.Urls[0]}/v1/orders/";
+        config["CurrencyService:BaseUrl"] = $"{CurrencyServiceMock.Urls[0]}/v1/currencies/";
+        config["UploadService:BaseUrl"] = $"{UploadServiceMock.Urls[0]}/v1/uploads/";
+        config["PdfService:BaseUrl"] = $"{PdfServiceMock.Urls[0]}/v1/pdfs/"; config["IAMService:BaseUrl"] = $"{IAMServiceMock.Urls[0]}/iam/v1/";
+
+        return config;
     }
 }
