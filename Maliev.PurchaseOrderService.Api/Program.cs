@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Data;
@@ -14,7 +15,7 @@ builder.AddMassTransitWithRabbitMq(); // RabbitMQ messaging
 builder.AddServiceMeters("purchase-orders-meter"); // Register service meters for OpenTelemetry business metrics
 
 builder.AddRedisDistributedCache(instanceName: "purchase-order:"); // Redis with in-memory fallback
-builder.AddPostgresDbContext<PurchaseOrderContext>(connectionStringName: "PurchaseOrderDbContext"); // PostgreSQL with retry logic
+builder.AddPostgresDbContext<PurchaseOrderContext>(connectionName: "PurchaseOrderDbContext"); // PostgreSQL with retry logic
 
 // --- API Configuration ---
 builder.AddDefaultCors(); // CORS from CORS:AllowedOrigins config
@@ -26,17 +27,9 @@ builder.AddJwtAuthentication();
 // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
 if (!builder.Environment.IsProduction())
 {
-    builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddOpenApi("v1", options =>
-    {
-        options.AddDocumentTransformer((document, context, cancellationToken) =>
-        {
-            document.Info.Title = "MALIEV Purchase Order Service API";
-            document.Info.Version = "v1";
-            document.Info.Description = "Purchase order management service. Supports PO creation with line items, approval workflows, status updates, search with pagination and filtering by supplier/status/date range, and cancellation with role-based access control.";
-            return Task.CompletedTask;
-        });
-    });
+    builder.AddStandardOpenApi(
+        title: "MALIEV Purchase Order Service API",
+        description: "Purchase order management service. Supports PO creation with line items, approval workflows, status updates, search with pagination and filtering by supplier/status/date range, and cancellation with role-based access control.");
 }
 
 builder.Services.AddControllers();
@@ -57,51 +50,22 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
-// Authorization Policies
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("Employee", policy => policy.RequireRole("employee"));
-    options.AddPolicy("Manager", policy => policy.RequireRole("manager", "procurement", "admin"));
-    options.AddPolicy("Procurement", policy => policy.RequireRole("procurement", "admin"));
-    options.AddPolicy("Admin", policy => policy.RequireRole("admin"));
-});
-
 // Configure HttpClients for external services
-// Configure HttpClients for external services
-builder.Services.AddHttpClient("SupplierService", client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ExternalServices:SupplierService:BaseUrl"] ?? "http://localhost");
-})
-.AddStandardResilienceHandler();
-
-builder.Services.AddHttpClient("OrderService", client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ExternalServices:OrderService:BaseUrl"] ?? "http://localhost");
-})
-.AddStandardResilienceHandler();
-
-builder.Services.AddHttpClient("CurrencyService", client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ExternalServices:CurrencyService:BaseUrl"] ?? "http://localhost");
-})
-.AddStandardResilienceHandler();
-
-builder.Services.AddHttpClient("UploadService", client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ExternalServices:UploadService:BaseUrl"] ?? "http://localhost");
-})
-.AddStandardResilienceHandler();
-
-builder.Services.AddHttpClient("PdfService", client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ExternalServices:PdfService:BaseUrl"] ?? "http://localhost");
-})
-.AddStandardResilienceHandler();
+builder.AddServiceClient("IAMService");
+builder.AddServiceClient("SupplierService");
+builder.AddServiceClient("OrderService");
+builder.AddServiceClient("CurrencyService");
+builder.AddServiceClient("UploadService");
+builder.AddServiceClient("PdfService");
 
 // Application Services
 builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
 builder.Services.AddScoped<IWHTCalculationService, WHTCalculationService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+
+// IAM Registration Service
+builder.Services.AddIAMRegistration<PurchaseOrderIAMRegistrationService>();
 
 // External Service Clients
 builder.Services.AddScoped<ISupplierServiceClient, SupplierServiceClient>();
