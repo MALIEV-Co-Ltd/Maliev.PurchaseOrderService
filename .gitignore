@@ -51,6 +51,9 @@ coverage/
 # Migration bundles
 *.efbundle
 
+.claude/settings.local.json
+.gemini/settings.local.json
+
 # Temporary/debug files
 *.bak
 *.log
@@ -69,3 +72,8 @@ docker-compose.dev.yml
 *SUMMARY*.md
 *AUDIT*.md
 *.Improvements.md
+
+# Test Outputs
+*test-output.txt
+*_error.txt
+
