@@ -75,19 +75,8 @@ builder.Services.AddScoped<ICurrencyServiceClient, CurrencyServiceClient>();
 var app = builder.Build();
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-// Run database migrations on startup (skip in Testing environment)
-if (!app.Environment.IsEnvironment("Testing"))
-{
-    try
-    {
-        await app.MigrateDatabaseAsync<PurchaseOrderContext>();
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Database migration failed - application may not function correctly");
-        // Don't throw - allow app to start for debugging
-    }
-}
+// --- Database Migrations ---
+await app.MigrateDatabaseAsync<PurchaseOrderContext>();
 
 // Middleware Pipeline
 app.UseHttpsRedirection();
