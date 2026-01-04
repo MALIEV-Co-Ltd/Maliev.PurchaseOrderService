@@ -6,7 +6,7 @@ using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Data.Entities;
 using Maliev.PurchaseOrderService.Common.Enumerations;
 using MassTransit;
-using Maliev.PurchaseOrderService.Common.Events;
+using Maliev.MessagingContracts.Generated;
 
 namespace Maliev.PurchaseOrderService.Api.Services;
 
@@ -137,15 +137,32 @@ public class PurchaseOrderService : IPurchaseOrderService
         _context.PurchaseOrders.Add(purchaseOrder);
         await _context.SaveChangesAsync(cancellationToken);
 
-        if (purchaseOrder.OrderType == OrderType.Internal)
-        {
-            await _publishEndpoint.Publish(new PurchaseOrderCreatedEvent
-            {
-                PurchaseOrderId = purchaseOrder.Id,
-                OrderNumber = purchaseOrder.OrderNumber,
-                CreatedAt = purchaseOrder.CreatedAt
-            }, cancellationToken);
-        }
+        // Publish PurchaseOrderCreatedEvent
+        await _publishEndpoint.Publish(new PurchaseOrderCreatedEvent(
+            MessageId: Guid.NewGuid(),
+            MessageName: "PurchaseOrderCreatedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0.0",
+            PublishedBy: "PurchaseOrderService",
+            ConsumedBy: ["MaterialService", "NotificationService"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: false,
+            Payload: new PurchaseOrderCreatedEventPayload(
+                PurchaseOrderId: purchaseOrder.Id,
+                PurchaseOrderNumber: purchaseOrder.OrderNumber,
+                SupplierId: purchaseOrder.SupplierID,
+                TotalAmount: (double)purchaseOrder.TotalAmount,
+                Currency: purchaseOrder.CurrencyCode,
+                RequestedDeliveryDate: purchaseOrder.ExpectedDeliveryDate.HasValue ?
+                    new DateTimeOffset(purchaseOrder.ExpectedDeliveryDate.Value, TimeSpan.Zero) : null,
+                CreatedBy: purchaseOrder.CreatedBy,
+                CreatedAt: new DateTimeOffset(purchaseOrder.CreatedAt, TimeSpan.Zero)
+            )
+        ), cancellationToken);
+
+        _logger.LogInformation("Published PurchaseOrderCreatedEvent for PO {OrderNumber}", purchaseOrder.OrderNumber);
 
         _logger.LogInformation("Created purchase order {OrderNumber} for user {UserId}",
             purchaseOrder.OrderNumber, userId);
@@ -386,8 +403,234 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         await _context.SaveChangesAsync(cancellationToken);
 
+        // Publish PurchaseOrderCancelledEvent
+        // TODO: Add cancellationReason parameter to CancelPurchaseOrderAsync method
+        await _publishEndpoint.Publish(new PurchaseOrderCancelledEvent(
+            MessageId: Guid.NewGuid(),
+            MessageName: "PurchaseOrderCancelledEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0.0",
+            PublishedBy: "PurchaseOrderService",
+            ConsumedBy: ["MaterialService", "NotificationService"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: false,
+            Payload: new PurchaseOrderCancelledEventPayload(
+                PurchaseOrderId: purchaseOrder.Id,
+                PurchaseOrderNumber: purchaseOrder.OrderNumber,
+                CancelledBy: userId,
+                CancelledAt: new DateTimeOffset(purchaseOrder.LastModifiedAt ?? DateTime.UtcNow, TimeSpan.Zero),
+                CancellationReason: "Cancelled by user"  // Default reason - should be parameterized
+            )
+        ), cancellationToken);
+
+        _logger.LogInformation("Published PurchaseOrderCancelledEvent for PO {OrderNumber}", purchaseOrder.OrderNumber);
+
         _logger.LogInformation("Cancelled purchase order {OrderNumber} by user {UserId}",
             purchaseOrder.OrderNumber, userId);
+    }
+
+    /// <inheritdoc/>
+    public async Task<PurchaseOrderDetailResponse> ApproveAsync(
+        int id,
+        string userId,
+        string userRole,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.PurchaseOrders.AsQueryable();
+
+        // Maintain resource-level ownership check (IDOR protection)
+        if (userRole == "employee")
+        {
+            query = query.Where(po => po.CreatedBy == userId);
+        }
+
+        var purchaseOrder = await query.FirstOrDefaultAsync(po => po.Id == id, cancellationToken);
+
+        if (purchaseOrder == null)
+        {
+            throw new InvalidOperationException($"Purchase order {id} not found");
+        }
+
+        // Validate current status
+        if (purchaseOrder.Status != OrderStatus.Pending)
+        {
+            throw new InvalidOperationException($"Cannot approve purchase order with status {purchaseOrder.Status}. Expected status: Pending");
+        }
+
+        // Update status and approval metadata
+        purchaseOrder.Status = OrderStatus.Approved;
+        purchaseOrder.ApprovedBy = userId;
+        purchaseOrder.ApprovedAt = DateTime.UtcNow;
+        purchaseOrder.LastModifiedBy = userId;
+        purchaseOrder.LastModifiedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Publish PurchaseOrderApprovedEvent
+        await _publishEndpoint.Publish(new PurchaseOrderApprovedEvent(
+            MessageId: Guid.NewGuid(),
+            MessageName: "PurchaseOrderApprovedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0.0",
+            PublishedBy: "PurchaseOrderService",
+            ConsumedBy: ["MaterialService", "NotificationService"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: false,
+            Payload: new PurchaseOrderApprovedEventPayload(
+                PurchaseOrderId: purchaseOrder.Id,
+                PurchaseOrderNumber: purchaseOrder.OrderNumber,
+                ApprovedBy: userId,
+                ApprovedAt: new DateTimeOffset(purchaseOrder.ApprovedAt.Value, TimeSpan.Zero)
+            )
+        ), cancellationToken);
+
+        _logger.LogInformation("Published PurchaseOrderApprovedEvent for PO {OrderNumber}", purchaseOrder.OrderNumber);
+
+        _logger.LogInformation("Approved purchase order {OrderNumber} by user {UserId}",
+            purchaseOrder.OrderNumber, userId);
+
+        return await GetPurchaseOrderByIdAsync(id, userId, userRole, cancellationToken)
+            ?? throw new InvalidOperationException("Failed to retrieve approved purchase order");
+    }
+
+    /// <inheritdoc/>
+    public async Task<PurchaseOrderDetailResponse> SendToSupplierAsync(
+        int id,
+        string userId,
+        string userRole,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.PurchaseOrders.AsQueryable();
+
+        // Maintain resource-level ownership check (IDOR protection)
+        if (userRole == "employee")
+        {
+            query = query.Where(po => po.CreatedBy == userId);
+        }
+
+        var purchaseOrder = await query.FirstOrDefaultAsync(po => po.Id == id, cancellationToken);
+
+        if (purchaseOrder == null)
+        {
+            throw new InvalidOperationException($"Purchase order {id} not found");
+        }
+
+        // Validate current status
+        if (purchaseOrder.Status != OrderStatus.Approved)
+        {
+            throw new InvalidOperationException($"Cannot send purchase order with status {purchaseOrder.Status}. Expected status: Approved");
+        }
+
+        // Update status
+        purchaseOrder.Status = OrderStatus.Ordered;
+        purchaseOrder.LastModifiedBy = userId;
+        purchaseOrder.LastModifiedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Publish PurchaseOrderSentToSupplierEvent
+        await _publishEndpoint.Publish(new PurchaseOrderSentToSupplierEvent(
+            MessageId: Guid.NewGuid(),
+            MessageName: "PurchaseOrderSentToSupplierEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0.0",
+            PublishedBy: "PurchaseOrderService",
+            ConsumedBy: ["MaterialService", "NotificationService"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: false,
+            Payload: new PurchaseOrderSentToSupplierEventPayload(
+                PurchaseOrderId: purchaseOrder.Id,
+                PurchaseOrderNumber: purchaseOrder.OrderNumber,
+                SupplierId: purchaseOrder.SupplierID,
+                SentAt: new DateTimeOffset(purchaseOrder.LastModifiedAt.Value, TimeSpan.Zero),
+                SentBy: userId
+            )
+        ), cancellationToken);
+
+        _logger.LogInformation("Published PurchaseOrderSentToSupplierEvent for PO {OrderNumber}", purchaseOrder.OrderNumber);
+
+        _logger.LogInformation("Sent purchase order {OrderNumber} to supplier by user {UserId}",
+            purchaseOrder.OrderNumber, userId);
+
+        return await GetPurchaseOrderByIdAsync(id, userId, userRole, cancellationToken)
+            ?? throw new InvalidOperationException("Failed to retrieve sent purchase order");
+    }
+
+    /// <inheritdoc/>
+    public async Task<PurchaseOrderDetailResponse> ReceiveGoodsAsync(
+        int id,
+        bool isPartialReceipt,
+        string userId,
+        string userRole,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.PurchaseOrders.AsQueryable();
+
+        // Maintain resource-level ownership check (IDOR protection)
+        if (userRole == "employee")
+        {
+            query = query.Where(po => po.CreatedBy == userId);
+        }
+
+        var purchaseOrder = await query.FirstOrDefaultAsync(po => po.Id == id, cancellationToken);
+
+        if (purchaseOrder == null)
+        {
+            throw new InvalidOperationException($"Purchase order {id} not found");
+        }
+
+        // Validate current status
+        if (purchaseOrder.Status != OrderStatus.Ordered)
+        {
+            throw new InvalidOperationException($"Cannot receive goods for purchase order with status {purchaseOrder.Status}. Expected status: Ordered");
+        }
+
+        // Update status (only to Delivered if full receipt)
+        if (!isPartialReceipt)
+        {
+            purchaseOrder.Status = OrderStatus.Delivered;
+        }
+
+        purchaseOrder.LastModifiedBy = userId;
+        purchaseOrder.LastModifiedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Publish PurchaseOrderReceivedEvent
+        await _publishEndpoint.Publish(new PurchaseOrderReceivedEvent(
+            MessageId: Guid.NewGuid(),
+            MessageName: "PurchaseOrderReceivedEvent",
+            MessageType: MessageType.Event,
+            MessageVersion: "1.0.0",
+            PublishedBy: "PurchaseOrderService",
+            ConsumedBy: ["MaterialService", "InventoryService", "NotificationService"],
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            IsPublic: false,
+            Payload: new PurchaseOrderReceivedEventPayload(
+                PurchaseOrderId: purchaseOrder.Id,
+                PurchaseOrderNumber: purchaseOrder.OrderNumber,
+                IsPartialReceipt: isPartialReceipt,
+                ReceivedBy: userId,
+                ReceivedAt: new DateTimeOffset(purchaseOrder.LastModifiedAt.Value, TimeSpan.Zero)
+            )
+        ), cancellationToken);
+
+        _logger.LogInformation("Published PurchaseOrderReceivedEvent for PO {OrderNumber} (partial: {IsPartial})",
+            purchaseOrder.OrderNumber, isPartialReceipt);
+
+        _logger.LogInformation("Received goods for purchase order {OrderNumber} by user {UserId} (partial: {IsPartial})",
+            purchaseOrder.OrderNumber, userId, isPartialReceipt);
+
+        return await GetPurchaseOrderByIdAsync(id, userId, userRole, cancellationToken)
+            ?? throw new InvalidOperationException("Failed to retrieve purchase order after receiving goods");
     }
 
     private string GenerateOrderNumber()

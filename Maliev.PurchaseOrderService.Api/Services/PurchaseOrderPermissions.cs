@@ -18,6 +18,8 @@ public static class PurchaseOrderPermissions
         public const string Delete = "purchase-order.orders.delete";
         /// <summary>Permission to approve purchase orders.</summary>
         public const string Approve = "purchase-order.orders.approve";
+        /// <summary>Permission to send purchase orders to suppliers.</summary>
+        public const string Send = "purchase-order.orders.send";
         /// <summary>Permission to cancel purchase orders.</summary>
         public const string Cancel = "purchase-order.orders.cancel";
         /// <summary>Permission to receive items against purchase orders.</summary>
@@ -48,7 +50,7 @@ public static class PurchaseOrderPermissions
     public static string[] All => new[]
     {
         Orders.Create, Orders.Read, Orders.Update, Orders.Delete,
-        Orders.Approve, Orders.Cancel, Orders.Receive, Orders.Export,
+        Orders.Approve, Orders.Send, Orders.Cancel, Orders.Receive, Orders.Export,
         Suppliers.View, Suppliers.Select,
         Budgets.Check
     };
