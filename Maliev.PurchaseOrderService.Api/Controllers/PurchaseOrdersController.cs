@@ -216,33 +216,130 @@ public class PurchaseOrdersController : ControllerBase
     /// <summary>
     /// Approves the purchase order with the specified identifier.
     /// </summary>
-    /// <remarks>Requires 'purchase-order.orders.approve' permission.</remarks>
+    /// <remarks>Requires 'purchase-order.orders.approve' permission. Transitions the order status
+    /// from Pending to Approved. Returns 404 if the order does not exist, and 400 if the order
+    /// is not in Pending status.</remarks>
+    /// <param name="id">The unique identifier of the purchase order to approve.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the operation.</param>
+    /// <returns>A 200 OK response with the updated purchase order details if successful; otherwise,
+    /// a 404 Not Found or 400 Bad Request response indicating the reason for failure.</returns>
     [HttpPost("{id}/approve")]
     [RequirePermission(PurchaseOrderPermissions.Orders.Approve)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(PurchaseOrderDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ApprovePurchaseOrder(
+    public async Task<ActionResult<PurchaseOrderDetailResponse>> ApprovePurchaseOrder(
         int id,
         CancellationToken cancellationToken)
     {
-        // Implementation logic would go here or in service
-        return NoContent();
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "manager";
+
+            var result = await _purchaseOrderService.ApproveAsync(
+                id, userId, userRole, cancellationToken);
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Failed to approve purchase order {Id}", id);
+
+            if (ex.Message.Contains("not found"))
+            {
+                return NotFound(new { error = ex.Message });
+            }
+
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Sends the approved purchase order to the supplier.
+    /// </summary>
+    /// <remarks>Requires 'purchase-order.orders.send' permission. Transitions the order status
+    /// from Approved to Ordered. Returns 404 if the order does not exist, and 400 if the order
+    /// is not in Approved status.</remarks>
+    /// <param name="id">The unique identifier of the purchase order to send to supplier.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the operation.</param>
+    /// <returns>A 200 OK response with the updated purchase order details if successful; otherwise,
+    /// a 404 Not Found or 400 Bad Request response indicating the reason for failure.</returns>
+    [HttpPost("{id}/send-to-supplier")]
+    [RequirePermission(PurchaseOrderPermissions.Orders.Send)]
+    [ProducesResponseType(typeof(PurchaseOrderDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PurchaseOrderDetailResponse>> SendToSupplier(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "manager";
+
+            var result = await _purchaseOrderService.SendToSupplierAsync(
+                id, userId, userRole, cancellationToken);
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Failed to send purchase order {Id} to supplier", id);
+
+            if (ex.Message.Contains("not found"))
+            {
+                return NotFound(new { error = ex.Message });
+            }
+
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     /// <summary>
     /// Marks goods as received for the specified purchase order.
     /// </summary>
-    /// <remarks>Requires 'purchase-order.orders.receive' permission.</remarks>
+    /// <remarks>Requires 'purchase-order.orders.receive' permission. Transitions the order status
+    /// from Ordered to Delivered (if full receipt). Returns 404 if the order does not exist, and 400 if the order
+    /// is not in Ordered status.</remarks>
+    /// <param name="id">The unique identifier of the purchase order for which goods are being received.</param>
+    /// <param name="isPartialReceipt">Indicates whether this is a partial receipt. If false, the order status
+    /// will be updated to Delivered. If true, the order remains in Ordered status for future partial receipts.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the operation.</param>
+    /// <returns>A 200 OK response with the updated purchase order details if successful; otherwise,
+    /// a 404 Not Found or 400 Bad Request response indicating the reason for failure.</returns>
     [HttpPost("{id}/receive")]
     [RequirePermission(PurchaseOrderPermissions.Orders.Receive)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(PurchaseOrderDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ReceiveItems(
+    public async Task<ActionResult<PurchaseOrderDetailResponse>> ReceiveItems(
         int id,
-        CancellationToken cancellationToken)
+        [FromQuery] bool isPartialReceipt = false,
+        CancellationToken cancellationToken = default)
     {
-        // Implementation logic would go here or in service
-        return NoContent();
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "manager";
+
+            var result = await _purchaseOrderService.ReceiveGoodsAsync(
+                id, isPartialReceipt, userId, userRole, cancellationToken);
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Failed to receive goods for purchase order {Id}", id);
+
+            if (ex.Message.Contains("not found"))
+            {
+                return NotFound(new { error = ex.Message });
+            }
+
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     /// <summary>

@@ -31,4 +31,19 @@ public interface IPurchaseOrderService
     /// Cancel a purchase order
     /// </summary>
     Task CancelPurchaseOrderAsync(int id, string userId, string userRole, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Approve a pending purchase order
+    /// </summary>
+    Task<PurchaseOrderDetailResponse> ApproveAsync(int id, string userId, string userRole, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Send an approved purchase order to supplier
+    /// </summary>
+    Task<PurchaseOrderDetailResponse> SendToSupplierAsync(int id, string userId, string userRole, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Mark a purchase order as received
+    /// </summary>
+    Task<PurchaseOrderDetailResponse> ReceiveGoodsAsync(int id, bool isPartialReceipt, string userId, string userRole, CancellationToken cancellationToken = default);
 }
