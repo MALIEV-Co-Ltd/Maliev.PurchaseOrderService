@@ -1,4 +1,4 @@
-name: Release Candidate to Staging
+name: CI - Staging
 
 on:
   push:
@@ -21,8 +21,12 @@ jobs:
       - name: Switch to PackageReference for CI build
         run: |
           # Replace ProjectReference with PackageReference in all service csproj files
-          find . -name "*.csproj" -type f -exec sed -i 's|<ProjectReference Include=".*Maliev.Aspire.ServiceDefaults.*.csproj" />|<PackageReference Include="Maliev.Aspire.ServiceDefaults" Version="1.0.*-*" />|g' {} \;
-          find . -name "*.csproj" -type f -exec sed -i 's|<ProjectReference Include=".*Maliev.MessagingContracts.*.csproj" />|<PackageReference Include="Maliev.MessagingContracts" Version="1.0.*-*" />|g' {} ;
+          find . -name "*.csproj" -type f -exec sed -i \
+            's|<ProjectReference Include=".*Maliev.Aspire.ServiceDefaults.*.csproj" />|<PackageReference Include="Maliev.Aspire.ServiceDefaults" Version="1.0.*-*" />|g' \
+            {} \;
+          find . -name "*.csproj" -type f -exec sed -i \
+            's|<ProjectReference Include=".*Maliev.MessagingContracts.*.csproj" />|<PackageReference Include="Maliev.MessagingContracts" Version="1.0.*-*" />|g' \
+            {} \;
           echo "Switched to PackageReference for ServiceDefaults and MessagingContracts"
 
       - name: Restore dependencies
@@ -52,11 +56,14 @@ jobs:
         run: |
           gcloud auth configure-docker asia-southeast1-docker.pkg.dev
           export RELEASE_VERSION=$(echo ${{ github.ref }} | sed -e 's,.*/v,,g')
-          NUGET_USERNAME=${{ github.actor }} NUGET_PASSWORD=${{ secrets.GITOPS_PAT }} docker build \
+          NUGET_USERNAME=${{ github.actor }} \
+          NUGET_PASSWORD=${{ secrets.GITOPS_PAT }} \
+            docker build \
             --secret id=nuget_username,env=NUGET_USERNAME \
             --secret id=nuget_password,env=NUGET_PASSWORD \
-            -t asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchase-order-service:$RELEASE_VERSION -f Maliev.PurchaseOrderService.Api/Dockerfile .
-          docker push asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchase-order-service:$RELEASE_VERSION
+            -t asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchaseorder-service:$RELEASE_VERSION \
+            -f Maliev.PurchaseOrderService.Api/Dockerfile .
+          docker push asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchaseorder-service:$RELEASE_VERSION
 
       - name: Checkout maliev-gitops repository
         uses: actions/checkout@v5
@@ -73,8 +80,10 @@ jobs:
       - name: Update image tag in maliev-gitops using Kustomize
         run: |
           export RELEASE_VERSION=$(echo ${{ github.ref }} | sed -e 's,.*/v,,g')
-          cd maliev-gitops/3-apps/maliev-purchase-order-service/overlays/staging
-          kustomize edit set image asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact/maliev-purchase-order-service=asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchase-order-service:$RELEASE_VERSION
+          cd maliev-gitops/3-apps/maliev-purchaseorder-service/overlays/staging
+          kustomize edit set image \
+            asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact/maliev-purchaseorder-service=\
+          asia-southeast1-docker.pkg.dev/maliev-website/maliev-website-artifact-staging/maliev-purchaseorder-service:$RELEASE_VERSION
 
       - name: Create Pull Request
         env:
@@ -88,7 +97,7 @@ jobs:
             - **Image Tag**: ${{ github.ref_name }}
             - **Commit**: ${{ github.sha }}
 
-            Updates maliev-purchase-order-service image in staging overlay.
+            Updates maliev-purchaseorder-service image in staging overlay.
             This PR was automatically created by GitHub Actions.
             Once merged, ArgoCD will automatically sync the changes to the maliev-staging namespace.
 
@@ -104,7 +113,7 @@ jobs:
           export RELEASE_VERSION=$(echo ${{ github.ref }} | sed -e 's,.*/v,,g')
 
           # Create a new branch for this update
-          BRANCH_NAME="purchase-order-service/staging-$RELEASE_VERSION"
+          BRANCH_NAME="purchaseorder-service/staging-$RELEASE_VERSION"
           git checkout -b $BRANCH_NAME
 
           # Commit and push changes to the new branch
@@ -119,7 +128,7 @@ jobs:
 
           # Create pull request using GitHub CLI
           gh pr create \
-            --title "chore(staging): Update purchase-order-service" \
+            --title "chore(staging): Update purchaseorder-service" \
             --body "$PR_BODY" \
             --base main \
             --head $BRANCH_NAME \
