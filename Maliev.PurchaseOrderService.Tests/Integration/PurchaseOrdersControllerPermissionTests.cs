@@ -174,7 +174,7 @@ public class PurchaseOrdersControllerPermissionTests : IntegrationTestBase
         var client = CreateAuthenticatedClient(permissions: new[] { PurchaseOrderPermissions.Orders.Cancel });
 
         // Act
-        var response = await client.PostAsync($"/purchase-order/v1/purchase-orders/{po!.Id}/cancel", null);
+        var response = await client.PostAsJsonAsync($"/purchase-order/v1/purchase-orders/{po!.Id}/cancel", new CancelPurchaseOrderRequest { Reason = "Test cancellation" });
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);

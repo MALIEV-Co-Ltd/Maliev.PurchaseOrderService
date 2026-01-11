@@ -76,6 +76,17 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         Environment.SetEnvironmentVariable("ConnectionStrings__redis", _redisContainer.GetConnectionString());
         Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", _rabbitmqContainer.GetConnectionString());
 
+        // Set service URLs as environment variables to ensure they are picked up
+        var additionalSettings = GetAdditionalConfiguration();
+        if (additionalSettings != null)
+        {
+            foreach (var setting in additionalSettings)
+            {
+                var envKey = setting.Key.Replace(":", "__");
+                Environment.SetEnvironmentVariable(envKey, setting.Value);
+            }
+        }
+
         using (var connection = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(_redisContainer.GetConnectionString()))
         {
             await connection.GetDatabase().PingAsync();
@@ -127,7 +138,8 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
                 [$"ConnectionStrings:{DbConnectionStringName}"] = _postgresContainer.GetConnectionString(),
                 [$"ConnectionStrings__{DbConnectionStringName}"] = _postgresContainer.GetConnectionString(),
                 ["ConnectionStrings:redis"] = _redisContainer.GetConnectionString(),
-                ["ConnectionStrings:rabbitmq"] = _rabbitmqContainer.GetConnectionString()
+                ["ConnectionStrings:rabbitmq"] = _rabbitmqContainer.GetConnectionString(),
+                ["Jwt:SecurityKey"] = "test-secret-key-at-least-32-characters-long"
             };
 
             var additionalSettings = GetAdditionalConfiguration();
@@ -144,6 +156,24 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
 
         builder.ConfigureTestServices(services =>
         {
+            // Override external service clients to point to WireMock
+            var settings = GetAdditionalConfiguration();
+            if (settings != null)
+            {
+                services.AddHttpClient("SupplierService", client =>
+                    client.BaseAddress = new Uri(settings["Services:SupplierService:BaseUrl"] ?? "http://localhost"));
+                services.AddHttpClient("OrderService", client =>
+                    client.BaseAddress = new Uri(settings["Services:OrderService:BaseUrl"] ?? "http://localhost"));
+                services.AddHttpClient("CurrencyService", client =>
+                    client.BaseAddress = new Uri(settings["Services:CurrencyService:BaseUrl"] ?? "http://localhost"));
+                services.AddHttpClient("UploadService", client =>
+                    client.BaseAddress = new Uri(settings["Services:UploadService:BaseUrl"] ?? "http://localhost"));
+                services.AddHttpClient("PdfService", client =>
+                    client.BaseAddress = new Uri(settings["Services:PdfService:BaseUrl"] ?? "http://localhost"));
+                services.AddHttpClient("IAMService", client =>
+                    client.BaseAddress = new Uri(settings["Services:IAMService:BaseUrl"] ?? "http://localhost"));
+            }
+
             services.PostConfigureAll<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(options =>
             {
                 options.MapInboundClaims = false;
