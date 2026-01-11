@@ -160,7 +160,9 @@ public class PurchaseOrdersController : ControllerBase
         try
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "manager";
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value
+                ?? "manager";
 
             var result = await _purchaseOrderService.UpdatePurchaseOrderAsync(
                 id, request, userId, userRole, cancellationToken);
@@ -185,6 +187,7 @@ public class PurchaseOrdersController : ControllerBase
     /// <remarks>This action requires 'purchase-order.orders.cancel' permission. The operation is performed
     /// asynchronously and supports cancellation via the provided token.</remarks>
     /// <param name="id">The unique identifier of the purchase order to cancel.</param>
+    /// <param name="request">The cancellation request containing the reason.</param>
     /// <param name="cancellationToken">A token that can be used to request cancellation of the operation.</param>
     /// <returns>A 204 No Content response if the purchase order is successfully canceled; otherwise, a 404 Not Found response if
     /// the purchase order does not exist or cannot be canceled.</returns>
@@ -194,15 +197,18 @@ public class PurchaseOrdersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CancelPurchaseOrder(
         int id,
+        [FromBody] CancelPurchaseOrderRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "manager";
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value
+                ?? "employee";
 
             await _purchaseOrderService.CancelPurchaseOrderAsync(
-                id, userId, userRole, cancellationToken);
+                id, request.Reason, userId, userRole, cancellationToken);
 
             return NoContent();
         }
@@ -235,7 +241,9 @@ public class PurchaseOrdersController : ControllerBase
         try
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "manager";
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value
+                ?? "manager";
 
             var result = await _purchaseOrderService.ApproveAsync(
                 id, userId, userRole, cancellationToken);
@@ -277,7 +285,9 @@ public class PurchaseOrdersController : ControllerBase
         try
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "manager";
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value
+                ?? "manager";
 
             var result = await _purchaseOrderService.SendToSupplierAsync(
                 id, userId, userRole, cancellationToken);
@@ -322,7 +332,9 @@ public class PurchaseOrdersController : ControllerBase
         try
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "manager";
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value
+                ?? "manager";
 
             var result = await _purchaseOrderService.ReceiveGoodsAsync(
                 id, isPartialReceipt, userId, userRole, cancellationToken);
