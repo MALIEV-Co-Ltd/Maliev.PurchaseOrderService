@@ -11,12 +11,14 @@ public class PurchaseOrderIAMRegistrationService : IAMRegistrationService
     private readonly ILogger<PurchaseOrderIAMRegistrationService> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the PurchaseOrderIAMRegistrationService class.
+    /// Initializes a new instance of the <see cref="PurchaseOrderIAMRegistrationService"/> class.
     /// </summary>
+    /// <param name="configuration">The application configuration.</param>
+    /// <param name="logger">Logger instance.</param>
     public PurchaseOrderIAMRegistrationService(
-        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
         ILogger<PurchaseOrderIAMRegistrationService> logger)
-        : base(httpClientFactory, logger, "purchase-order")
+        : base(configuration, logger, "purchase-order")
     {
         _logger = logger;
     }
@@ -26,10 +28,10 @@ public class PurchaseOrderIAMRegistrationService : IAMRegistrationService
     /// </summary>
     protected override IEnumerable<PermissionRegistration> GetPermissions()
     {
-        return PurchaseOrderPermissions.All.Select(p => new PermissionRegistration
+        return PurchaseOrderPermissions.AllWithDescriptions.Select(p => new PermissionRegistration
         {
-            PermissionId = p,
-            Description = $"Permission: {p}"
+            PermissionId = p.Key,
+            Description = p.Value
         });
     }
 
@@ -42,7 +44,8 @@ public class PurchaseOrderIAMRegistrationService : IAMRegistrationService
         {
             RoleId = r.RoleId,
             Description = r.Description,
-            PermissionIds = r.Permissions.ToList()
+            PermissionIds = r.Permissions.ToList(),
+            IsCustom = false
         });
     }
 }
