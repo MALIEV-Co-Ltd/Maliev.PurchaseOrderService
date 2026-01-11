@@ -267,6 +267,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -322,6 +323,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -362,6 +364,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -424,6 +427,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -473,6 +477,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -511,7 +516,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         {
             CurrencyID = 2,
             WHTRate = 5.0m,
-            RowVersion = Convert.ToBase64String(po.RowVersion)
+            RowVersion = po.RowVersion.ToString()
         };
 
         // Act
@@ -548,6 +553,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -563,7 +569,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var updateRequest = new UpdatePurchaseOrderRequest
         {
             WHTRate = 5.0m,
-            RowVersion = Convert.ToBase64String(new byte[] { 9, 9, 9, 9 }) // Wrong version
+            RowVersion = (po.RowVersion + 1).ToString()
         };
 
         // Act
@@ -582,7 +588,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var updateRequest = new UpdatePurchaseOrderRequest
         {
             WHTRate = 5.0m,
-            RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 })
+            RowVersion = "1234"
         };
 
         // Act
@@ -610,6 +616,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,

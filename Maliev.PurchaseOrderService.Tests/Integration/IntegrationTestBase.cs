@@ -27,17 +27,12 @@ public class IntegrationTestBase : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // BaseIntegrationTestFactory handles all container initialization
+        // BaseIntegrationTestFactory handles all container initialization and migrations
         Factory = new TestWebApplicationFactory();
         await Factory.InitializeAsync();
 
         // Trigger server creation
         Client = Factory.CreateClient();
-
-        // Ensure database is migrated
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
-        await db.Database.MigrateAsync();
     }
 
     public async Task DisposeAsync()

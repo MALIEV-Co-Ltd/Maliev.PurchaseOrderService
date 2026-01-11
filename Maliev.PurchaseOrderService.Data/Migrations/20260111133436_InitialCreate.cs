@@ -29,7 +29,9 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     country = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     phone_number = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     email_address = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    created_by = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    last_modified_by = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     last_modified_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
@@ -105,6 +107,7 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     expected_delivery_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     status = table.Column<int>(type: "integer", nullable: false),
                     order_type = table.Column<int>(type: "integer", nullable: false),
+                    department_id = table.Column<int>(type: "integer", nullable: false),
                     subtotal_amount = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
                     wht_rate = table.Column<decimal>(type: "numeric(5,2)", nullable: true),
                     wht_amount = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
@@ -116,6 +119,7 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     approved_by = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     approved_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     notes = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     is_deleted = table.Column<bool>(type: "boolean", nullable: false),
                     deleted_by = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     deleted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -199,68 +203,68 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "ix__audit_log__entity_type__entity_id",
+                name: "ix_audit_logs_entity_type_entity_id",
                 table: "audit_logs",
                 columns: new[] { "entity_type", "entity_id" });
 
             migrationBuilder.CreateIndex(
-                name: "ix__audit_log__timestamp",
+                name: "ix_audit_logs_timestamp",
                 table: "audit_logs",
                 column: "timestamp");
 
             migrationBuilder.CreateIndex(
-                name: "ix__audit_log__user_id__timestamp",
+                name: "ix_audit_logs_user_id_timestamp",
                 table: "audit_logs",
                 columns: new[] { "user_id", "timestamp" });
 
             migrationBuilder.CreateIndex(
-                name: "ix__domain_events__correlation_id",
+                name: "ix_domain_events_correlation_id",
                 table: "domain_events",
                 column: "correlation_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix__domain_events__event_type__aggregate_id",
+                name: "ix_domain_events_event_type_aggregate_id",
                 table: "domain_events",
                 columns: new[] { "event_type", "aggregate_id" });
 
             migrationBuilder.CreateIndex(
-                name: "ix__domain_events__is_processed__occurred_at",
+                name: "ix_domain_events_is_processed_occurred_at",
                 table: "domain_events",
                 columns: new[] { "is_processed", "occurred_at" });
 
             migrationBuilder.CreateIndex(
-                name: "ix__domain_events__processing_attempts",
+                name: "ix_domain_events_processing_attempts",
                 table: "domain_events",
                 column: "processing_attempts");
 
             migrationBuilder.CreateIndex(
-                name: "ix__order_items__product_code",
+                name: "ix_order_items_product_code",
                 table: "order_items",
                 column: "product_code");
 
             migrationBuilder.CreateIndex(
-                name: "ix__order_items__purchase_order_id",
+                name: "ix_order_items_purchase_order_id",
                 table: "order_items",
                 column: "purchase_order_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_order_files__document_type",
+                name: "ix_purchase_order_files_document_type",
                 table: "purchase_order_files",
                 column: "document_type");
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_order_files__object_name",
+                name: "ix_purchase_order_files_object_name",
                 table: "purchase_order_files",
                 column: "object_name",
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_order_files__purchase_order_id",
+                name: "ix_purchase_order_files_purchase_order_id",
                 table: "purchase_order_files",
                 column: "purchase_order_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_order_files__uploaded_by",
+                name: "ix_purchase_order_files_uploaded_by",
                 table: "purchase_order_files",
                 column: "uploaded_by");
 
@@ -270,25 +274,26 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                 column: "billing_address_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_orders__created_at",
+                name: "ix_purchase_orders_created_at",
                 table: "purchase_orders",
                 column: "created_at");
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_orders__created_by__status",
+                name: "ix_purchase_orders_created_by_status",
                 table: "purchase_orders",
                 columns: new[] { "created_by", "status" });
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_orders__order_id",
+                name: "ix_purchase_orders_order_id",
                 table: "purchase_orders",
                 column: "order_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_orders__order_number",
+                name: "ix_purchase_orders_order_number",
                 table: "purchase_orders",
                 column: "order_number",
-                unique: true);
+                unique: true,
+                filter: "\"is_deleted\" = false");
 
             migrationBuilder.CreateIndex(
                 name: "ix_purchase_orders_shipping_address_id",
@@ -296,12 +301,12 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                 column: "shipping_address_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_orders__status__order_type",
+                name: "ix_purchase_orders_status_order_type",
                 table: "purchase_orders",
                 columns: new[] { "status", "order_type" });
 
             migrationBuilder.CreateIndex(
-                name: "ix__purchase_orders__supplier_id",
+                name: "ix_purchase_orders_supplier_id",
                 table: "purchase_orders",
                 column: "supplier_id");
         }

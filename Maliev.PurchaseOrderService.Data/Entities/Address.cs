@@ -68,9 +68,19 @@ public class Address
     public string? EmailAddress { get; set; }
 
     /// <summary>
+    /// User who created the address
+    /// </summary>
+    public string CreatedBy { get; set; } = string.Empty;
+
+    /// <summary>
     /// Date and time when the address was created
     /// </summary>
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// User who last modified the address
+    /// </summary>
+    public string? LastModifiedBy { get; set; }
 
     /// <summary>
     /// Date and time when the address was last modified

@@ -138,9 +138,9 @@ public class PurchaseOrder
     public string? Notes { get; set; }
 
     /// <summary>
-    /// Optimistic concurrency control token
+    /// Optimistic concurrency control token (mapped to PostgreSQL xmin)
     /// </summary>
-    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    public uint RowVersion { get; set; }
 
     /// <summary>
     /// Soft delete flag

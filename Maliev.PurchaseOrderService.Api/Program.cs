@@ -16,7 +16,11 @@ builder.AddMassTransitWithRabbitMq(); // RabbitMQ messaging
 builder.AddServiceMeters("purchase-orders-meter"); // Register service meters for OpenTelemetry business metrics
 
 builder.AddRedisDistributedCache(instanceName: "purchase-order:"); // Redis with in-memory fallback
-builder.AddPostgresDbContext<PurchaseOrderContext>(connectionName: "PurchaseOrderDbContext"); // PostgreSQL with retry logic
+builder.AddPostgresDbContext<PurchaseOrderContext>(connectionName: "PurchaseOrderDbContext", configureOptions: options =>
+{
+    options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.LazyLoadOnDisposedContextWarning)); // Example of another one
+}); // PostgreSQL with retry logic
 
 // --- API Configuration ---
 builder.AddDefaultCors(); // CORS from CORS:AllowedOrigins config

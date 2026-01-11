@@ -42,12 +42,18 @@ public class TestWebApplicationFactory : BaseIntegrationTestFactory<Program, Pur
 
         config["Services:SupplierService:BaseUrl"] = supplierUrl;
         config["Services__SupplierService__BaseUrl"] = supplierUrl;
+        config["Services:Supplier:BaseUrl"] = supplierUrl;
+        config["Services__Supplier__BaseUrl"] = supplierUrl;
 
         config["Services:OrderService:BaseUrl"] = orderUrl;
         config["Services__OrderService__BaseUrl"] = orderUrl;
+        config["Services:Order:BaseUrl"] = orderUrl;
+        config["Services__Order__BaseUrl"] = orderUrl;
 
         config["Services:CurrencyService:BaseUrl"] = currencyUrl;
         config["Services__CurrencyService__BaseUrl"] = currencyUrl;
+        config["Services:Currency:BaseUrl"] = currencyUrl;
+        config["Services__Currency__BaseUrl"] = currencyUrl;
 
         config["Services:UploadService:BaseUrl"] = uploadUrl;
         config["Services__UploadService__BaseUrl"] = uploadUrl;

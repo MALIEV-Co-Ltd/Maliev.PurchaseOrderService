@@ -152,7 +152,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 {
                     var shippingAddress = request.ShippingAddress.ToAddress();
                     shippingAddress.CreatedAt = DateTime.UtcNow;
-                    shippingAddress.AddressType = AddressType.Shipping;
+                    shippingAddress.CreatedBy = userId;
                     purchaseOrder.ShippingAddress = shippingAddress;
                 }
 
@@ -160,7 +160,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 {
                     var billingAddress = request.BillingAddress.ToAddress();
                     billingAddress.CreatedAt = DateTime.UtcNow;
-                    billingAddress.AddressType = AddressType.Billing;
+                    billingAddress.CreatedBy = userId;
                     purchaseOrder.BillingAddress = billingAddress;
                 }
 
@@ -185,7 +185,8 @@ public class PurchaseOrderService : IPurchaseOrderService
                         SupplierId: purchaseOrder.SupplierID,
                         TotalAmount: (double)purchaseOrder.TotalAmount,
                         Currency: purchaseOrder.CurrencyCode,
-                        RequestedDeliveryDate: null,
+                        RequestedDeliveryDate: purchaseOrder.ExpectedDeliveryDate.HasValue ?
+                            new DateTimeOffset(purchaseOrder.ExpectedDeliveryDate.Value, TimeSpan.Zero) : null,
                         CreatedBy: purchaseOrder.CreatedBy,
                         CreatedAt: new DateTimeOffset(purchaseOrder.CreatedAt, TimeSpan.Zero)
                     )
@@ -358,7 +359,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         // Verify concurrency token
-        var currentVersion = Convert.ToBase64String(purchaseOrder.RowVersion);
+        var currentVersion = purchaseOrder.RowVersion.ToString();
         if (!string.IsNullOrEmpty(request.RowVersion) && currentVersion != request.RowVersion)
         {
             throw new DbUpdateConcurrencyException("Purchase order was modified by another user");

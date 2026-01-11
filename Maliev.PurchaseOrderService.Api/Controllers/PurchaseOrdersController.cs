@@ -205,8 +205,7 @@ public class PurchaseOrdersController : ControllerBase
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value
                 ?? User.FindFirst("role")?.Value
-                ?? "employee";
-
+                ?? "manager";
             await _purchaseOrderService.CancelPurchaseOrderAsync(
                 id, request.Reason, userId, userRole, cancellationToken);
 

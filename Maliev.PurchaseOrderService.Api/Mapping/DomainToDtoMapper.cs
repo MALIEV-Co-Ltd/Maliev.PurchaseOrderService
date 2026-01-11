@@ -40,7 +40,7 @@ public static class DomainToDtoMapper
             CreatedAt = purchaseOrder.CreatedAt,
             LastModifiedBy = purchaseOrder.LastModifiedBy,
             LastModifiedAt = purchaseOrder.LastModifiedAt,
-            RowVersion = Convert.ToBase64String(purchaseOrder.RowVersion)
+            RowVersion = purchaseOrder.RowVersion.ToString()
         };
     }
 
