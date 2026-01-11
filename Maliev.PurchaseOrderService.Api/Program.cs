@@ -1,3 +1,4 @@
+using Maliev.Aspire.ServiceDefaults;
 using Microsoft.EntityFrameworkCore;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
@@ -51,7 +52,6 @@ builder.Services.AddRateLimiter(options =>
 });
 
 // Configure HttpClients for external services
-builder.AddServiceClient("IAMService");
 builder.AddServiceClient("SupplierService");
 builder.AddServiceClient("OrderService");
 builder.AddServiceClient("CurrencyService");
@@ -65,7 +65,8 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
 
 // IAM Registration Service
-builder.Services.AddIAMRegistration<PurchaseOrderIAMRegistrationService>();
+builder.AddIAMServiceClient("purchase-order");
+builder.Services.AddIAMRegistration<PurchaseOrderIAMRegistrationService>("purchase-order");
 
 // External Service Clients
 builder.Services.AddScoped<ISupplierServiceClient, SupplierServiceClient>();
@@ -79,7 +80,10 @@ var logger = app.Services.GetRequiredService<ILogger<Program>>();
 await app.MigrateDatabaseAsync<PurchaseOrderContext>();
 
 // Middleware Pipeline
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseRateLimiter();
 app.UseCors();
 
