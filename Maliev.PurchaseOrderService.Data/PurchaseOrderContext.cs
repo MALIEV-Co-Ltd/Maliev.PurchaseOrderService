@@ -68,6 +68,7 @@ public class PurchaseOrderContext : DbContext
 
             entity.HasIndex(e => e.OrderNumber)
                 .IsUnique()
+                .HasFilter("\"is_deleted\" = false")
                 .HasDatabaseName("IX_PurchaseOrders_OrderNumber");
 
             entity.Property(e => e.CustomerPO)
@@ -116,9 +117,9 @@ public class PurchaseOrderContext : DbContext
             entity.Property(e => e.DeletedBy)
                 .HasMaxLength(50);
 
-            // Optimistic concurrency - Ignore RowVersion for PostgreSQL
-            // PostgreSQL doesn't support byte[] row versioning like SQL Server
-            entity.Ignore(e => e.RowVersion);
+            // Optimistic concurrency using xmin for PostgreSQL
+            entity.Property(e => e.RowVersion)
+                .IsRowVersion();
 
             // Indexes for performance
             entity.HasIndex(e => e.SupplierID)
@@ -200,6 +201,9 @@ public class PurchaseOrderContext : DbContext
 
             entity.HasIndex(e => e.ProductCode)
                 .HasDatabaseName("IX_OrderItems_ProductCode");
+
+            // Matching query filter to avoid warnings with required relationship
+            entity.HasQueryFilter(e => !e.PurchaseOrder.IsDeleted);
         });
 
         // Address configuration

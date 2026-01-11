@@ -3,6 +3,7 @@ using System;
 using Maliev.PurchaseOrderService.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Maliev.PurchaseOrderService.Data.Migrations
 {
     [DbContext(typeof(PurchaseOrderContext))]
-    partial class PurchaseOrderContextModelSnapshot : ModelSnapshot
+    [Migration("20260106142746_InitialCreate")]
+    partial class InitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -422,10 +425,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("deleted_by");
 
-                    b.Property<int>("DepartmentId")
-                        .HasColumnType("integer")
-                        .HasColumnName("department_id");
-
                     b.Property<DateTime?>("ExpectedDeliveryDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expected_delivery_date");
@@ -465,13 +464,6 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
                     b.Property<int>("OrderType")
                         .HasColumnType("integer")
                         .HasColumnName("order_type");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea")
-                        .HasColumnName("row_version");
 
                     b.Property<int?>("ShippingAddressId")
                         .HasColumnType("integer")
@@ -526,8 +518,7 @@ namespace Maliev.PurchaseOrderService.Data.Migrations
 
                     b.HasIndex("OrderNumber")
                         .IsUnique()
-                        .HasDatabaseName("ix__purchase_orders__order_number")
-                        .HasFilter("\"is_deleted\" = false");
+                        .HasDatabaseName("ix__purchase_orders__order_number");
 
                     b.HasIndex("ShippingAddressId")
                         .HasDatabaseName("ix_purchase_orders_shipping_address_id");

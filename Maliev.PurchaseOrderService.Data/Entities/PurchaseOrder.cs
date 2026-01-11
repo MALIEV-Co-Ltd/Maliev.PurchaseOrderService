@@ -73,9 +73,14 @@ public class PurchaseOrder
     public OrderStatus Status { get; set; }
 
     /// <summary>
-    /// Type of the order (Internal or External)
+    /// Type of the order (Internal or External).
     /// </summary>
     public OrderType OrderType { get; set; }
+
+    /// <summary>
+    /// ID of the department that owns this purchase order.
+    /// </summary>
+    public int DepartmentId { get; set; }
 
     /// <summary>
     /// Subtotal amount before WHT calculated from derived order items
