@@ -16,7 +16,7 @@ public class WHTCalculationService : IWHTCalculationService
         // Calculate WHT amount: subtotal * (rate / 100)
         var whtAmount = subtotal * (whtRate.Value / 100m);
 
-        // Round to 2 decimal places
-        return Math.Round(whtAmount, 2);
+        // Round to 2 decimal places using commercial rounding
+        return Math.Round(whtAmount, 2, MidpointRounding.AwayFromZero);
     }
 }

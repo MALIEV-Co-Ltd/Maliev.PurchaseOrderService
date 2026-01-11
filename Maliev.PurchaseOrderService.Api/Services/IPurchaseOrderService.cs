@@ -30,7 +30,7 @@ public interface IPurchaseOrderService
     /// <summary>
     /// Cancel a purchase order
     /// </summary>
-    Task CancelPurchaseOrderAsync(int id, string userId, string userRole, CancellationToken cancellationToken = default);
+    Task CancelPurchaseOrderAsync(int id, string reason, string userId, string userRole, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Approve a pending purchase order

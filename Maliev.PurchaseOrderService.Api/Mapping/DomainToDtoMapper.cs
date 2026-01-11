@@ -1,5 +1,6 @@
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Data.Entities;
+using Maliev.PurchaseOrderService.Common.Enumerations;
 
 namespace Maliev.PurchaseOrderService.Api.Mapping;
 
@@ -132,6 +133,25 @@ public static class DomainToDtoMapper
             StateProvince = request.StateProvince,
             PostalCode = request.PostalCode,
             Country = request.Country,
+            PhoneNumber = request.PhoneNumber,
+            EmailAddress = request.EmailAddress
+        };
+    }
+
+    /// <summary>Maps UpdateAddressRequest to Address entity</summary>
+    public static Address ToAddress(this UpdateAddressRequest request)
+    {
+        return new Address
+        {
+            AddressType = request.AddressType ?? AddressType.Shipping,
+            CompanyName = request.CompanyName,
+            ContactName = request.ContactName ?? string.Empty,
+            AddressLine1 = request.AddressLine1 ?? string.Empty,
+            AddressLine2 = request.AddressLine2,
+            City = request.City ?? string.Empty,
+            StateProvince = request.StateProvince,
+            PostalCode = request.PostalCode ?? string.Empty,
+            Country = request.Country ?? string.Empty,
             PhoneNumber = request.PhoneNumber,
             EmailAddress = request.EmailAddress
         };

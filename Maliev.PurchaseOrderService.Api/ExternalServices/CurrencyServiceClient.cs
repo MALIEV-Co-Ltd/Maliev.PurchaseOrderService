@@ -34,43 +34,30 @@ public class CurrencyServiceClient : ICurrencyServiceClient
     {
         var cacheKey = $"currency_{currencyId}";
 
-        if (_cache.TryGetValue(cacheKey, out CurrencyDto? cachedCurrency))
+        return await _cache.GetOrCreateAsync(cacheKey, async entry =>
         {
-            _logger.LogDebug("Currency {CurrencyId} fetched from cache", currencyId);
-            return cachedCurrency;
-        }
+            _logger.LogInformation("Fetching currency {CurrencyId} from external service", currencyId);
+            entry.AbsoluteExpirationRelativeToNow = _cacheDuration;
+            entry.Size = 1;
 
-        try
-        {
-            // Base URL already includes /currencies/v1, so just request /{id}
-            var response = await _httpClient.GetAsync($"{currencyId}", cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                _logger.LogWarning("Failed to fetch currency {CurrencyId}: {StatusCode}", currencyId, response.StatusCode);
-                return null;
-            }
+                var response = await _httpClient.GetAsync($"{currencyId}", cancellationToken);
 
-            var currency = await response.Content.ReadFromJsonAsync<CurrencyDto>(cancellationToken);
-
-            if (currency != null)
-            {
-                var cacheOptions = new MemoryCacheEntryOptions
+                if (!response.IsSuccessStatusCode)
                 {
-                    AbsoluteExpirationRelativeToNow = _cacheDuration,
-                    Size = 1 // Each currency entry counts as 1 unit
-                };
-                _cache.Set(cacheKey, currency, cacheOptions);
-                _logger.LogDebug("Currency {CurrencyId} cached for {Duration}", currencyId, _cacheDuration);
-            }
+                    _logger.LogWarning("Failed to fetch currency {CurrencyId}: {StatusCode}", currencyId, response.StatusCode);
+                    return null;
+                }
 
-            return currency;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error fetching currency {CurrencyId}", currencyId);
-            throw new ExternalServiceException($"Failed to fetch currency {currencyId}", ex);
-        }
+                return await response.Content.ReadFromJsonAsync<CurrencyDto>(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching currency {CurrencyId}", currencyId);
+                throw new ExternalServiceException($"Failed to fetch currency {currencyId}", ex);
+            }
+        });
     }
 
     /// <inheritdoc/>
