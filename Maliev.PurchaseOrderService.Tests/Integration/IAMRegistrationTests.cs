@@ -14,22 +14,28 @@ public class IAMRegistrationTests : IntegrationTestBase
     [Fact]
     public async Task Service_ShouldAttemptToRegisterPermissionsWithIAM_OnStartup()
     {
-        // Arrange - Wait for background registration service to run
-        await Task.Delay(5000);
+        // Get the test harness
+        var harness = Factory.Services.GetTestHarness();
 
-        // Check HTTP registration (legacy/fallback)
-        var allRequests = IAMServiceMock.LogEntries;
-        var registrationRequests = allRequests.Where(entry =>
-            entry.RequestMessage.Method == "POST" &&
-            entry.RequestMessage.Path.Contains("/permissions/register")
-        ).ToList();
+        // The BackgroundIAMRegistrationService waits 2 seconds before attempting registration
+        // We allow some time for the service to start and publish the message
+        // The harness collects published messages
 
-        // Check RabbitMQ registration (preferred)
-        var harness = Factory.Services.GetRequiredService<ITestHarness>();
-        var publishedToBus = await harness.Published.Any<PermissionRegistrationRequest>();
+        // Wait until the message is published or timeout (default timeout is usually sufficient, but we can rely on Any to check)
+        // Since the service starts in background, we might need to wait for the condition.
+        // TestHarness doesn't have a "WaitUntil" method exposed directly on Published collection in this version usually,
+        // but we can loop or just wait a fixed delay like the original test did, then check.
 
-        // Assert - At least one method should have been used
-        Assert.True(registrationRequests.Any() || publishedToBus,
-            "Service should have attempted to register permissions via either HTTP or RabbitMQ.");
+        await Task.Delay(4000); // Wait for BackgroundService (2s delay + execution time)
+
+        // Assert - Check for published PermissionRegistrationRequest
+        var published = await harness.Published.Any<PermissionRegistrationRequest>();
+
+        Assert.True(published, "PermissionRegistrationRequest should have been published to MassTransit");
+
+        // Verify the content if possible
+        var messages = harness.Published.Select<PermissionRegistrationRequest>().ToList();
+        Assert.NotEmpty(messages);
+        Assert.Equal("purchase-order", messages.First().Context.Message.ServiceName);
     }
 }

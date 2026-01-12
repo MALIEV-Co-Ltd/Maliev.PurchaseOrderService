@@ -38,7 +38,7 @@ public class TestWebApplicationFactory : BaseIntegrationTestFactory<Program, Pur
         var currencyUrl = $"{CurrencyServiceMock.Urls[0]}/v1/currencies/";
         var uploadUrl = $"{UploadServiceMock.Urls[0]}/v1/uploads/";
         var pdfUrl = $"{PdfServiceMock.Urls[0]}/v1/pdfs/";
-        var iamUrl = $"{IAMServiceMock.Urls[0]}/iam/v1/";
+        var iamUrl = $"{IAMServiceMock.Urls[0]}/";
 
         config["Services:SupplierService:BaseUrl"] = supplierUrl;
         config["Services__SupplierService__BaseUrl"] = supplierUrl;
