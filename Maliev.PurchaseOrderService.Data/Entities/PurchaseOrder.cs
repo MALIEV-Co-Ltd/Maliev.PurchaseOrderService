@@ -73,9 +73,14 @@ public class PurchaseOrder
     public OrderStatus Status { get; set; }
 
     /// <summary>
-    /// Type of the order (Internal or External)
+    /// Type of the order (Internal or External).
     /// </summary>
     public OrderType OrderType { get; set; }
+
+    /// <summary>
+    /// ID of the department that owns this purchase order.
+    /// </summary>
+    public int DepartmentId { get; set; }
 
     /// <summary>
     /// Subtotal amount before WHT calculated from derived order items
@@ -133,9 +138,9 @@ public class PurchaseOrder
     public string? Notes { get; set; }
 
     /// <summary>
-    /// Optimistic concurrency control token
+    /// Optimistic concurrency control token (mapped to PostgreSQL xmin)
     /// </summary>
-    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    public uint RowVersion { get; set; }
 
     /// <summary>
     /// Soft delete flag

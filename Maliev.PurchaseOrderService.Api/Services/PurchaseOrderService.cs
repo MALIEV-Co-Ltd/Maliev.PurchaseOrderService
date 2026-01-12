@@ -58,117 +58,153 @@ public class PurchaseOrderService : IPurchaseOrderService
         string userRole,
         CancellationToken cancellationToken = default)
     {
-        // Validate external references
-        var supplier = await _supplierClient.GetSupplierAsync(request.SupplierID, cancellationToken);
-        if (supplier == null)
+        var strategy = _context.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
         {
-            throw new InvalidOperationException($"Supplier {request.SupplierID} not found");
-        }
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                // Validate external references
+                var supplier = await _supplierClient.GetSupplierAsync(request.SupplierID, cancellationToken);
+                if (supplier == null)
+                {
+                    throw new InvalidOperationException($"Supplier {request.SupplierID} not found");
+                }
 
-        var order = await _orderClient.GetOrderAsync(request.OrderID, cancellationToken);
-        if (order == null)
-        {
-            throw new InvalidOperationException($"Order {request.OrderID} not found");
-        }
+                var order = await _orderClient.GetOrderAsync(request.OrderID, cancellationToken);
+                if (order == null)
+                {
+                    throw new InvalidOperationException($"Order {request.OrderID} not found");
+                }
 
-        var currency = await _currencyClient.GetCurrencyAsync(request.CurrencyID, cancellationToken);
-        if (currency == null)
-        {
-            throw new InvalidOperationException($"Currency {request.CurrencyID} not found");
-        }
+                var currency = await _currencyClient.GetCurrencyAsync(request.CurrencyID, cancellationToken);
+                if (currency == null)
+                {
+                    throw new InvalidOperationException($"Currency {request.CurrencyID} not found");
+                }
 
-        // Fetch order items
-        var orderItems = await _orderClient.GetOrderItemsAsync(request.OrderID, cancellationToken);
+                // Fetch order items
+                var orderItems = await _orderClient.GetOrderItemsAsync(request.OrderID, cancellationToken);
 
-        // Filter items if partial ordering
-        if (request.Items != null && request.Items.Any())
-        {
-            var requestedItemIds = request.Items.Select(i => i.ExternalOrderItemId).ToHashSet();
-            orderItems = orderItems.Where(i => requestedItemIds.Contains(i.Id)).ToList();
-        }
+                // Validate cumulative quantity against existing POs for this OrderID (FR-018)
+                var existingQuantities = await _context.OrderItems
+                    .Where(i => i.PurchaseOrder.OrderID == request.OrderID && !i.PurchaseOrder.IsDeleted && i.PurchaseOrder.Status != OrderStatus.Cancelled)
+                    .GroupBy(i => i.ExternalOrderItemId)
+                    .Select(g => new { Id = g.Key, Total = g.Sum(x => x.Quantity) })
+                    .ToListAsync(cancellationToken);
 
-        // Create purchase order entity
-        var purchaseOrder = request.ToPurchaseOrder();
-        purchaseOrder.OrderNumber = GenerateOrderNumber();
-        purchaseOrder.CreatedBy = userId;
-        purchaseOrder.SupplierName = supplier.Name;
-        purchaseOrder.SupplierContactInfo = supplier.ContactInfo;
-        purchaseOrder.CurrencyCode = currency.Code;
-        purchaseOrder.CurrencySymbol = currency.Symbol;
+                foreach (var item in orderItems)
+                {
+                    var requested = request.Items?.FirstOrDefault(i => i.ExternalOrderItemId == item.Id)?.Quantity ?? item.Quantity;
+                    var alreadyOrdered = existingQuantities.FirstOrDefault(q => q.Id == item.Id)?.Total ?? 0m;
+                    if (alreadyOrdered + requested > item.Quantity)
+                    {
+                        throw new InvalidOperationException($"Total quantity for item {item.ProductName} ({alreadyOrdered + requested}) exceeds quotation limit ({item.Quantity}).");
+                    }
+                }
 
-        // Map order items
-        purchaseOrder.Items = orderItems.Select(item => new OrderItem
-        {
-            ExternalOrderItemId = item.Id,
-            ProductCode = item.ProductCode,
-            ProductName = item.ProductName,
-            Quantity = request.Items?.FirstOrDefault(i => i.ExternalOrderItemId == item.Id)?.Quantity ?? item.Quantity,
-            UnitOfMeasure = item.UnitOfMeasure,
-            UnitPrice = item.UnitPrice,
-            TotalPrice = item.TotalPrice,
-            Currency = item.Currency,
-            Notes = item.Notes,
-            CachedAt = DateTime.UtcNow,
-            ExternallyModified = false
-        }).ToList();
+                // Filter items if partial ordering
+                if (request.Items != null && request.Items.Any())
+                {
+                    var requestedItemIds = request.Items.Select(i => i.ExternalOrderItemId).ToHashSet();
+                    orderItems = orderItems.Where(i => requestedItemIds.Contains(i.Id)).ToList();
+                }
 
-        // Calculate totals
-        purchaseOrder.SubtotalAmount = purchaseOrder.Items.Sum(i => i.TotalPrice);
-        purchaseOrder.WHTAmount = _whtService.CalculateWHT(purchaseOrder.SubtotalAmount, request.WHTRate);
-        purchaseOrder.TotalAmount = purchaseOrder.SubtotalAmount - (purchaseOrder.WHTAmount ?? 0);
+                // Create purchase order entity
+                var purchaseOrder = request.ToPurchaseOrder();
+                purchaseOrder.OrderNumber = GenerateOrderNumber();
+                purchaseOrder.OrderDate = DateTime.UtcNow;
+                purchaseOrder.CreatedAt = DateTime.UtcNow;
+                purchaseOrder.CreatedBy = userId;
+                purchaseOrder.SupplierName = supplier.Name;
+                purchaseOrder.SupplierContactInfo = supplier.ContactInfo;
+                purchaseOrder.CurrencyCode = currency.Code;
+                purchaseOrder.CurrencySymbol = currency.Symbol;
 
-        // Handle addresses
-        if (request.ShippingAddress != null)
-        {
-            var shippingAddress = request.ShippingAddress.ToAddress();
-            _context.Addresses.Add(shippingAddress);
-            await _context.SaveChangesAsync(cancellationToken);
-            purchaseOrder.ShippingAddressId = shippingAddress.Id;
-        }
+                // Map order items with recalculated totals
+                purchaseOrder.Items = orderItems.Select(item =>
+                {
+                    var quantity = request.Items?.FirstOrDefault(i => i.ExternalOrderItemId == item.Id)?.Quantity ?? item.Quantity;
+                    return new OrderItem
+                    {
+                        ExternalOrderItemId = item.Id,
+                        ProductCode = item.ProductCode,
+                        ProductName = item.ProductName,
+                        Quantity = quantity,
+                        UnitOfMeasure = item.UnitOfMeasure,
+                        UnitPrice = item.UnitPrice,
+                        TotalPrice = quantity * item.UnitPrice,
+                        Currency = item.Currency,
+                        Notes = item.Notes,
+                        CachedAt = DateTime.UtcNow,
+                        ExternallyModified = false
+                    };
+                }).ToList();
 
-        if (request.BillingAddress != null)
-        {
-            var billingAddress = request.BillingAddress.ToAddress();
-            _context.Addresses.Add(billingAddress);
-            await _context.SaveChangesAsync(cancellationToken);
-            purchaseOrder.BillingAddressId = billingAddress.Id;
-        }
+                // Calculate totals
+                purchaseOrder.SubtotalAmount = purchaseOrder.Items.Sum(i => i.TotalPrice);
+                purchaseOrder.WHTAmount = _whtService.CalculateWHT(purchaseOrder.SubtotalAmount, request.WHTRate);
+                purchaseOrder.TotalAmount = purchaseOrder.SubtotalAmount - (purchaseOrder.WHTAmount ?? 0);
 
-        _context.PurchaseOrders.Add(purchaseOrder);
-        await _context.SaveChangesAsync(cancellationToken);
+                // Handle addresses
+                if (request.ShippingAddress != null)
+                {
+                    var shippingAddress = request.ShippingAddress.ToAddress();
+                    shippingAddress.CreatedAt = DateTime.UtcNow;
+                    shippingAddress.CreatedBy = userId;
+                    purchaseOrder.ShippingAddress = shippingAddress;
+                }
 
-        // Publish PurchaseOrderCreatedEvent
-        await _publishEndpoint.Publish(new PurchaseOrderCreatedEvent(
-            MessageId: Guid.NewGuid(),
-            MessageName: "PurchaseOrderCreatedEvent",
-            MessageType: MessageType.Event,
-            MessageVersion: "1.0.0",
-            PublishedBy: "PurchaseOrderService",
-            ConsumedBy: ["MaterialService", "NotificationService"],
-            CorrelationId: Guid.NewGuid(),
-            CausationId: null,
-            OccurredAtUtc: DateTimeOffset.UtcNow,
-            IsPublic: false,
-            Payload: new PurchaseOrderCreatedEventPayload(
-                PurchaseOrderId: purchaseOrder.Id,
-                PurchaseOrderNumber: purchaseOrder.OrderNumber,
-                SupplierId: purchaseOrder.SupplierID,
-                TotalAmount: (double)purchaseOrder.TotalAmount,
-                Currency: purchaseOrder.CurrencyCode,
-                RequestedDeliveryDate: purchaseOrder.ExpectedDeliveryDate.HasValue ?
-                    new DateTimeOffset(purchaseOrder.ExpectedDeliveryDate.Value, TimeSpan.Zero) : null,
-                CreatedBy: purchaseOrder.CreatedBy,
-                CreatedAt: new DateTimeOffset(purchaseOrder.CreatedAt, TimeSpan.Zero)
-            )
-        ), cancellationToken);
+                if (request.BillingAddress != null)
+                {
+                    var billingAddress = request.BillingAddress.ToAddress();
+                    billingAddress.CreatedAt = DateTime.UtcNow;
+                    billingAddress.CreatedBy = userId;
+                    purchaseOrder.BillingAddress = billingAddress;
+                }
 
-        _logger.LogInformation("Published PurchaseOrderCreatedEvent for PO {OrderNumber}", purchaseOrder.OrderNumber);
+                _context.PurchaseOrders.Add(purchaseOrder);
+                await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Created purchase order {OrderNumber} for user {UserId}",
-            purchaseOrder.OrderNumber, userId);
+                // Publish Event
+                await _publishEndpoint.Publish(new PurchaseOrderCreatedEvent(
+                    MessageId: Guid.NewGuid(),
+                    MessageName: "PurchaseOrderCreatedEvent",
+                    MessageType: MessageType.Event,
+                    MessageVersion: "1.0.0",
+                    PublishedBy: "PurchaseOrderService",
+                    ConsumedBy: ["MaterialService", "NotificationService"],
+                    CorrelationId: Guid.NewGuid(),
+                    CausationId: null,
+                    OccurredAtUtc: DateTimeOffset.UtcNow,
+                    IsPublic: false,
+                    Payload: new PurchaseOrderCreatedEventPayload(
+                        PurchaseOrderId: purchaseOrder.Id,
+                        PurchaseOrderNumber: purchaseOrder.OrderNumber,
+                        SupplierId: purchaseOrder.SupplierID,
+                        TotalAmount: (double)purchaseOrder.TotalAmount,
+                        Currency: purchaseOrder.CurrencyCode,
+                        RequestedDeliveryDate: purchaseOrder.ExpectedDeliveryDate.HasValue ?
+                            new DateTimeOffset(purchaseOrder.ExpectedDeliveryDate.Value, TimeSpan.Zero) : null,
+                        CreatedBy: purchaseOrder.CreatedBy,
+                        CreatedAt: new DateTimeOffset(purchaseOrder.CreatedAt, TimeSpan.Zero)
+                    )
+                ), cancellationToken);
 
-        return await GetPurchaseOrderByIdAsync(purchaseOrder.Id, userId, userRole, cancellationToken)
-            ?? throw new InvalidOperationException("Failed to retrieve created purchase order");
+                await transaction.CommitAsync(cancellationToken);
+
+                _logger.LogInformation("Created purchase order {OrderNumber} for user {UserId}", purchaseOrder.OrderNumber, userId);
+
+                return purchaseOrder.ToPurchaseOrderDetailResponse();
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                _logger.LogError(ex, "Failed to create purchase order. Transaction rolled back.");
+                throw;
+            }
+        });
     }
 
     /// <inheritdoc/>
@@ -213,7 +249,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         string userRole,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.PurchaseOrders.AsQueryable();
+        var query = _context.PurchaseOrders.AsNoTracking().AsQueryable();
 
         // Apply role-based filtering (Ownership check)
         if (userRole == "employee")
@@ -323,8 +359,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         // Verify concurrency token
-        var currentVersion = Convert.ToBase64String(purchaseOrder.RowVersion);
-        if (currentVersion != request.RowVersion)
+        var currentVersion = purchaseOrder.RowVersion.ToString();
+        if (!string.IsNullOrEmpty(request.RowVersion) && currentVersion != request.RowVersion)
         {
             throw new DbUpdateConcurrencyException("Purchase order was modified by another user");
         }
@@ -333,11 +369,19 @@ public class PurchaseOrderService : IPurchaseOrderService
         if (request.CurrencyID.HasValue && request.CurrencyID.Value != purchaseOrder.CurrencyID)
         {
             var currency = await _currencyClient.GetCurrencyAsync(request.CurrencyID.Value, cancellationToken);
-            if (currency != null)
+            if (currency == null)
             {
-                purchaseOrder.CurrencyID = request.CurrencyID.Value;
-                purchaseOrder.CurrencyCode = currency.Code;
-                purchaseOrder.CurrencySymbol = currency.Symbol;
+                throw new InvalidOperationException($"Currency {request.CurrencyID.Value} not found.");
+            }
+
+            purchaseOrder.CurrencyID = request.CurrencyID.Value;
+            purchaseOrder.CurrencyCode = currency.Code;
+            purchaseOrder.CurrencySymbol = currency.Symbol;
+
+            // Sync currency on line items
+            foreach (var item in purchaseOrder.Items)
+            {
+                item.Currency = currency.Code;
             }
         }
 
@@ -363,6 +407,33 @@ public class PurchaseOrderService : IPurchaseOrderService
             purchaseOrder.Notes = request.Notes;
         }
 
+        // Handle address updates (FR-003)
+        if (request.ShippingAddress != null)
+        {
+            if (purchaseOrder.ShippingAddress == null)
+            {
+                purchaseOrder.ShippingAddress = request.ShippingAddress.ToAddress();
+                purchaseOrder.ShippingAddress.CreatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                UpdateAddressFromRequest(purchaseOrder.ShippingAddress, request.ShippingAddress);
+            }
+        }
+
+        if (request.BillingAddress != null)
+        {
+            if (purchaseOrder.BillingAddress == null)
+            {
+                purchaseOrder.BillingAddress = request.BillingAddress.ToAddress();
+                purchaseOrder.BillingAddress.CreatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                UpdateAddressFromRequest(purchaseOrder.BillingAddress, request.BillingAddress);
+            }
+        }
+
         purchaseOrder.LastModifiedBy = userId;
         purchaseOrder.LastModifiedAt = DateTime.UtcNow;
 
@@ -378,6 +449,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     /// <inheritdoc/>
     public async Task CancelPurchaseOrderAsync(
         int id,
+        string reason,
         string userId,
         string userRole,
         CancellationToken cancellationToken = default)
@@ -404,7 +476,6 @@ public class PurchaseOrderService : IPurchaseOrderService
         await _context.SaveChangesAsync(cancellationToken);
 
         // Publish PurchaseOrderCancelledEvent
-        // TODO: Add cancellationReason parameter to CancelPurchaseOrderAsync method
         await _publishEndpoint.Publish(new PurchaseOrderCancelledEvent(
             MessageId: Guid.NewGuid(),
             MessageName: "PurchaseOrderCancelledEvent",
@@ -421,7 +492,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 PurchaseOrderNumber: purchaseOrder.OrderNumber,
                 CancelledBy: userId,
                 CancelledAt: new DateTimeOffset(purchaseOrder.LastModifiedAt ?? DateTime.UtcNow, TimeSpan.Zero),
-                CancellationReason: "Cancelled by user"  // Default reason - should be parameterized
+                CancellationReason: reason
             )
         ), cancellationToken);
 
@@ -429,6 +500,29 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         _logger.LogInformation("Cancelled purchase order {OrderNumber} by user {UserId}",
             purchaseOrder.OrderNumber, userId);
+    }
+
+    private void UpdateAddressFromRequest(Address address, UpdateAddressRequest request)
+    {
+        if (request.AddressType.HasValue) address.AddressType = request.AddressType.Value;
+        if (request.CompanyName != null) address.CompanyName = request.CompanyName;
+        if (request.ContactName != null) address.ContactName = request.ContactName;
+        if (request.AddressLine1 != null) address.AddressLine1 = request.AddressLine1;
+        if (request.AddressLine2 != null) address.AddressLine2 = request.AddressLine2;
+        if (request.City != null) address.City = request.City;
+        if (request.StateProvince != null) address.StateProvince = request.StateProvince;
+        if (request.PostalCode != null) address.PostalCode = request.PostalCode;
+        if (request.Country != null) address.Country = request.Country;
+        if (request.PhoneNumber != null) address.PhoneNumber = request.PhoneNumber;
+        if (request.EmailAddress != null) address.EmailAddress = request.EmailAddress;
+        address.LastModifiedAt = DateTime.UtcNow;
+    }
+
+    private string GenerateOrderNumber()
+    {
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+        var random = Random.Shared.Next(1000, 9999);
+        return $"PO-{timestamp}-{random}";
     }
 
     /// <inheritdoc/>
@@ -631,12 +725,5 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         return await GetPurchaseOrderByIdAsync(id, userId, userRole, cancellationToken)
             ?? throw new InvalidOperationException("Failed to retrieve purchase order after receiving goods");
-    }
-
-    private string GenerateOrderNumber()
-    {
-        var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
-        var random = new Random().Next(1000, 9999);
-        return $"PO-{timestamp}-{random}";
     }
 }

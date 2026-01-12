@@ -9,14 +9,16 @@ namespace Maliev.PurchaseOrderService.Tests.Unit;
 public class UserPermissionServiceTests
 {
     private readonly Mock<IMemoryCache> _cacheMock;
+    private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
     private readonly Mock<ILogger<UserPermissionService>> _loggerMock;
     private readonly UserPermissionService _service;
 
     public UserPermissionServiceTests()
     {
         _cacheMock = new Mock<IMemoryCache>();
+        _httpClientFactoryMock = new Mock<IHttpClientFactory>();
         _loggerMock = new Mock<ILogger<UserPermissionService>>();
-        _service = new UserPermissionService(_cacheMock.Object, _loggerMock.Object);
+        _service = new UserPermissionService(_cacheMock.Object, _httpClientFactoryMock.Object, _loggerMock.Object);
     }
 
     [Fact]

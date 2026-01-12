@@ -32,12 +32,37 @@ public class TestWebApplicationFactory : BaseIntegrationTestFactory<Program, Pur
         var config = base.GetAdditionalConfiguration();
 
         // Configure WireMock URLs for external services
-        // The trailing slash is critical for HttpClient base address
-        config["SupplierService:BaseUrl"] = $"{SupplierServiceMock.Urls[0]}/v1/suppliers/";
-        config["OrderService:BaseUrl"] = $"{OrderServiceMock.Urls[0]}/v1/orders/";
-        config["CurrencyService:BaseUrl"] = $"{CurrencyServiceMock.Urls[0]}/v1/currencies/";
-        config["UploadService:BaseUrl"] = $"{UploadServiceMock.Urls[0]}/v1/uploads/";
-        config["PdfService:BaseUrl"] = $"{PdfServiceMock.Urls[0]}/v1/pdfs/"; config["IAMService:BaseUrl"] = $"{IAMServiceMock.Urls[0]}/iam/v1/";
+        // The trailing slash is critical for HttpClient base address when using relative paths
+        var supplierUrl = $"{SupplierServiceMock.Urls[0]}/v1/suppliers/";
+        var orderUrl = $"{OrderServiceMock.Urls[0]}/v1/orders/";
+        var currencyUrl = $"{CurrencyServiceMock.Urls[0]}/v1/currencies/";
+        var uploadUrl = $"{UploadServiceMock.Urls[0]}/v1/uploads/";
+        var pdfUrl = $"{PdfServiceMock.Urls[0]}/v1/pdfs/";
+        var iamUrl = $"{IAMServiceMock.Urls[0]}/iam/v1/";
+
+        config["Services:SupplierService:BaseUrl"] = supplierUrl;
+        config["Services__SupplierService__BaseUrl"] = supplierUrl;
+        config["Services:Supplier:BaseUrl"] = supplierUrl;
+        config["Services__Supplier__BaseUrl"] = supplierUrl;
+
+        config["Services:OrderService:BaseUrl"] = orderUrl;
+        config["Services__OrderService__BaseUrl"] = orderUrl;
+        config["Services:Order:BaseUrl"] = orderUrl;
+        config["Services__Order__BaseUrl"] = orderUrl;
+
+        config["Services:CurrencyService:BaseUrl"] = currencyUrl;
+        config["Services__CurrencyService__BaseUrl"] = currencyUrl;
+        config["Services:Currency:BaseUrl"] = currencyUrl;
+        config["Services__Currency__BaseUrl"] = currencyUrl;
+
+        config["Services:UploadService:BaseUrl"] = uploadUrl;
+        config["Services__UploadService__BaseUrl"] = uploadUrl;
+
+        config["Services:PdfService:BaseUrl"] = pdfUrl;
+        config["Services__PdfService__BaseUrl"] = pdfUrl;
+
+        config["Services:IAMService:BaseUrl"] = iamUrl;
+        config["Services__IAMService__BaseUrl"] = iamUrl;
 
         return config;
     }

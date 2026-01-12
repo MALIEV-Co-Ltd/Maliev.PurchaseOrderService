@@ -1,87 +1,76 @@
-# .NET
-bin/
-obj/
-*.user
-*.suo
-packages/
-*.log
-*.tmp
-*.swp
-
 # Build results
+[Bb]in/
+[Oo]bj/
 [Dd]ebug/
 [Rr]elease/
 x64/
 x86/
+bld/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
-bld/
-[Bb]in/
-[Oo]bj/
 [Ll]og/
+[Ll]ogs/
 
-# Visual Studio
+# IDE files
 .vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*.user
+*.suo
 *.userprefs
 *.rsuser
-.vscode/
 
-# Environment files
-.env*
-!.env.example
-
-# JetBrains
-.idea/
-
-# macOS
-.DS_Store
-
-# Windows
-Thumbs.db
-
-# Test coverage
-coverage/
-*.coverage
-*.coveragexml
-
-# NuGet
+# NuGet Packages
 *.nupkg
 *.snupkg
+packages/
+.nuget/
+artifacts/
 
-# Migration bundles
-*.efbundle
+# Environment & Secrets
+.env*
+!.env.example
+appsettings.Local.json
 
-.claude/settings.local.json
-.gemini/settings.local.json
+# OS files
+.DS_Store
+Thumbs.db
+NUL
 
-# Temporary/debug files
-*.bak
+# Temporary & Logs
 *.log
+*.bak
 *.sql
 build_errors.txt
-docker-compose.test.yml
-docker-compose.dev.yml
 /test-results
 
-# OpenAPI exports
-*-openapi.json
-*-openapi-*.json
+# Test Artifacts
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+*test-output.txt
+*_error.txt
 
-# Temporary tracking docs
+# Repository Specific
+.claude/settings.local.json
+.gemini/settings.local.json
 *MIGRATION*.md
 *SUMMARY*.md
 *AUDIT*.md
 *.Improvements.md
 
-# Test Outputs
-*test-output.txt
-*_error.txt
+# OpenAPI & Documentation
+*-openapi.json
+*-openapi-*.json
 
+# Database
+*.efbundle
 
-# Test Outputs
-*test-output.txt
-*_error.txt
-
-
-# Windows NUL device file (accidentally created by redirects)
-NUL
+# Enforced Rules (User Request)
+appsettings.Development.json
+docker-compose*.yml
+docker-compose.override.yml

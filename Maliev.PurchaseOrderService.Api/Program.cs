@@ -1,3 +1,4 @@
+using Maliev.Aspire.ServiceDefaults;
 using Microsoft.EntityFrameworkCore;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
@@ -15,7 +16,11 @@ builder.AddMassTransitWithRabbitMq(); // RabbitMQ messaging
 builder.AddServiceMeters("purchase-orders-meter"); // Register service meters for OpenTelemetry business metrics
 
 builder.AddRedisDistributedCache(instanceName: "purchase-order:"); // Redis with in-memory fallback
-builder.AddPostgresDbContext<PurchaseOrderContext>(connectionName: "PurchaseOrderDbContext"); // PostgreSQL with retry logic
+builder.AddPostgresDbContext<PurchaseOrderContext>(connectionName: "PurchaseOrderDbContext", configureOptions: options =>
+{
+    options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.LazyLoadOnDisposedContextWarning)); // Example of another one
+}); // PostgreSQL with retry logic
 
 // --- API Configuration ---
 builder.AddDefaultCors(); // CORS from CORS:AllowedOrigins config
@@ -51,7 +56,6 @@ builder.Services.AddRateLimiter(options =>
 });
 
 // Configure HttpClients for external services
-builder.AddServiceClient("IAMService");
 builder.AddServiceClient("SupplierService");
 builder.AddServiceClient("OrderService");
 builder.AddServiceClient("CurrencyService");
@@ -65,7 +69,8 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
 
 // IAM Registration Service
-builder.Services.AddIAMRegistration<PurchaseOrderIAMRegistrationService>();
+builder.AddIAMServiceClient("purchase-order");
+builder.Services.AddIAMRegistration<PurchaseOrderIAMRegistrationService>("purchase-order");
 
 // External Service Clients
 builder.Services.AddScoped<ISupplierServiceClient, SupplierServiceClient>();
@@ -79,7 +84,10 @@ var logger = app.Services.GetRequiredService<ILogger<Program>>();
 await app.MigrateDatabaseAsync<PurchaseOrderContext>();
 
 // Middleware Pipeline
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseRateLimiter();
 app.UseCors();
 

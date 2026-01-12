@@ -1,7 +1,8 @@
 namespace Maliev.PurchaseOrderService.Api.Services;
 
 /// <summary>
-/// Defines permission constants for the Purchase Order Service.
+/// Defines granular permission constants for the Purchase Order Service.
+/// Follows GCP-style naming: {service}.{resource}.{action}
 /// </summary>
 public static class PurchaseOrderPermissions
 {
@@ -45,28 +46,28 @@ public static class PurchaseOrderPermissions
     }
 
     /// <summary>
-    /// Gets all defined permissions.
+    /// Collection of all defined purchase order permissions with descriptions.
     /// </summary>
-    public static string[] All => new[]
+    public static readonly IReadOnlyDictionary<string, string> AllWithDescriptions = new Dictionary<string, string>
     {
-        Orders.Create, Orders.Read, Orders.Update, Orders.Delete,
-        Orders.Approve, Orders.Send, Orders.Cancel, Orders.Receive, Orders.Export,
-        Suppliers.View, Suppliers.Select,
-        Budgets.Check
+        { Orders.Create, "Create purchase orders" },
+        { Orders.Read, "Read purchase orders" },
+        { Orders.Update, "Update purchase orders" },
+        { Orders.Delete, "Delete purchase orders" },
+        { Orders.Approve, "Approve purchase orders" },
+        { Orders.Send, "Send purchase orders to suppliers" },
+        { Orders.Cancel, "Cancel purchase orders" },
+        { Orders.Receive, "Receive items against purchase orders" },
+        { Orders.Export, "Export purchase orders" },
+        { Suppliers.View, "View supplier information" },
+        { Suppliers.Select, "Select suppliers for orders" },
+        { Budgets.Check, "Perform budget checks" }
     };
-}
 
-/// <summary>
-/// Represents a predefined role with associated permissions.
-/// </summary>
-public class PredefinedRole
-{
-    /// <summary>Gets the unique identifier for the role.</summary>
-    public string RoleId { get; init; } = default!;
-    /// <summary>Gets the description of the role.</summary>
-    public string Description { get; init; } = default!;
-    /// <summary>Gets the permissions assigned to the role.</summary>
-    public string[] Permissions { get; init; } = default!;
+    /// <summary>
+    /// Gets all defined permission codes.
+    /// </summary>
+    public static string[] All => AllWithDescriptions.Keys.ToArray();
 }
 
 /// <summary>
@@ -74,28 +75,22 @@ public class PredefinedRole
 /// </summary>
 public static class PurchaseOrderPredefinedRoles
 {
-    /// <summary>The manager role with all permissions.</summary>
-    public static readonly PredefinedRole Manager = new()
-    {
-        RoleId = "purchase-order.manager",
-        Description = "Purchase Order Manager",
-        Permissions = PurchaseOrderPermissions.All
-    };
+    /// <summary>Role for purchase order managers.</summary>
+    public const string Manager = "roles.purchase-order.manager";
+    /// <summary>Role for employees with basic access.</summary>
+    public const string Employee = "roles.purchase-order.employee";
 
-    /// <summary>The employee role with basic permissions.</summary>
-    public static readonly PredefinedRole Employee = new()
+    /// <summary>
+    /// Collection of all predefined roles for the Purchase Order Service.
+    /// </summary>
+    public static readonly IReadOnlyList<(string RoleId, string Description, string[] Permissions)> All = new List<(string, string, string[])>
     {
-        RoleId = "purchase-order.employee",
-        Description = "Purchase Order Employee",
-        Permissions = new[] {
+        (Manager, "Full administrative access to purchase orders", PurchaseOrderPermissions.All),
+        (Employee, "Basic purchase order creation and tracking", new[]
+        {
             PurchaseOrderPermissions.Orders.Read,
             PurchaseOrderPermissions.Orders.Create,
             PurchaseOrderPermissions.Suppliers.View
-        }
+        })
     };
-
-    /// <summary>Gets all predefined role IDs.</summary>
-    public static string[] AllRoleIds => new[] { Manager.RoleId, Employee.RoleId };
-    /// <summary>Gets all predefined roles.</summary>
-    public static PredefinedRole[] All => new[] { Manager, Employee };
 }

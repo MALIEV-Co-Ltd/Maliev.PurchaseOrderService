@@ -48,6 +48,13 @@ public class PurchaseOrderContext : DbContext
     /// </summary>
     public DbSet<DomainEvent> DomainEvents => Set<DomainEvent>();
 
+    /// <inheritdoc/>
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        optionsBuilder.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    }
+
     /// <summary>
     /// Configures the schema needed for the identity framework.
     /// </summary>
@@ -68,7 +75,7 @@ public class PurchaseOrderContext : DbContext
 
             entity.HasIndex(e => e.OrderNumber)
                 .IsUnique()
-                .HasDatabaseName("IX_PurchaseOrders_OrderNumber");
+                .HasFilter("\"is_deleted\" = false");
 
             entity.Property(e => e.CustomerPO)
                 .HasMaxLength(50);
@@ -116,25 +123,23 @@ public class PurchaseOrderContext : DbContext
             entity.Property(e => e.DeletedBy)
                 .HasMaxLength(50);
 
-            // Optimistic concurrency - Ignore RowVersion for PostgreSQL
-            // PostgreSQL doesn't support byte[] row versioning like SQL Server
-            entity.Ignore(e => e.RowVersion);
+            // Optimistic concurrency using xmin for PostgreSQL
+            entity.Property(e => e.RowVersion)
+                .HasColumnName("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
 
             // Indexes for performance
-            entity.HasIndex(e => e.SupplierID)
-                .HasDatabaseName("IX_PurchaseOrders_SupplierID");
+            entity.HasIndex(e => e.SupplierID);
 
-            entity.HasIndex(e => e.OrderID)
-                .HasDatabaseName("IX_PurchaseOrders_OrderID");
+            entity.HasIndex(e => e.OrderID);
 
-            entity.HasIndex(e => new { e.CreatedBy, e.Status })
-                .HasDatabaseName("IX_PurchaseOrders_CreatedBy_Status");
+            entity.HasIndex(e => new { e.CreatedBy, e.Status });
 
-            entity.HasIndex(e => e.CreatedAt)
-                .HasDatabaseName("IX_PurchaseOrders_CreatedAt");
+            entity.HasIndex(e => e.CreatedAt);
 
-            entity.HasIndex(e => new { e.Status, e.OrderType })
-                .HasDatabaseName("IX_PurchaseOrders_Status_OrderType");
+            entity.HasIndex(e => new { e.Status, e.OrderType });
 
             // Relationships
             entity.HasMany(e => e.Items)
@@ -195,11 +200,12 @@ public class PurchaseOrderContext : DbContext
                 .HasMaxLength(500);
 
             // Indexes
-            entity.HasIndex(e => e.PurchaseOrderId)
-                .HasDatabaseName("IX_OrderItems_PurchaseOrderId");
+            entity.HasIndex(e => e.PurchaseOrderId);
 
-            entity.HasIndex(e => e.ProductCode)
-                .HasDatabaseName("IX_OrderItems_ProductCode");
+            entity.HasIndex(e => e.ProductCode);
+
+            // Matching query filter to avoid warnings with required relationship
+            entity.HasQueryFilter(e => !e.PurchaseOrder.IsDeleted);
         });
 
         // Address configuration
@@ -242,6 +248,13 @@ public class PurchaseOrderContext : DbContext
 
             entity.Property(e => e.EmailAddress)
                 .HasMaxLength(100);
+
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(e => e.LastModifiedBy)
+                .HasMaxLength(50);
         });
 
         // PurchaseOrderFile configuration
@@ -259,8 +272,7 @@ public class PurchaseOrderContext : DbContext
                 .HasMaxLength(500);
 
             entity.HasIndex(e => e.ObjectName)
-                .IsUnique()
-                .HasDatabaseName("IX_PurchaseOrderFiles_ObjectName");
+                .IsUnique();
 
             entity.Property(e => e.ContentType)
                 .IsRequired()
@@ -274,14 +286,11 @@ public class PurchaseOrderContext : DbContext
                 .HasMaxLength(500);
 
             // Indexes
-            entity.HasIndex(e => e.PurchaseOrderId)
-                .HasDatabaseName("IX_PurchaseOrderFiles_PurchaseOrderId");
+            entity.HasIndex(e => e.PurchaseOrderId);
 
-            entity.HasIndex(e => e.UploadedBy)
-                .HasDatabaseName("IX_PurchaseOrderFiles_UploadedBy");
+            entity.HasIndex(e => e.UploadedBy);
 
-            entity.HasIndex(e => e.DocumentType)
-                .HasDatabaseName("IX_PurchaseOrderFiles_DocumentType");
+            entity.HasIndex(e => e.DocumentType);
 
             // Soft delete query filter
             entity.HasQueryFilter(e => !e.IsDeleted);
@@ -322,14 +331,11 @@ public class PurchaseOrderContext : DbContext
                 .HasMaxLength(200);
 
             // Indexes
-            entity.HasIndex(e => new { e.EntityType, e.EntityId })
-                .HasDatabaseName("IX_AuditLog_EntityType_EntityId");
+            entity.HasIndex(e => new { e.EntityType, e.EntityId });
 
-            entity.HasIndex(e => new { e.UserId, e.Timestamp })
-                .HasDatabaseName("IX_AuditLog_UserId_Timestamp");
+            entity.HasIndex(e => new { e.UserId, e.Timestamp });
 
-            entity.HasIndex(e => e.Timestamp)
-                .HasDatabaseName("IX_AuditLog_Timestamp");
+            entity.HasIndex(e => e.Timestamp);
         });
 
         // DomainEvent configuration
@@ -365,17 +371,13 @@ public class PurchaseOrderContext : DbContext
                 .HasMaxLength(1000);
 
             // Indexes
-            entity.HasIndex(e => new { e.IsProcessed, e.OccurredAt })
-                .HasDatabaseName("IX_DomainEvents_IsProcessed_OccurredAt");
+            entity.HasIndex(e => new { e.IsProcessed, e.OccurredAt });
 
-            entity.HasIndex(e => new { e.EventType, e.AggregateId })
-                .HasDatabaseName("IX_DomainEvents_EventType_AggregateId");
+            entity.HasIndex(e => new { e.EventType, e.AggregateId });
 
-            entity.HasIndex(e => e.CorrelationId)
-                .HasDatabaseName("IX_DomainEvents_CorrelationId");
+            entity.HasIndex(e => e.CorrelationId);
 
-            entity.HasIndex(e => e.ProcessingAttempts)
-                .HasDatabaseName("IX_DomainEvents_ProcessingAttempts");
+            entity.HasIndex(e => e.ProcessingAttempts);
         });
 
         // Apply PostgreSQL snake_case naming convention globally

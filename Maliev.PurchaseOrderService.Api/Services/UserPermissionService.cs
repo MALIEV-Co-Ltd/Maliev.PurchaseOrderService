@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using System.Net.Http.Json;
 
 namespace Maliev.PurchaseOrderService.Api.Services;
 
@@ -22,6 +23,7 @@ public interface IUserPermissionService
 public class UserPermissionService : IUserPermissionService
 {
     private readonly IMemoryCache _cache;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<UserPermissionService> _logger;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
 
@@ -29,10 +31,15 @@ public class UserPermissionService : IUserPermissionService
     /// Initializes a new instance of the <see cref="UserPermissionService"/> class.
     /// </summary>
     /// <param name="cache">The memory cache.</param>
+    /// <param name="httpClientFactory">The HTTP client factory.</param>
     /// <param name="logger">The logger instance.</param>
-    public UserPermissionService(IMemoryCache cache, ILogger<UserPermissionService> logger)
+    public UserPermissionService(
+        IMemoryCache cache,
+        IHttpClientFactory httpClientFactory,
+        ILogger<UserPermissionService> logger)
     {
         _cache = cache;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
@@ -53,9 +60,27 @@ public class UserPermissionService : IUserPermissionService
 
         _logger.LogInformation("Fetching permissions for user {UserId} from IAM", userId);
 
-        // TODO: Implement actual IAM call when HttpClient is configured
-        // For now, returning empty or placeholder to satisfy tests
-        permissions = new List<string>();
+        try
+        {
+            var client = _httpClientFactory.CreateClient("IAMService");
+            var response = await client.GetAsync($"users/{userId}/permissions");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<UserPermissionsResponse>();
+                permissions = result?.Permissions ?? new List<string>();
+            }
+            else
+            {
+                _logger.LogWarning("Failed to fetch permissions for user {UserId}: {StatusCode}", userId, response.StatusCode);
+                permissions = new List<string>();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching permissions for user {UserId}", userId);
+            permissions = new List<string>();
+        }
 
         var cacheEntryOptions = new MemoryCacheEntryOptions()
             .SetAbsoluteExpiration(CacheDuration);
@@ -64,4 +89,15 @@ public class UserPermissionService : IUserPermissionService
 
         return permissions;
     }
+}
+
+/// <summary>
+/// Response DTO for user permissions from IAM
+/// </summary>
+public class UserPermissionsResponse
+{
+    /// <summary>
+    /// List of permission identifiers
+    /// </summary>
+    public List<string> Permissions { get; set; } = new();
 }

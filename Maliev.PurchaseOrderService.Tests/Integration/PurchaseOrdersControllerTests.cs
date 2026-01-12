@@ -97,7 +97,6 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Error: {error}");
         }
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<PurchaseOrderResponse>();
@@ -231,7 +230,6 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Error: {error}");
         }
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<PurchaseOrderResponse>();
@@ -269,6 +267,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -324,6 +323,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -364,6 +364,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -426,6 +427,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -475,6 +477,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -513,7 +516,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         {
             CurrencyID = 2,
             WHTRate = 5.0m,
-            RowVersion = Convert.ToBase64String(po.RowVersion)
+            RowVersion = po.RowVersion.ToString()
         };
 
         // Act
@@ -524,7 +527,6 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         if (response.StatusCode != HttpStatusCode.OK)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Update failed. Status: {response.StatusCode}, Error: {errorContent}");
         }
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<PurchaseOrderResponse>();
@@ -551,6 +553,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -566,7 +569,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var updateRequest = new UpdatePurchaseOrderRequest
         {
             WHTRate = 5.0m,
-            RowVersion = Convert.ToBase64String(new byte[] { 9, 9, 9, 9 }) // Wrong version
+            RowVersion = (po.RowVersion + 1).ToString()
         };
 
         // Act
@@ -585,7 +588,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var updateRequest = new UpdatePurchaseOrderRequest
         {
             WHTRate = 5.0m,
-            RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 })
+            RowVersion = "1234"
         };
 
         // Act
@@ -613,6 +616,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyCode = "THB",
             CurrencySymbol = "฿",
             OrderType = OrderType.External,
+            DepartmentId = 1,
             Status = OrderStatus.Pending,
             OrderDate = DateTime.UtcNow,
             WHTRate = 3.0m,
@@ -626,7 +630,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         await dbContext.SaveChangesAsync();
 
         // Act
-        var response = await client.PostAsync($"/purchase-order/v1/purchase-orders/{po.Id}/cancel", null);
+        var response = await client.PostAsJsonAsync($"/purchase-order/v1/purchase-orders/{po.Id}/cancel", new CancelPurchaseOrderRequest { Reason = "Test cancellation" });
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -643,7 +647,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Cancel });
 
         // Act
-        var response = await client.PostAsync("/purchase-order/v1/purchase-orders/99999/cancel", null);
+        var response = await client.PostAsJsonAsync("/purchase-order/v1/purchase-orders/99999/cancel", new CancelPurchaseOrderRequest { Reason = "Test cancellation" });
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -656,7 +660,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", roles: new[] { "employee" }, permissions: new[] { "some.other.permission" });
 
         // Act
-        var response = await client.PostAsync("/purchase-order/v1/purchase-orders/1/cancel", null);
+        var response = await client.PostAsJsonAsync("/purchase-order/v1/purchase-orders/1/cancel", new CancelPurchaseOrderRequest { Reason = "Test cancellation" });
 
         // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
