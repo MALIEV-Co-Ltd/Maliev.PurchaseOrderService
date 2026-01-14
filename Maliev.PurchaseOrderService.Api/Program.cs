@@ -1,3 +1,4 @@
+#pragma warning disable CA1848 // For improved performance, use the LoggerMessage delegates
 using Maliev.Aspire.ServiceDefaults;
 using Microsoft.EntityFrameworkCore;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
