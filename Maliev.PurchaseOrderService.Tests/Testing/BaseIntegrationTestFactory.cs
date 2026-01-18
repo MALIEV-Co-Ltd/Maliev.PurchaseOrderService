@@ -318,7 +318,7 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         // Get all table names from ALL schemas except system ones
         var tableNames = await context.Database
             .SqlQueryRaw<string>(
-                @"SELECT table_schema || '.\""' || table_name || '\""'
+                @"SELECT '""' || table_schema || '"".""' || table_name || '""'
                   FROM information_schema.tables
                   WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
                   AND table_type = 'BASE TABLE'
