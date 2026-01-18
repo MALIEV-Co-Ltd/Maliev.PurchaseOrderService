@@ -1,6 +1,6 @@
 using Maliev.PurchaseOrderService.Api.DTOs;
-using Maliev.PurchaseOrderService.Data.Entities;
 using Maliev.PurchaseOrderService.Common.Enumerations;
+using Maliev.PurchaseOrderService.Data.Entities;
 
 namespace Maliev.PurchaseOrderService.Api.Mapping;
 

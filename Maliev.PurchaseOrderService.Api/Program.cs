@@ -1,9 +1,7 @@
-using Maliev.Aspire.ServiceDefaults;
-using Microsoft.EntityFrameworkCore;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Data;
-using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
 
 // Initialize bootstrap logging

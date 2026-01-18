@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;
