@@ -310,23 +310,27 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
     [SuppressMessage("Security", "EF1002:Gaps in SQL queries", Justification = "Table names are retrieved from information_schema and are safe.")]
     public async Task CleanDatabaseAsync()
     {
+        // Clear all pools to ensure no active connections interfere with TRUNCATE
+        Npgsql.NpgsqlConnection.ClearAllPools();
+
         await using var context = CreateDbContext();
 
+        // Get all table names from ALL schemas except system ones
         var tableNames = await context.Database
             .SqlQueryRaw<string>(
-                @"SELECT table_name
+                @"SELECT table_schema || '.\""' || table_name || '\""'
                   FROM information_schema.tables
-                  WHERE table_schema = 'public'
+                  WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
                   AND table_type = 'BASE TABLE'
                   AND table_name != '__EFMigrationsHistory'
                   ORDER BY table_name")
             .ToListAsync();
 
-        foreach (var tableName in tableNames)
+        foreach (var tableNameWithSchema in tableNames)
         {
             try
             {
-                await context.Database.ExecuteSqlRawAsync($"TRUNCATE TABLE \"{tableName}\" RESTART IDENTITY CASCADE");
+                await context.Database.ExecuteSqlRawAsync($"TRUNCATE TABLE {tableNameWithSchema} RESTART IDENTITY CASCADE");
             }
             catch (Npgsql.PostgresException ex) when (ex.SqlState == "42P01")
             {
@@ -404,9 +408,9 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         return CreateTestJwtToken(userId, new[] { role });
     }
 
-    public HttpClient CreateAuthenticatedClient(string userId = "test-user", string[]? roles = null)
+    public HttpClient CreateAuthenticatedClient(string userId = "test-user", string[]? roles = null, string[]? permissions = null)
     {
-        var token = CreateTestJwtToken(userId, roles);
+        var token = CreateTestJwtToken(userId, roles, permissions);
         var client = CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
         return client;
