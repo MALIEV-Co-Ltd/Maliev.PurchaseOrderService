@@ -1,9 +1,3 @@
-using System.Net.Http.Json;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;
 
 /// <summary>

@@ -1,5 +1,3 @@
-using System.Net.Http.Json;
-
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;
 
 /// <summary>

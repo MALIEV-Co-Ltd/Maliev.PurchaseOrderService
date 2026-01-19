@@ -1,5 +1,5 @@
-using System.ComponentModel.DataAnnotations;
 using Maliev.PurchaseOrderService.Common.Enumerations;
+using System.ComponentModel.DataAnnotations;
 
 namespace Maliev.PurchaseOrderService.Api.DTOs;
 

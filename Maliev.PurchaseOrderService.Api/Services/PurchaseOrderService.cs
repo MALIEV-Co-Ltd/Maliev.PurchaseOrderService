@@ -1,12 +1,12 @@
-using Microsoft.EntityFrameworkCore;
+using Maliev.MessagingContracts.Generated;
 using Maliev.PurchaseOrderService.Api.DTOs;
-using Maliev.PurchaseOrderService.Api.Mapping;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
+using Maliev.PurchaseOrderService.Api.Mapping;
+using Maliev.PurchaseOrderService.Common.Enumerations;
 using Maliev.PurchaseOrderService.Data;
 using Maliev.PurchaseOrderService.Data.Entities;
-using Maliev.PurchaseOrderService.Common.Enumerations;
 using MassTransit;
-using Maliev.MessagingContracts.Generated;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.PurchaseOrderService.Api.Services;
 

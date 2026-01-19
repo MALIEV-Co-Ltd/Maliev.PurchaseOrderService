@@ -31,6 +31,9 @@ public class IntegrationTestBase : IAsyncLifetime
         Factory = new TestWebApplicationFactory();
         await Factory.InitializeAsync();
 
+        // Clean database for test isolation since we are using singleton containers
+        await Factory.CleanDatabaseAsync();
+
         // Trigger server creation
         Client = Factory.CreateClient();
     }
