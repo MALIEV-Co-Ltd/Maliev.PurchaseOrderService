@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Maliev.PurchaseOrderService.Api/Maliev.PurchaseOrderService.Api.csproj" />
+  <Project Path="Maliev.PurchaseOrderService.Common/Maliev.PurchaseOrderService.Common.csproj" />
+  <Project Path="Maliev.PurchaseOrderService.Data/Maliev.PurchaseOrderService.Data.csproj" />
+  <Project Path="Maliev.PurchaseOrderService.Tests/Maliev.PurchaseOrderService.Tests.csproj" />
+</Solution>
