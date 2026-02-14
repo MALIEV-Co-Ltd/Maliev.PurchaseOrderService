@@ -64,6 +64,9 @@ public class TestWebApplicationFactory : BaseIntegrationTestFactory<Program, Pur
         config["Services:IAMService:BaseUrl"] = iamUrl;
         config["Services__IAMService__BaseUrl"] = iamUrl;
 
+        // Reduce IAM registration delay for tests
+        config["IAM:RegistrationDelaySeconds"] = "0";
+
         return config;
     }
 }
