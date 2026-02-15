@@ -2,8 +2,6 @@ using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Services;
 using Maliev.PurchaseOrderService.Data;
 using Microsoft.EntityFrameworkCore;
-using System.Threading.RateLimiting;
-
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
 var bootstrapLogger = loggerFactory.CreateLogger("Program");
@@ -22,7 +20,7 @@ try
     builder.AddMassTransitWithRabbitMq(); // RabbitMQ messaging
     builder.AddServiceMeters("purchase-orders-meter"); // Register service meters for OpenTelemetry business metrics
 
-    builder.AddRedisDistributedCache(instanceName: "purchase-order:"); // Redis with in-memory fallback
+    builder.AddStandardCache("purchase-order:"); // Redis + in-memory fallback, memory-optimized // Redis with in-memory fallback
     builder.AddPostgresDbContext<PurchaseOrderContext>(connectionName: "PurchaseOrderDbContext", configureOptions: options =>
     {
         options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
@@ -30,7 +28,7 @@ try
     }); // PostgreSQL with retry logic
 
     // --- API Configuration ---
-    builder.AddDefaultCors(); // CORS from CORS:AllowedOrigins config
+    builder.AddStandardCors(); // CORS with fail-fast validation
     builder.AddDefaultApiVersioning(); // API versioning with URL segment reader
 
     // JWT Authentication (tests override via PostConfigureAll with dynamic RSA keys)
@@ -48,20 +46,7 @@ try
     builder.Services.AddMemoryCache();
 
     // Rate Limiting
-    builder.Services.AddRateLimiter(options =>
-    {
-        options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-            RateLimitPartition.GetFixedWindowLimiter(
-                partitionKey: context.User.Identity?.Name ?? context.Request.Headers.Host.ToString(),
-                factory: partition => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 100,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    QueueLimit = 10
-                }));
-    });
-
+    builder.AddStandardRateLimiting(); // Memory-optimized for low-spec nodes
     // Configure HttpClients for external services
     builder.AddServiceClient("SupplierService");
     builder.AddServiceClient("OrderService");

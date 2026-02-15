@@ -81,7 +81,8 @@ public class UserPermissionService : IUserPermissionService
         }
 
         var cacheEntryOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(CacheDuration);
+            .SetAbsoluteExpiration(CacheDuration)
+            .SetSize(1);
 
         _cache.Set(cacheKey, permissions, cacheEntryOptions);
 
