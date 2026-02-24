@@ -5,6 +5,7 @@ using Xunit;
 using System.Net;
 using MassTransit.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Maliev.MessagingContracts.Contracts.Iam;
 using Maliev.MessagingContracts.Generated;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration;
