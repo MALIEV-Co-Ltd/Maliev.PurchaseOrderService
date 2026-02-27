@@ -1,5 +1,5 @@
 using Maliev.MessagingContracts.Contracts.PurchaseOrders;
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
 using Maliev.PurchaseOrderService.Api.DTOs;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Api.Mapping;

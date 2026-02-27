@@ -6,7 +6,7 @@ using System.Net;
 using MassTransit.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Maliev.MessagingContracts.Contracts.Iam;
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
 
 namespace Maliev.PurchaseOrderService.Tests.Integration;
 
