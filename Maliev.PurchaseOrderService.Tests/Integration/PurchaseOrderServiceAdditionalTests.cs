@@ -1,10 +1,12 @@
+using Maliev.PurchaseOrderService.Infrastructure.Persistence;
+using Maliev.PurchaseOrderService.Domain.Entities;
 using System.Net;
 using System.Net.Http.Json;
-using Maliev.PurchaseOrderService.Api.DTOs;
-using Maliev.PurchaseOrderService.Api.Services;
+using Maliev.PurchaseOrderService.Application.DTOs;
+using Maliev.PurchaseOrderService.Application.Interfaces;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
-using Maliev.PurchaseOrderService.Common.Enumerations;
-using Maliev.PurchaseOrderService.Data.Entities;
+using Maliev.PurchaseOrderService.Domain.Enumerations;
+using Maliev.PurchaseOrderService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WireMock.RequestBuilders;
@@ -23,7 +25,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Approve, PurchaseOrderPermissions.Orders.Read });
         var dbContext = GetDbContext();
 
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-APPROVE-TEST",
             SupplierID = 1,
@@ -54,7 +56,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Send, PurchaseOrderPermissions.Orders.Read });
         var dbContext = GetDbContext();
 
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-SEND-TEST",
             SupplierID = 1,
@@ -85,7 +87,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Receive, PurchaseOrderPermissions.Orders.Read });
         var dbContext = GetDbContext();
 
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-RECEIVE-TEST",
             SupplierID = 1,
@@ -128,7 +130,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         // Arrange
         using var scope = Factory.Services.CreateScope();
         var auditService = scope.ServiceProvider.GetRequiredService<IAuditLogService>();
-        var dbContext = scope.ServiceProvider.GetRequiredService<Maliev.PurchaseOrderService.Data.PurchaseOrderContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<Maliev.PurchaseOrderService.Infrastructure.PurchaseOrderContext>();
 
         // Act
         await auditService.LogAuditAsync("TestEntity", "123", AuditAction.Create, "user1", "admin", "old", "new", "reason");
@@ -150,7 +152,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Update, PurchaseOrderPermissions.Orders.Read });
         var dbContext = GetDbContext();
 
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-UPDATE-ADDR",
             SupplierID = 1,

@@ -1,4 +1,5 @@
-using Maliev.PurchaseOrderService.Api.Services;
+using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.PurchaseOrderService.Application.Interfaces;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using Xunit;

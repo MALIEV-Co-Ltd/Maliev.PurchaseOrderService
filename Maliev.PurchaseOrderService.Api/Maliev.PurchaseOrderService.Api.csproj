@@ -4,8 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <UserSecretsId>maliev-purchaseorderservice-api</UserSecretsId>
     <SharedLibraryVersion Condition="'$(SharedLibraryVersion)' == ''">1.0.*-*</SharedLibraryVersion>
   </PropertyGroup>
 
@@ -20,8 +21,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Maliev.PurchaseOrderService.Data\Maliev.PurchaseOrderService.Data.csproj" />
-    <ProjectReference Include="..\Maliev.PurchaseOrderService.Common\Maliev.PurchaseOrderService.Common.csproj" />
+    <ProjectReference Include="..\Maliev.PurchaseOrderService.Application\Maliev.PurchaseOrderService.Application.csproj" />
+    <ProjectReference Include="..\Maliev.PurchaseOrderService.Infrastructure\Maliev.PurchaseOrderService.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
 </Project>

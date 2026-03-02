@@ -1,4 +1,4 @@
-using Maliev.PurchaseOrderService.Common.Enumerations;
+using Maliev.PurchaseOrderService.Domain.Enumerations;
 using System.ComponentModel.DataAnnotations;
 
 namespace Maliev.PurchaseOrderService.Api.DTOs;

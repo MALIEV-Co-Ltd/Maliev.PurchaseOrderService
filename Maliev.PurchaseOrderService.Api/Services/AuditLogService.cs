@@ -1,6 +1,6 @@
-using Maliev.PurchaseOrderService.Common.Enumerations;
-using Maliev.PurchaseOrderService.Data;
-using Maliev.PurchaseOrderService.Data.Entities;
+using Maliev.PurchaseOrderService.Domain.Enumerations;
+using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.PurchaseOrderService.Infrastructure.Persistence;
 
 namespace Maliev.PurchaseOrderService.Api.Services;
 

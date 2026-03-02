@@ -1,6 +1,7 @@
+using Maliev.PurchaseOrderService.Domain.Entities;
 using Microsoft.Extensions.Caching.Memory;
 
-namespace Maliev.PurchaseOrderService.Api.Services;
+namespace Maliev.PurchaseOrderService.Application.Interfaces;
 
 /// <summary>
 /// Service for managing and caching user permissions retrieved from IAM.

@@ -1,14 +1,20 @@
-using Maliev.PurchaseOrderService.Api.ExternalServices;
-using Maliev.PurchaseOrderService.Api.Services;
-using Maliev.PurchaseOrderService.Data;
+using Maliev.PurchaseOrderService.Infrastructure.Persistence;
+using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.Aspire.ServiceDefaults;
+using Maliev.PurchaseOrderService.Api.Extensions;
+using Maliev.PurchaseOrderService.Application;
+using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Infrastructure;
+using Maliev.PurchaseOrderService.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
 var bootstrapLogger = loggerFactory.CreateLogger("Program");
 
 try
 {
-    Program.Log.StartingHost(bootstrapLogger, "Purchase Order Service");
+    Log.StartingHost(bootstrapLogger, "Purchase Order Service");
 
     var builder = WebApplication.CreateBuilder(args);
 
@@ -17,15 +23,24 @@ try
 
     // --- Infrastructure & Observability ---
     builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
-    builder.AddMassTransitWithRabbitMq(); // RabbitMQ messaging
-    builder.AddServiceMeters("purchase-orders-meter"); // Register service meters for OpenTelemetry business metrics
+    builder.AddStandardMiddleware(options =>
+    {
+        options.EnableRequestLogging = true;
+    });
+    builder.AddServiceMeters("purchase-orders-meter"); // Register service meters
 
-    builder.AddStandardCache("purchase-order:"); // Redis + in-memory fallback, memory-optimized // Redis with in-memory fallback
+    // Add Redis Distributed Cache
+    builder.AddStandardCache("purchase-order:");
+
+    // Add MassTransit with RabbitMQ
+    builder.AddMassTransitWithRabbitMq();
+
+    // Add PostgreSQL DbContext
     builder.AddPostgresDbContext<PurchaseOrderContext>(connectionName: "PurchaseOrderDbContext", configureOptions: options =>
     {
         options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-        options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.LazyLoadOnDisposedContextWarning)); // Example of another one
-    }); // PostgreSQL with retry logic
+        options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.LazyLoadOnDisposedContextWarning));
+    });
 
     // --- API Configuration ---
     builder.AddStandardCors(); // CORS with fail-fast validation
@@ -34,59 +49,54 @@ try
     // JWT Authentication (tests override via PostConfigureAll with dynamic RSA keys)
     builder.AddJwtAuthentication();
 
+    // --- Authorization & Permissions ---
+    builder.Services.AddPermissionAuthorization();
+
+    // --- Layer Registration ---
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
+
+    // Register application services
+    builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderServiceImpl>();
+
+    // Additional API Services
+    builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+
     // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
     if (!builder.Environment.IsProduction())
     {
         builder.AddStandardOpenApi(
             title: "MALIEV Purchase Order Service API",
-            description: "Purchase order management service. Supports PO creation with line items, approval workflows, status updates, search with pagination and filtering by supplier/status/date range, and cancellation with role-based access control.");
+            description: "Purchase order management service.");
     }
+
+    // IAM Registration
+    builder.AddIAMServiceClient("purchase-order");
 
     builder.Services.AddControllers();
     builder.Services.AddMemoryCache();
 
-    // Rate Limiting
-    builder.AddStandardRateLimiting(); // Memory-optimized for low-spec nodes
-    // Configure HttpClients for external services
-    builder.AddServiceClient("SupplierService");
-    builder.AddServiceClient("OrderService");
-    builder.AddServiceClient("CurrencyService");
-    builder.AddServiceClient("UploadService");
-    builder.AddServiceClient("PdfService");
-
-    // Application Services
-    builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
-    builder.Services.AddScoped<IWHTCalculationService, WHTCalculationService>();
-    builder.Services.AddScoped<IAuditLogService, AuditLogService>();
-    builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
-
-    // IAM Registration Service
-    builder.AddIAMServiceClient("purchase-order");
-    builder.Services.AddIAMRegistration<PurchaseOrderIAMRegistrationService>("purchase-order");
-
-    // External Service Clients
-    builder.Services.AddScoped<ISupplierServiceClient, SupplierServiceClient>();
-    builder.Services.AddScoped<IOrderServiceClient, OrderServiceClient>();
-    builder.Services.AddScoped<ICurrencyServiceClient, CurrencyServiceClient>();
+    builder.AddStandardRateLimiting();
 
     var app = builder.Build();
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-    // --- Database Migrations ---
+    // Run database migrations on startup
     await app.MigrateDatabaseAsync<PurchaseOrderContext>();
 
-    // Middleware Pipeline
+    // Configure middleware pipeline
+    app.UseStandardMiddleware();
+
     if (!app.Environment.IsDevelopment())
     {
         app.UseHttpsRedirection();
     }
-    app.UseRateLimiter();
-    app.UseCors();
 
+    app.UseCors();
     app.UseAuthentication();
     app.UseAuthorization();
 
-    // Map endpoints after middleware
+    // Map endpoints
     app.MapControllers();
 
     // Map Aspire default endpoints (/health, /alive, /metrics)
@@ -95,12 +105,12 @@ try
     // Map OpenAPI and Scalar documentation (dev/staging only)
     app.MapApiDocumentation(servicePrefix: "purchase-order");
 
-    Program.Log.ServiceStarted(logger, "Purchase Order Service");
+    Log.ServiceStarted(logger, "Purchase Order Service");
     await app.RunAsync();
 }
 catch (Exception ex)
 {
-    Program.Log.HostTerminated(bootstrapLogger, ex, "Purchase Order Service");
+    Log.HostTerminated(bootstrapLogger, ex, "Purchase Order Service");
     throw;
 }
 finally
@@ -109,7 +119,7 @@ finally
 }
 
 /// <summary>
-/// Main program class for the Purchase Order Service API.
+/// Main program class for the application
 /// </summary>
 public partial class Program
 {

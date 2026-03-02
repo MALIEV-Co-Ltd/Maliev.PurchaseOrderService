@@ -1,3 +1,4 @@
+using Maliev.PurchaseOrderService.Domain.Entities;
 using System.IdentityModel.Tokens.Jwt;
 using System.Diagnostics.CodeAnalysis;
 using MassTransit;

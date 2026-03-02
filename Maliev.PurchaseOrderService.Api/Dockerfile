@@ -13,8 +13,8 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Maliev.PurchaseOrderService.Api/Maliev.PurchaseOrderService.Api.csproj", "Maliev.PurchaseOrderService.Api/"]
-COPY ["Maliev.PurchaseOrderService.Data/Maliev.PurchaseOrderService.Data.csproj", "Maliev.PurchaseOrderService.Data/"]
-COPY ["Maliev.PurchaseOrderService.Common/Maliev.PurchaseOrderService.Common.csproj", "Maliev.PurchaseOrderService.Common/"]
+COPY ["Maliev.PurchaseOrderService.Domain/Maliev.PurchaseOrderService.Domain.csproj", "Maliev.PurchaseOrderService.Domain/"]
+COPY ["Maliev.PurchaseOrderService.Infrastructure/Maliev.PurchaseOrderService.Infrastructure.csproj", "Maliev.PurchaseOrderService.Infrastructure/"]
 COPY ["nuget.config", "."]
 RUN --mount=type=secret,id=nuget_username \
     --mount=type=secret,id=nuget_password \

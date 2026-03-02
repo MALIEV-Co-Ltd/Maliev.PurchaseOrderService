@@ -1,4 +1,4 @@
-using Maliev.PurchaseOrderService.Common.Enumerations;
+using Maliev.PurchaseOrderService.Domain.Enumerations;
 
 namespace Maliev.PurchaseOrderService.Api.Services;
 

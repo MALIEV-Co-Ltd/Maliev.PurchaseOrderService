@@ -1,3 +1,4 @@
+using Maliev.PurchaseOrderService.Domain.Entities;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;

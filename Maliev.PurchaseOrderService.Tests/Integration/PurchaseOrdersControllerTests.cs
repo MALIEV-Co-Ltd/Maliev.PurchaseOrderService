@@ -1,9 +1,10 @@
+using Maliev.PurchaseOrderService.Domain.Entities;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Maliev.PurchaseOrderService.Api.DTOs;
-using Maliev.PurchaseOrderService.Api.Services;
-using Maliev.PurchaseOrderService.Common.Enumerations;
+using Maliev.PurchaseOrderService.Application.DTOs;
+using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Domain.Enumerations;
 using Microsoft.EntityFrameworkCore;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -257,7 +258,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
 
         // Create test data
         var dbContext = GetDbContext();
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-2025-001",
             SupplierID = 1,
@@ -313,7 +314,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var dbContext = GetDbContext();
 
         // Create PO owned by another user
-        var otherUserPO = new Data.Entities.PurchaseOrder
+        var otherUserPO = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-2025-002",
             SupplierID = 1,
@@ -354,7 +355,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
 
         // Create test data
         var dbContext = GetDbContext();
-        var po1 = new Data.Entities.PurchaseOrder
+        var po1 = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-2025-003",
             SupplierID = 1,
@@ -375,7 +376,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CreatedAt = DateTime.UtcNow
         };
 
-        var po2 = new Data.Entities.PurchaseOrder
+        var po2 = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-2025-004",
             SupplierID = 2,
@@ -417,7 +418,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
 
         // Create test data - 15 purchase orders
         var dbContext = GetDbContext();
-        var purchaseOrders = Enumerable.Range(1, 15).Select(i => new Data.Entities.PurchaseOrder
+        var purchaseOrders = Enumerable.Range(1, 15).Select(i => new Domain.Entities.PurchaseOrder
         {
             OrderNumber = $"PO-2025-{i:D3}",
             SupplierID = 1,
@@ -467,7 +468,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
 
         // Create test data
         var dbContext = GetDbContext();
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-2025-010",
             SupplierID = 1,
@@ -543,7 +544,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
 
         // Create test data
         var dbContext = GetDbContext();
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-2025-011",
             SupplierID = 1,
@@ -606,7 +607,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
 
         // Create test data
         var dbContext = GetDbContext();
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-2025-012",
             SupplierID = 1,

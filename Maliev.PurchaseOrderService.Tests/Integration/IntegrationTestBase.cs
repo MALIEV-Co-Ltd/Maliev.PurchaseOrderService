@@ -1,6 +1,8 @@
+using Maliev.PurchaseOrderService.Infrastructure.Persistence;
+using Maliev.PurchaseOrderService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Maliev.PurchaseOrderService.Data;
+using Maliev.PurchaseOrderService.Infrastructure;
 using System.Net.Http.Headers;
 using WireMock.Server;
 using Xunit;

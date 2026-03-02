@@ -1,6 +1,7 @@
-using Maliev.PurchaseOrderService.Api.Services;
-using Maliev.PurchaseOrderService.Api.DTOs;
-using Maliev.PurchaseOrderService.Common.Enumerations;
+using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Application.DTOs;
+using Maliev.PurchaseOrderService.Domain.Enumerations;
 using System.Net;
 using System.Net.Http.Json;
 using Xunit;

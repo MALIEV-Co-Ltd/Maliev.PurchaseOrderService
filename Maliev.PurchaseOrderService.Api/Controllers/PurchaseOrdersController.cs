@@ -1,6 +1,8 @@
+using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.PurchaseOrderService.Domain.Constants;
 using Maliev.Aspire.ServiceDefaults.Authorization;
-using Maliev.PurchaseOrderService.Api.DTOs;
-using Maliev.PurchaseOrderService.Api.Services;
+using Maliev.PurchaseOrderService.Application.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -58,7 +60,7 @@ public class PurchaseOrdersController : ControllerBase
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "employee";
 
-            var result = await _purchaseOrderService.CreatePurchaseOrderAsync(
+            var result = await _purchaseOrderService.CreateAsync(
                 request, userId, userRole, cancellationToken);
 
             return CreatedAtAction(
@@ -99,7 +101,7 @@ public class PurchaseOrdersController : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
         var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "employee";
 
-        var result = await _purchaseOrderService.GetPurchaseOrderByIdAsync(
+        var result = await _purchaseOrderService.GetByIdAsync(
             id, userId, userRole, cancellationToken);
 
         if (result == null)
@@ -129,7 +131,7 @@ public class PurchaseOrdersController : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
         var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "employee";
 
-        var result = await _purchaseOrderService.SearchPurchaseOrdersAsync(
+        var result = await _purchaseOrderService.SearchAsync(
             request, userId, userRole, cancellationToken);
 
         return Ok(result);
@@ -164,7 +166,7 @@ public class PurchaseOrdersController : ControllerBase
                 ?? User.FindFirst("role")?.Value
                 ?? "manager";
 
-            var result = await _purchaseOrderService.UpdatePurchaseOrderAsync(
+            var result = await _purchaseOrderService.UpdateAsync(
                 id, request, userId, userRole, cancellationToken);
 
             return Ok(result);
@@ -206,7 +208,7 @@ public class PurchaseOrdersController : ControllerBase
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value
                 ?? User.FindFirst("role")?.Value
                 ?? "manager";
-            await _purchaseOrderService.CancelPurchaseOrderAsync(
+            await _purchaseOrderService.CancelAsync(
                 id, request.Reason, userId, userRole, cancellationToken);
 
             return NoContent();
