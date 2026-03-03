@@ -15,7 +15,6 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 [ApiController]
 [Asp.Versioning.ApiVersion("1.0")]
 [Route("purchase-order/v{version:apiVersion}/purchase-orders")]
-[Authorize]
 public class PurchaseOrdersController : ControllerBase
 {
     private readonly IPurchaseOrderService _purchaseOrderService;
