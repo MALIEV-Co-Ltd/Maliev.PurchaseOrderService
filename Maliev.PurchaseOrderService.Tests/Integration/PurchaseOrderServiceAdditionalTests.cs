@@ -1,10 +1,11 @@
+using Maliev.PurchaseOrderService.Domain.Constants;
+using Maliev.PurchaseOrderService.Infrastructure.Persistence;
+using Maliev.PurchaseOrderService.Domain.Entities;
 using System.Net;
 using System.Net.Http.Json;
-using Maliev.PurchaseOrderService.Api.DTOs;
-using Maliev.PurchaseOrderService.Api.Services;
-using Maliev.PurchaseOrderService.Api.ExternalServices;
-using Maliev.PurchaseOrderService.Common.Enumerations;
-using Maliev.PurchaseOrderService.Data.Entities;
+using Maliev.PurchaseOrderService.Application.DTOs;
+using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Domain.Enumerations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WireMock.RequestBuilders;
@@ -23,7 +24,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Approve, PurchaseOrderPermissions.Orders.Read });
         var dbContext = GetDbContext();
 
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-APPROVE-TEST",
             SupplierID = 1,
@@ -44,7 +45,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<PurchaseOrderDetailResponse>();
         Assert.NotNull(result);
-        Assert.Equal(OrderStatus.Approved, result!.Status);
+        Assert.Equal("Approved", result!.Status);
     }
 
     [Fact]
@@ -54,7 +55,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Send, PurchaseOrderPermissions.Orders.Read });
         var dbContext = GetDbContext();
 
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-SEND-TEST",
             SupplierID = 1,
@@ -75,7 +76,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<PurchaseOrderDetailResponse>();
         Assert.NotNull(result);
-        Assert.Equal(OrderStatus.Ordered, result!.Status);
+        Assert.Equal("Ordered", result!.Status);
     }
 
     [Fact]
@@ -85,7 +86,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Receive, PurchaseOrderPermissions.Orders.Read });
         var dbContext = GetDbContext();
 
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-RECEIVE-TEST",
             SupplierID = 1,
@@ -106,7 +107,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<PurchaseOrderDetailResponse>();
         Assert.NotNull(result);
-        Assert.Equal(OrderStatus.Delivered, result!.Status);
+        Assert.Equal("Delivered", result!.Status);
     }
 
     [Fact]
@@ -128,7 +129,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         // Arrange
         using var scope = Factory.Services.CreateScope();
         var auditService = scope.ServiceProvider.GetRequiredService<IAuditLogService>();
-        var dbContext = scope.ServiceProvider.GetRequiredService<Maliev.PurchaseOrderService.Data.PurchaseOrderContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PurchaseOrderContext>();
 
         // Act
         await auditService.LogAuditAsync("TestEntity", "123", AuditAction.Create, "user1", "admin", "old", "new", "reason");
@@ -150,7 +151,7 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Update, PurchaseOrderPermissions.Orders.Read });
         var dbContext = GetDbContext();
 
-        var po = new Data.Entities.PurchaseOrder
+        var po = new Domain.Entities.PurchaseOrder
         {
             OrderNumber = "PO-UPDATE-ADDR",
             SupplierID = 1,
@@ -165,14 +166,18 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
 
         var updateRequest = new UpdatePurchaseOrderRequest
         {
-            ShippingAddress = new UpdateAddressRequest
-            {
-                AddressType = AddressType.Shipping,
-                ContactName = "New Contact",
-                AddressLine1 = "New Address",
-                City = "Bangkok",
-                Country = "Thailand"
-            }
+            ShippingAddress = new UpdateAddressRequest(
+                AddressType.Shipping,
+                null,
+                "New Contact",
+                "New Address",
+                null,
+                "Bangkok",
+                null,
+                null,
+                "Thailand",
+                null,
+                null)
         };
 
         // Act

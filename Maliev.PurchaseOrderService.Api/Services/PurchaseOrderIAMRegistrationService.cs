@@ -1,31 +1,28 @@
 using Maliev.Aspire.ServiceDefaults.IAM;
-using RoleRegistration = Maliev.Aspire.ServiceDefaults.IAM.RoleRegistration;
+using Maliev.PurchaseOrderService.Domain.Constants;
 
 namespace Maliev.PurchaseOrderService.Api.Services;
 
 /// <summary>
-/// Service that handles registration of purchase order permissions and roles with the central IAM service on startup.
+/// Registers PurchaseOrderService permissions and roles with the central IAM system on startup.
 /// </summary>
 public class PurchaseOrderIAMRegistrationService : IAMRegistrationService
 {
-    private readonly ILogger<PurchaseOrderIAMRegistrationService> _logger;
+    private const string ServiceNameValue = "purchase-order";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PurchaseOrderIAMRegistrationService"/> class.
     /// </summary>
     /// <param name="configuration">The application configuration.</param>
-    /// <param name="logger">Logger instance.</param>
+    /// <param name="logger">The logger.</param>
     public PurchaseOrderIAMRegistrationService(
         IConfiguration configuration,
         ILogger<PurchaseOrderIAMRegistrationService> logger)
-        : base(configuration, logger, "purchase-order")
+        : base(configuration, logger, ServiceNameValue)
     {
-        _logger = logger;
     }
 
-    /// <summary>
-    /// Gets the list of permissions to register with IAM.
-    /// </summary>
+    /// <inheritdoc/>
     protected override IEnumerable<PermissionRegistration> GetPermissions()
     {
         return PurchaseOrderPermissions.AllWithDescriptions.Select(p => new PermissionRegistration
@@ -35,9 +32,7 @@ public class PurchaseOrderIAMRegistrationService : IAMRegistrationService
         });
     }
 
-    /// <summary>
-    /// Gets the list of predefined roles to register with IAM.
-    /// </summary>
+    /// <inheritdoc/>
     protected override IEnumerable<RoleRegistration> GetPredefinedRoles()
     {
         return PurchaseOrderPredefinedRoles.All.Select(r => new RoleRegistration

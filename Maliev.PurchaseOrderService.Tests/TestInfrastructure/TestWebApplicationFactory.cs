@@ -1,4 +1,6 @@
-using Maliev.PurchaseOrderService.Data;
+using Maliev.PurchaseOrderService.Infrastructure.Persistence;
+using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.PurchaseOrderService.Infrastructure;
 using Maliev.PurchaseOrderService.Tests.Testing;
 using WireMock.Server;
 

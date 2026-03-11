@@ -1,6 +1,8 @@
-using Maliev.PurchaseOrderService.Api.Services;
-using Maliev.PurchaseOrderService.Api.DTOs;
-using Maliev.PurchaseOrderService.Common.Enumerations;
+using Maliev.PurchaseOrderService.Domain.Constants;
+using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Application.DTOs;
+using Maliev.PurchaseOrderService.Domain.Enumerations;
 using System.Net;
 using System.Net.Http.Json;
 using Xunit;
@@ -50,7 +52,7 @@ public class PurchaseOrdersControllerPermissionTests : IntegrationTestBase
             OrderID = 1,
             CurrencyID = 1,
             OrderType = OrderType.Internal,
-            Items = new List<PartialOrderItem>
+            Items = new List<PartialOrderItemRequest>
             {
                 new() { ExternalOrderItemId = 1, Quantity = 1 }
             }
@@ -174,7 +176,7 @@ public class PurchaseOrdersControllerPermissionTests : IntegrationTestBase
         var client = CreateAuthenticatedClient(permissions: new[] { PurchaseOrderPermissions.Orders.Cancel });
 
         // Act
-        var response = await client.PostAsJsonAsync($"/purchase-order/v1/purchase-orders/{po!.Id}/cancel", new CancelPurchaseOrderRequest { Reason = "Test cancellation" });
+        var response = await client.PostAsJsonAsync($"/purchase-order/v1/purchase-orders/{po!.Id}/cancel", new CancelPurchaseOrderRequest("Test cancellation"));
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);

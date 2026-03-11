@@ -1,3 +1,5 @@
+using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.PurchaseOrderService.Application.Interfaces;
 using Maliev.PurchaseOrderService.Api.Services;
 using Xunit;
 
