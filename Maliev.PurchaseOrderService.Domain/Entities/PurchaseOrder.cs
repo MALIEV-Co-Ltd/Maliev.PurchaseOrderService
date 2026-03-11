@@ -31,7 +31,6 @@ public class PurchaseOrder
     public string? ApprovedBy { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public string? Notes { get; set; }
-    public uint RowVersion { get; set; }
     public bool IsDeleted { get; set; }
     public string? DeletedBy { get; set; }
     public DateTime? DeletedAt { get; set; }

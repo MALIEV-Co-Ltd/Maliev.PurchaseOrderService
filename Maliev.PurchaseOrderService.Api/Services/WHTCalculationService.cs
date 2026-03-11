@@ -1,3 +1,5 @@
+using Maliev.PurchaseOrderService.Application.Interfaces;
+
 namespace Maliev.PurchaseOrderService.Api.Services;
 
 /// <summary>

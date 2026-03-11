@@ -1,4 +1,5 @@
-using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.PurchaseOrderService.Application.Interfaces;
+
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;
 
 /// <summary>

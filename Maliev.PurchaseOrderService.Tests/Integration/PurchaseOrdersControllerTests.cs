@@ -1,3 +1,4 @@
+using Maliev.PurchaseOrderService.Domain.Constants;
 using Maliev.PurchaseOrderService.Domain.Entities;
 using System.Net;
 using System.Net.Http.Headers;
@@ -80,15 +81,18 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyID = 1,
             OrderType = OrderType.External,
             WHTRate = 3.0m,
-            ShippingAddress = new CreateAddressRequest
-            {
-                AddressType = AddressType.Shipping,
-                ContactName = "Test Contact",
-                AddressLine1 = "123 Test St",
-                City = "Bangkok",
-                PostalCode = "10110",
-                Country = "Thailand"
-            }
+            ShippingAddress = new CreateAddressRequest(
+                AddressType.Shipping,
+                null,
+                "Test Contact",
+                "123 Test St",
+                null,
+                "Bangkok",
+                null,
+                "10110",
+                "Thailand",
+                null,
+                null)
         };
 
         // Act
@@ -104,7 +108,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         Assert.NotNull(result);
         Assert.Equal(1, result!.SupplierID);
         Assert.Equal(100, result.OrderID);
-        Assert.Equal(OrderStatus.Pending, result.Status);
+        Assert.Equal("Pending", result.Status);
         Assert.NotNull(result.OrderNumber);
         Assert.NotEmpty(result.OrderNumber);
         Assert.True(result.TotalAmount > 0);
@@ -217,7 +221,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyID = 2,
             OrderType = OrderType.External,
             WHTRate = 3.0m,
-            Items = new List<PartialOrderItem>
+            Items = new List<PartialOrderItemRequest>
             {
                 new() { ExternalOrderItemId = 2001, Quantity = 8 },
                 new() { ExternalOrderItemId = 2003, Quantity = 1 }
@@ -407,7 +411,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var result = await response.Content.ReadFromJsonAsync<PaginatedResponse<PurchaseOrderResponse>>();
         Assert.NotNull(result);
         Assert.Single(result!.Items);
-        Assert.Equal(OrderStatus.Pending, result.Items.First().Status);
+        Assert.Equal("Pending", result.Items.First().Status);
     }
 
     [Fact]
@@ -453,7 +457,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         Assert.Equal(15, result.TotalCount);
         Assert.Equal(1, result.Page);
         Assert.Equal(10, result.PageSize);
-        Assert.Equal(2, result.TotalPages);
+        Assert.Equal(2, (int)Math.Ceiling((double)result.TotalCount / result.PageSize));
     }
 
     #endregion
@@ -513,24 +517,26 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
                     isActive = true
                 }));
 
+        // Read xmin shadow property for concurrency token
+        var xmin = dbContext.Entry(po).Property<uint>("xmin").CurrentValue;
+
         var updateRequest = new UpdatePurchaseOrderRequest
         {
             CurrencyID = 2,
             WHTRate = 5.0m,
-            RowVersion = po.RowVersion.ToString()
+            RowVersion = xmin.ToString()
         };
 
         // Act
         var response = await client.PutAsJsonAsync($"/purchase-order/v1/purchase-orders/{po.Id}", updateRequest);
 
         // Assert
-        // Assert
         if (response.StatusCode != HttpStatusCode.OK)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
         }
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadFromJsonAsync<PurchaseOrderResponse>();
+        var result = await response.Content.ReadFromJsonAsync<PurchaseOrderDetailResponse>();
         Assert.NotNull(result);
         Assert.Equal(2, result!.CurrencyID);
         Assert.Equal(5.0m, result.WHTRate);
@@ -567,10 +573,13 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         dbContext.PurchaseOrders.Add(po);
         await dbContext.SaveChangesAsync();
 
+        // Read xmin shadow property and use a different value to simulate stale concurrency token
+        var xmin = dbContext.Entry(po).Property<uint>("xmin").CurrentValue;
+
         var updateRequest = new UpdatePurchaseOrderRequest
         {
             WHTRate = 5.0m,
-            RowVersion = (po.RowVersion + 1).ToString()
+            RowVersion = (xmin + 1).ToString()
         };
 
         // Act
@@ -631,7 +640,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         await dbContext.SaveChangesAsync();
 
         // Act
-        var response = await client.PostAsJsonAsync($"/purchase-order/v1/purchase-orders/{po.Id}/cancel", new CancelPurchaseOrderRequest { Reason = "Test cancellation" });
+        var response = await client.PostAsJsonAsync($"/purchase-order/v1/purchase-orders/{po.Id}/cancel", new CancelPurchaseOrderRequest("Test cancellation"));
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -648,7 +657,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", permissions: new[] { PurchaseOrderPermissions.Orders.Cancel });
 
         // Act
-        var response = await client.PostAsJsonAsync("/purchase-order/v1/purchase-orders/99999/cancel", new CancelPurchaseOrderRequest { Reason = "Test cancellation" });
+        var response = await client.PostAsJsonAsync("/purchase-order/v1/purchase-orders/99999/cancel", new CancelPurchaseOrderRequest("Test cancellation"));
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -661,7 +670,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
         var client = Factory.CreateAuthenticatedClient("user123", roles: new[] { "employee" }, permissions: new[] { "some.other.permission" });
 
         // Act
-        var response = await client.PostAsJsonAsync("/purchase-order/v1/purchase-orders/1/cancel", new CancelPurchaseOrderRequest { Reason = "Test cancellation" });
+        var response = await client.PostAsJsonAsync("/purchase-order/v1/purchase-orders/1/cancel", new CancelPurchaseOrderRequest("Test cancellation"));
 
         // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);

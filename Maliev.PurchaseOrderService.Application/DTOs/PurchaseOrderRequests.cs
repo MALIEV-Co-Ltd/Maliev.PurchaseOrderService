@@ -12,9 +12,15 @@ public record CreatePurchaseOrderRequest
     public decimal WHTRate { get; init; }
     public DateTime? ExpectedDeliveryDate { get; init; }
     public string? Notes { get; init; }
-    public List<CreateOrderItemRequest> Items { get; init; } = new();
+    public List<PartialOrderItemRequest> Items { get; init; } = new();
     public CreateAddressRequest? ShippingAddress { get; init; }
     public CreateAddressRequest? BillingAddress { get; init; }
+}
+
+public record PartialOrderItemRequest
+{
+    public int ExternalOrderItemId { get; init; }
+    public decimal Quantity { get; init; }
 }
 
 public record CreateOrderItemRequest(
@@ -29,7 +35,7 @@ public record CreateOrderItemRequest(
 
 public record CreateAddressRequest(
     AddressType AddressType,
-    string CompanyName,
+    string? CompanyName,
     string ContactName,
     string AddressLine1,
     string? AddressLine2,
@@ -43,14 +49,20 @@ public record CreateAddressRequest(
 
 public record UpdatePurchaseOrderRequest
 {
-    public string? Notes { get; init; }
+    public int? CurrencyID { get; init; }
+    public string? CustomerPO { get; init; }
+    public List<PartialOrderItemRequest>? Items { get; init; }
     public DateTime? ExpectedDeliveryDate { get; init; }
-    public List<CreateOrderItemRequest>? Items { get; init; }
+    public decimal? WHTRate { get; init; }
+    public string? Notes { get; init; }
+    public UpdateAddressRequest? ShippingAddress { get; init; }
+    public UpdateAddressRequest? BillingAddress { get; init; }
+    public string? RowVersion { get; init; }
 }
 
 public record UpdateAddressRequest(
     AddressType? AddressType,
-    string CompanyName,
+    string? CompanyName,
     string? ContactName,
     string? AddressLine1,
     string? AddressLine2,
@@ -64,11 +76,13 @@ public record UpdateAddressRequest(
 
 public record SearchPurchaseOrdersRequest(
     int? SupplierId,
-    string? Status,
-    int? OrderType,
-    int? OrderID,
+    OrderStatus? Status,
+    OrderType? OrderType,
+    int? OrderId,
     DateTime? FromDate,
     DateTime? ToDate,
+    string? SortBy,
+    string? SortDirection,
     int Page = 1,
     int PageSize = 20
 );

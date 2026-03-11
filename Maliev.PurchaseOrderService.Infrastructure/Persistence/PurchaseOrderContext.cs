@@ -22,6 +22,12 @@ public class PurchaseOrderContext : DbContext, IPurchaseOrderDbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<PurchaseOrder>()
+            .Property<uint>("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

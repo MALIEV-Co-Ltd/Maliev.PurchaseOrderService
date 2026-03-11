@@ -6,7 +6,10 @@ using Maliev.PurchaseOrderService.Application;
 using Maliev.PurchaseOrderService.Application.Interfaces;
 using Maliev.PurchaseOrderService.Infrastructure;
 using Maliev.PurchaseOrderService.Infrastructure.Services;
+using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Microsoft.EntityFrameworkCore;
+using MassTransit;
+using ApiServices = Maliev.PurchaseOrderService.Api.Services;
 
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
@@ -61,6 +64,15 @@ try
 
     // Additional API Services
     builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.IAuditLogService, Maliev.PurchaseOrderService.Api.Services.AuditLogService>();
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.IWHTCalculationService, Maliev.PurchaseOrderService.Api.Services.WHTCalculationService>();
+
+    // External Service Clients
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.ISupplierServiceClient, Maliev.PurchaseOrderService.Api.ExternalServices.SupplierServiceClient>();
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.IOrderServiceClient, Maliev.PurchaseOrderService.Api.ExternalServices.OrderServiceClient>();
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.ICurrencyServiceClient, Maliev.PurchaseOrderService.Api.ExternalServices.CurrencyServiceClient>();
+
+    // MassTransit IPublishEndpoint is auto-registered by MassTransit
 
     // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
     if (!builder.Environment.IsProduction())
@@ -72,6 +84,7 @@ try
 
     // IAM Registration
     builder.AddIAMServiceClient("purchase-order");
+    builder.Services.AddIAMRegistration<ApiServices.PurchaseOrderIAMRegistrationService>("purchase-order");
 
     builder.Services.AddControllers();
     builder.Services.AddMemoryCache();

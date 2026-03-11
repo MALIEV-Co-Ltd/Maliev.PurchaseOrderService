@@ -23,6 +23,7 @@ public record PurchaseOrderDetailResponse : PurchaseOrderResponse
     public string? CustomerPO { get; init; }
     public int CurrencyID { get; init; }
     public string? CurrencySymbol { get; init; }
+    public DateTime? OrderDate { get; init; }
     public decimal SubtotalAmount { get; init; }
     public decimal? WHTRate { get; init; }
     public decimal? WHTAmount { get; init; }
