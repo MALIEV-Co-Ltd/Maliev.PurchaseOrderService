@@ -5,14 +5,16 @@ using Maliev.PurchaseOrderService.Domain.Enumerations;
 using Maliev.PurchaseOrderService.Infrastructure.Persistence;
 using Maliev.PurchaseOrderService.Infrastructure.Services;
 using MassTransit;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace Maliev.PurchaseOrderService.Tests.Unit;
 
-public class PurchaseOrderServiceImplTests
+public class PurchaseOrderServiceImplTests : IDisposable
 {
+    private readonly SqliteConnection _connection;
     private readonly PurchaseOrderContext _context;
     private readonly PurchaseOrderServiceImpl _service;
     private readonly Mock<ILogger<PurchaseOrderServiceImpl>> _loggerMock;
@@ -25,11 +27,15 @@ public class PurchaseOrderServiceImplTests
 
     public PurchaseOrderServiceImplTests()
     {
+        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection.Open();
+
         var options = new DbContextOptionsBuilder<PurchaseOrderContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseSqlite(_connection)
             .Options;
 
         _context = new PurchaseOrderContext(options);
+        _context.Database.EnsureCreated();
         _loggerMock = new Mock<ILogger<PurchaseOrderServiceImpl>>();
         _supplierClientMock = new Mock<ISupplierServiceClient>();
         _orderClientMock = new Mock<IOrderServiceClient>();
@@ -202,5 +208,13 @@ public class PurchaseOrderServiceImplTests
             CreatedBy = createdBy,
             CreatedAt = DateTime.UtcNow
         };
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        _context.Dispose();
+        _connection.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
