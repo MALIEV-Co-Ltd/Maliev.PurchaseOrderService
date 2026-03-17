@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Maliev.PurchaseOrderService.Application.Interfaces;
 using Maliev.PurchaseOrderService.Domain.Entities;
 using Maliev.PurchaseOrderService.Domain.Constants;
@@ -13,7 +14,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 /// Controller for managing purchase orders
 /// </summary>
 [ApiController]
-[Asp.Versioning.ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("purchase-order/v{version:apiVersion}/purchase-orders")]
 public class PurchaseOrdersController : ControllerBase
 {
