@@ -23,11 +23,23 @@ public class PurchaseOrderContext : DbContext, IPurchaseOrderDbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<PurchaseOrder>()
-            .Property<uint>("xmin")
-            .HasColumnType("xid")
-            .ValueGeneratedOnAddOrUpdate()
-            .IsConcurrencyToken();
+        var purchaseOrderEntity = modelBuilder.Entity<PurchaseOrder>();
+
+        if (this.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+        {
+            purchaseOrderEntity.Property<uint>("xmin")
+                .HasColumnType("INTEGER")
+                .HasDefaultValue(0)
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
+        }
+        else
+        {
+            purchaseOrderEntity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
+        }
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
