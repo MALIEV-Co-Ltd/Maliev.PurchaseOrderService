@@ -4,32 +4,52 @@ This document provides instructions and context for AI agents working on the `Ma
 
 ## 1. Project Overview
 *   **Framework:** .NET 10.0 (ASP.NET Core Web API)
-*   **Architecture:** Layered (Api, Data, Common, Tests) with some Clean Architecture principles.
+*   **Architecture:** Clean Architecture (Api → Application → Domain → Infrastructure)
 *   **Database:** PostgreSQL (EF Core)
 *   **Messaging:** MassTransit (RabbitMQ)
 *   **Caching:** Redis
 *   **Observability:** OpenTelemetry (Aspire Service Defaults)
 
+### Workspace Structure
+```
+Maliev.PurchaseOrderService/
+├── Maliev.PurchaseOrderService.Api/           # Controllers, Consumers, Middleware
+├── Maliev.PurchaseOrderService.Application/   # Use cases, DTOs, Interfaces, Handlers
+├── Maliev.PurchaseOrderService.Domain/        # Entities, value objects, domain interfaces
+├── Maliev.PurchaseOrderService.Infrastructure/ # EF Core DbContext, repositories, HTTP clients
+├── Maliev.PurchaseOrderService.Tests/         # Unit + Integration tests (xUnit)
+├── Directory.Build.props                      # Central package versioning
+└── Maliev.PurchaseOrderService.slnx           # Solution file (.slnx preferred over .sln)
+```
+
 ## 2. Build, Lint & Test
 Always ensure the codebase is buildable and tests pass before finishing a task.
 
 ### Commands
-*   **Build:** `dotnet build`
-*   **Format/Lint:** `dotnet format` (Runs automatically via pre-commit)
-*   **Run Tests:** `dotnet test`
-*   **Run Single Test:**
-    ```bash
-    dotnet test --filter "FullyQualifiedName~Namespace.ClassName.MethodName"
-    # Example:
-    # dotnet test --filter "FullyQualifiedName~Maliev.PurchaseOrderService.Tests.Integration.PurchaseOrdersControllerTests.CreatePurchaseOrder_WithValidRequest_ReturnsCreatedOrder"
-    ```
+All commands run from within this service directory (`B:\maliev\Maliev.PurchaseOrderService`).
 
-### Testing Strategy
-*   **Unit Tests (`Tests/Unit`):** Use xUnit and Moq. Test services and logic in isolation.
-*   **Integration Tests (`Tests/Integration`):** Use `WebApplicationFactory`, `Testcontainers` (Postgres, Redis, RabbitMQ), and `WireMock.Net` for external HTTP dependencies.
-*   **Conventions:**
-    *   Naming: `MethodName_StateUnderTest_ExpectedBehavior` (e.g., `CreatePurchaseOrder_WithValidRequest_ReturnsCreatedOrder`).
-    *   Arrange/Act/Assert comments are encouraged in complex tests.
+```powershell
+# Build (treats warnings as errors — all must be fixed)
+dotnet build Maliev.PurchaseOrderService.slnx
+
+# Run all tests
+dotnet test Maliev.PurchaseOrderService.slnx --verbosity normal
+
+# Run a single test method
+dotnet test --filter "FullyQualifiedName~PurchaseOrdersControllerTests.CreatePurchaseOrder_WithValidRequest_ReturnsCreatedOrder"
+
+# Run all tests in a class
+dotnet test --filter "FullyQualifiedName~PurchaseOrdersControllerTests"
+
+# Run with code coverage
+dotnet test Maliev.PurchaseOrderService.slnx --collect:"XPlat Code Coverage"
+
+# Format check
+dotnet format Maliev.PurchaseOrderService.slnx
+
+# EF Core migrations (Infrastructure project only)
+dotnet ef migrations add <Name> --project Maliev.PurchaseOrderService.Infrastructure --startup-project Maliev.PurchaseOrderService.Infrastructure
+```
 
 ### Testing Strategy (4-Tier Pyramid Context)
 
@@ -42,51 +62,49 @@ This service's tests cover **Tier 1 (Unit)** and **Tier 2 (Service Integration)*
 
 **Tier 3 (System Integration)** — cross-service workflows and event chains — is tested in `Maliev.Aspire.Tests/`.
 
-#### Key Rules
-- Use `BaseIntegrationTestFactory<TProgram, TDbContext>` for integration tests (real Testcontainers, never InMemoryDatabase)
-- Test naming: `MethodName_StateUnderTest_ExpectedBehavior`
-- Minimum 80% code coverage
-- Use `[Fact]` for single cases, `[Theory]` for parameterized tests
+### Testing Rules
+- **Framework**: xUnit with standard `Assert` (`Assert.Equal`, `Assert.NotNull`, etc.)
+- **Naming**: `MethodName_StateUnderTest_ExpectedBehavior` or `HTTP_METHOD_Path_Scenario_ExpectedStatus`
+- **Coverage**: Minimum 80% per service
+- **Integration tests**: `BaseIntegrationTestFactory<TProgram, TDbContext>` with Testcontainers (PostgreSQL, Redis, RabbitMQ). Never InMemoryDatabase
+- **System tests** (Tier 3): `AspireTestFixture` with `[Collection("AspireDomainTests")]` — shared AppHost, never one per class
+- **Eventual consistency**: Use `TestHelpers.WaitForAsync`. Never `Task.Delay`
+- **MassTransit consumers**: Must have consumer tests using `AddMassTransitTestHarness()`
 
 > Full ecosystem test strategy: `Maliev.Aspire.Tests/TEST_PLAN.md`
 
 ## 3. Code Style & Conventions
 
-### General
-*   **Namespaces:** Use file-scoped namespaces (e.g., `namespace Maliev.PurchaseOrderService.Api.Services;`).
-*   **Nullable Types:** Enabled (`<Nullable>enable</Nullable>`). Use `?` for optional types and handle nulls defensively.
-*   **Async/Await:** Use `async Task` for I/O bound operations. Avoid `Result` or `Wait()`.
-*   **Dependency Injection:** Use constructor injection. Interface-based programming is preferred for services.
+### C# Naming & Formatting
+- **Namespaces**: File-scoped (`namespace Maliev.PurchaseOrderService.Api.Services;`)
+- **Classes/Methods/Properties**: `PascalCase`
+- **Private fields**: `_camelCase` (underscore prefix)
+- **Parameters/locals**: `camelCase`
+- **Async methods**: Suffix with `Async` (e.g., `CreatePurchaseOrderAsync`)
+- **Interfaces**: Prefix with `I` (e.g., `IPurchaseOrderService`)
+- **Permissions**: GCP-style `{domain}.{plural-resource}.{action}` as `public const string` in a `Permissions` static class
+  - Valid: `purchaseorder.purchase-orders.create`, `purchaseorder.purchase-orders.update`
+  - Invalid: `purchaseorder.purchase-order.create` (singular), `purchaseorder.create` (missing resource)
+- **XML docs**: Required on ALL public methods and properties
+- **Nullable**: Enabled (`<Nullable>enable</Nullable>`). Use `?` explicitly
+- **Imports**: System first, then third-party, then local. Alphabetize within groups. Remove unused `using`
+- **Braces**: Allman style (new line) for methods and control structures. Expression-bodied for properties/accessors
+- **Indentation**: 4 spaces, LF line endings, UTF-8, trim trailing whitespace
 
-### API Controllers
-*   **Routing:** `[Route("purchase-order/v{version:apiVersion}/[controller]")]`
-*   **Versioning:** Use `[Asp.Versioning.ApiVersion("1.0")]`.
-*   **Attributes:** Explicitly define `[ProducesResponseType]` for all return paths.
-*   **Authorization:** Use `[Authorize]` and `[RequirePermission(...)]` for granular access control.
-*   **Error Handling:** Catch exceptions and return appropriate HTTP status codes (e.g., `NotFound`, `BadRequest`, `Conflict`). Log exceptions using `ILogger`.
+### C# Patterns
+- **DI**: Constructor injection with `private readonly` fields
+- **Controllers**: `[ApiController]`, `[ApiVersion("1")]`, `[Route("purchase-order/v{version:apiVersion}")]`
+- **Logging**: `ILogger<T>` with structured placeholders (never interpolate): `_logger.LogInformation("Processing {PurchaseOrderId}", purchaseOrderId)`
+- **Error handling**: Global exception middleware. Return `ProblemDetails` / `ErrorResponse` DTOs. Never expose stack traces
+- **JSON**: Check existing conventions in this service for naming policy
+- **Manual mapping**: Static extension methods (`ToDto()`, `ToEntity()`). AutoMapper is banned
+- **Validation**: `System.ComponentModel.DataAnnotations` on DTOs. FluentValidation is banned
 
 ### Data Access (EF Core)
-*   **Entities:** Located in `Maliev.PurchaseOrderService.Data.Entities`.
-*   **Configuration:** Use Fluent API in `DbContext` or `IEntityTypeConfiguration`.
-*   **Migrations:** Managed via `dotnet ef migrations`.
+*   **Entities:** Located in `Maliev.PurchaseOrderService.Domain.Entities`.
+*   **Configuration:** Use Fluent API in `IEntityTypeConfiguration<T>`.
+*   **Migrations:** Managed via `dotnet ef migrations` (target Infrastructure project only).
 *   **Querying:** Use `AsNoTracking()` for read-only queries to improve performance.
-
-### Naming Conventions
-*   **Classes/Methods:** PascalCase (e.g., `PurchaseOrderService`, `CreatePurchaseOrder`).
-*   **Variables/Parameters:** camelCase (e.g., `purchaseOrderId`, `cancellationToken`).
-*   **Private Fields:** Underscore + camelCase (e.g., `_context`, `_logger`).
-*   **Interfaces:** Prefix with 'I' (e.g., `IPurchaseOrderService`).
-
-### Documentation
-*   **XML Comments:** Required for Controllers (Endpoints) and Public API contracts (DTOs).
-*   **Format:**
-    ```csharp
-    /// <summary>
-    /// Brief description of the method.
-    /// </summary>
-    /// <param name="id">Description of parameter.</param>
-    /// <returns>Description of return value.</returns>
-    ```
 
 ## 4. Dependencies & External Services
 *   **External Calls:** Use typed HTTP Clients (e.g., `SupplierServiceClient`) located in `Api/ExternalServices`.
@@ -101,29 +119,37 @@ This repo uses `pre-commit` to enforce:
 
 If you encounter issues, ensure your code is formatted and builds in Release mode.
 
+## Banned Libraries (Build Will Fail)
 
-## Git & Version Control — Mandatory Rules
+| Banned | Use Instead |
+|--------|-------------|
+| AutoMapper | Manual mapping extensions |
+| FluentValidation | DataAnnotations or manual validation |
+| FluentAssertions | Standard xUnit `Assert.*` |
+| Swashbuckle/Swagger | Scalar (at `/purchase-order/scalar`) |
+| InMemoryDatabase (EF Core) | Testcontainers with real PostgreSQL |
 
-### 🚨 CRITICAL: Always Commit Code Changes (Non-Negotiable)
-- **You MUST commit your changes to the local repository after completing any meaningful unit of work.**
-- **Never accumulate uncommitted changes.** Do not wait until end of session or until something breaks.
-- **Commit early and often** — if a change is meaningful (even a small fix or refactor), commit it.
-- **You do NOT need to push to remote** — local commits are sufficient to protect against accidental loss.
-- **If you are unsure whether to commit, commit anyway.** Extra commits are harmless; lost work is irreversible.
-- This rule applies even if you are just "testing" or "exploring" — use git branches to isolate experimental work and commit those changes too.
+## Mandatory Rules
 
-### 🚨 CRITICAL: Never Use `git checkout` to Restore Broken Files
-- **NEVER use `git checkout` to restore or recover files.** This operation discards uncommitted changes permanently and will result in data loss.
-- **To undo/recover from broken files: first commit your current changes, then use `git revert` or `git reset --soft` to safely undo.**
+- **`TreatWarningsAsErrors = true`**: Zero warnings allowed. No suppression
+- **`[RequirePermission("purchaseorder.purchase-orders.action")]`**: On all endpoints, not plain `[Authorize]`
+- **API versioning**: All routes versioned (`v1/`)
+- **Service prefix**: Routes prefixed with service domain (`/purchase-order`)
+- **Scalar docs**: Configured at `/purchase-order/scalar`
+- **Secrets**: Never hardcoded. Use GCP Secret Manager or environment variables
+- **Async/await**: All the way down. Pass `CancellationToken`
+- **EF Core Design package**: Only in Infrastructure project, never in Api
+- **PostgreSQL xmin**: Shadow property only — `entity.Property<uint>("xmin").HasColumnType("xid").IsRowVersion()`. Never add entity property
+- **Temporary files**: Generate in `/temp` folder, clean up afterwards
 
 ## Database & EF Core — Mandatory Rules
 
 ### EF Core Design Package
-- ❌ `Microsoft.EntityFrameworkCore.Design` MUST NOT be in Api projects
-- ✅ It belongs ONLY in the Infrastructure (or Data) project where migrations live
-- Migration commands must target Infrastructure as both project and startup-project (since EF Core Design package is in Infrastructure):
+- `Microsoft.EntityFrameworkCore.Design` MUST NOT be in Api projects
+- It belongs ONLY in the Infrastructure project where migrations live
+- Migration commands must target Infrastructure as both project and startup-project:
   ```
-  dotnet ef migrations add <Name> --project Maliev.<Domain>Service.Infrastructure --startup-project Maliev.<Domain>Service.Infrastructure
+  dotnet ef migrations add <Name> --project Maliev.PurchaseOrderService.Infrastructure --startup-project Maliev.PurchaseOrderService.Infrastructure
   ```
 
 ### PostgreSQL xmin Concurrency — Mandatory Pattern
@@ -131,6 +157,13 @@ Use shadow property ONLY. Never add a Xmin/xmin property to domain entities.
 ```csharp
 entity.Property<uint>("xmin").HasColumnType("xid").IsRowVersion();
 ```
-- ❌ Never use `UseXminAsConcurrencyToken()` (removed in Npgsql EF v7)
-- ❌ Never use entity property `public uint Xmin { get; set; }` or `public uint xmin { get; set; }`
-- ❌ Never use `.Ignore(e => e.Xmin)` — remove the entity property instead
+- Never use `UseXminAsConcurrencyToken()` (removed in Npgsql EF v7)
+- Never use entity property `public uint Xmin { get; set; }` or `public uint xmin { get; set; }`
+- Never use `.Ignore(e => e.Xmin)` — remove the entity property instead
+
+## Git Rules
+
+- This is an independent git repo. All git commands must run from within `B:\maliev\Maliev.PurchaseOrderService`
+- **Commit early and often** after every meaningful unit of work. Do not accumulate changes
+- **Never use `git checkout` to restore files** — commit first, then `git revert` or `git reset --soft`
+- Feature branches merged to `develop` via PR. Do not push without being asked
