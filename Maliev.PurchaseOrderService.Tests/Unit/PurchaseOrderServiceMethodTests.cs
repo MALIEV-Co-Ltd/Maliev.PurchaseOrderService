@@ -2,8 +2,11 @@ using Maliev.PurchaseOrderService.Application.DTOs;
 using Maliev.PurchaseOrderService.Application.Interfaces;
 using Maliev.PurchaseOrderService.Domain.Entities;
 using Maliev.PurchaseOrderService.Domain.Enumerations;
+using Maliev.PurchaseOrderService.Infrastructure.Consumers;
 using Maliev.PurchaseOrderService.Infrastructure.Persistence;
 using Maliev.PurchaseOrderService.Infrastructure.Services;
+using Maliev.MessagingContracts.Contracts.Search;
+using Maliev.MessagingContracts.Contracts.Shared;
 using MassTransit;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -113,6 +116,15 @@ public class PurchaseOrderServiceMethodTests : IDisposable
         Assert.NotNull(result);
         Assert.NotNull(result.OrderNumber);
         Assert.Equal("Test Supplier", result.SupplierName);
+        _publishEndpointMock.Verify(
+            endpoint => endpoint.Publish(
+                It.Is<SearchDocumentUpsertedEvent>(message =>
+                    message.Payload.SourceService == "PurchaseOrderService" &&
+                    message.Payload.ResourceType == "purchase-order" &&
+                    message.Payload.ResourceId == result.Id.ToString() &&
+                    message.Payload.RequiredPermission == "purchase-order.orders.read"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -232,6 +244,46 @@ public class PurchaseOrderServiceMethodTests : IDisposable
     }
 
     #endregion
+
+    [Fact]
+    public async Task SearchReindexRequestedConsumer_WhenRequested_RepublishesPurchaseOrderSearchDocuments()
+    {
+        _context.PurchaseOrders.Add(CreateTestPurchaseOrder(1, "PO-001", "user1"));
+        _context.PurchaseOrders.Add(CreateTestPurchaseOrder(2, "PO-002", "user2"));
+        await _context.SaveChangesAsync();
+
+        var consumer = new SearchReindexRequestedConsumer(
+            _context,
+            _publishEndpointMock.Object,
+            Mock.Of<ILogger<SearchReindexRequestedConsumer>>());
+
+        var command = new SearchReindexRequestedCommand(
+            Guid.NewGuid(),
+            nameof(SearchReindexRequestedCommand),
+            MessageType.Command,
+            "1.0.0",
+            "SearchService",
+            ["PurchaseOrderService"],
+            Guid.NewGuid(),
+            null,
+            DateTimeOffset.UtcNow,
+            false,
+            new SearchReindexRequestedCommandPayload(null, "test", DateTimeOffset.UtcNow));
+
+        var consumeContext = new Mock<ConsumeContext<SearchReindexRequestedCommand>>();
+        consumeContext.SetupGet(context => context.Message).Returns(command);
+        consumeContext.SetupGet(context => context.CancellationToken).Returns(CancellationToken.None);
+
+        await consumer.Consume(consumeContext.Object);
+
+        _publishEndpointMock.Verify(
+            endpoint => endpoint.Publish(
+                It.Is<SearchDocumentUpsertedEvent>(message =>
+                    message.Payload.SourceService == "PurchaseOrderService" &&
+                    message.Payload.ResourceType == "purchase-order"),
+                It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
 
     #region SendToSupplierAsync Tests
 

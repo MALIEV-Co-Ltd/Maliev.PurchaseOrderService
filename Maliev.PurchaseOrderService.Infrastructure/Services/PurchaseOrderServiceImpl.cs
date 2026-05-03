@@ -3,6 +3,7 @@ using Maliev.PurchaseOrderService.Application.Interfaces;
 using Maliev.PurchaseOrderService.Domain.Entities;
 using Maliev.PurchaseOrderService.Domain.Enumerations;
 using Maliev.PurchaseOrderService.Infrastructure.Persistence;
+using Maliev.PurchaseOrderService.Infrastructure.Search;
 using Maliev.MessagingContracts.Contracts.PurchaseOrders;
 using Maliev.MessagingContracts.Contracts.Shared;
 using MassTransit;
@@ -176,6 +177,10 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
                 userId,
                 new DateTimeOffset(purchaseOrder.CreatedAt)
             )), cancellationToken);
+
+        await _publishEndpoint.Publish(
+            PurchaseOrderSearchDocumentMapper.ToUpsertEvent(purchaseOrder, DateTimeOffset.UtcNow),
+            cancellationToken);
 
         _logger.LogInformation("Created purchase order {OrderNumber} with ID {Id}", purchaseOrder.OrderNumber, purchaseOrder.Id);
 
@@ -431,6 +436,10 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
             null,
             cancellationToken);
 
+        await _publishEndpoint.Publish(
+            PurchaseOrderSearchDocumentMapper.ToUpsertEvent(purchaseOrder, DateTimeOffset.UtcNow),
+            cancellationToken);
+
         _logger.LogInformation("Updated purchase order {OrderNumber}", purchaseOrder.OrderNumber);
 
         return MapToDetailResponse(purchaseOrder);
@@ -487,6 +496,10 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
                 userId,
                 new DateTimeOffset(purchaseOrder.ApprovedAt!.Value)
             )), cancellationToken);
+
+        await _publishEndpoint.Publish(
+            PurchaseOrderSearchDocumentMapper.ToUpsertEvent(purchaseOrder, DateTimeOffset.UtcNow),
+            cancellationToken);
 
         _logger.LogInformation("Approved purchase order {OrderNumber}", purchaseOrder.OrderNumber);
 
@@ -548,6 +561,10 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
                 reason
             )), cancellationToken);
 
+        await _publishEndpoint.Publish(
+            PurchaseOrderSearchDocumentMapper.ToUpsertEvent(purchaseOrder, DateTimeOffset.UtcNow),
+            cancellationToken);
+
         _logger.LogInformation("Cancelled purchase order {OrderNumber}, reason: {Reason}", purchaseOrder.OrderNumber, reason);
 
         return MapToDetailResponse(purchaseOrder);
@@ -602,6 +619,10 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
                 new DateTimeOffset(purchaseOrder.LastModifiedAt!.Value),
                 userId
             )), cancellationToken);
+
+        await _publishEndpoint.Publish(
+            PurchaseOrderSearchDocumentMapper.ToUpsertEvent(purchaseOrder, DateTimeOffset.UtcNow),
+            cancellationToken);
 
         _logger.LogInformation("Sent purchase order {OrderNumber} to supplier", purchaseOrder.OrderNumber);
 
@@ -661,6 +682,10 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
                 userId,
                 isPartialReceipt
             )), cancellationToken);
+
+        await _publishEndpoint.Publish(
+            PurchaseOrderSearchDocumentMapper.ToUpsertEvent(purchaseOrder, DateTimeOffset.UtcNow),
+            cancellationToken);
 
         _logger.LogInformation("Received goods for purchase order {OrderNumber}, partial: {IsPartial}", purchaseOrder.OrderNumber, isPartialReceipt);
 

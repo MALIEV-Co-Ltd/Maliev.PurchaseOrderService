@@ -4,6 +4,7 @@ using Maliev.Aspire.ServiceDefaults;
 using Maliev.PurchaseOrderService.Api.Extensions;
 using Maliev.PurchaseOrderService.Application;
 using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Infrastructure.Consumers;
 using Maliev.PurchaseOrderService.Infrastructure;
 using Maliev.PurchaseOrderService.Infrastructure.Services;
 using Maliev.PurchaseOrderService.Api.ExternalServices;
@@ -36,7 +37,10 @@ try
     builder.AddStandardCache("purchase-order:");
 
     // Add MassTransit with RabbitMQ
-    builder.AddMassTransitWithRabbitMq();
+    builder.AddMassTransitWithRabbitMq(x =>
+    {
+        x.AddConsumer<SearchReindexRequestedConsumer>();
+    });
 
     // Add PostgreSQL DbContext
     builder.AddPostgresDbContext<PurchaseOrderContext>(connectionName: "PurchaseOrderDbContext", configureOptions: options =>
