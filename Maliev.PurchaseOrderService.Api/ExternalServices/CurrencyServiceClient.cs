@@ -1,5 +1,6 @@
 using Maliev.PurchaseOrderService.Application.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
+using System.Text.Json;
 
 namespace Maliev.PurchaseOrderService.Api.ExternalServices;
 
@@ -61,6 +62,71 @@ public class CurrencyServiceClient : ICurrencyServiceClient
     }
 
     /// <inheritdoc/>
+    public async Task<CurrencyDto?> GetCurrencyAsync(Guid currencyId, CancellationToken cancellationToken = default)
+    {
+        var cacheKey = $"currency_{currencyId:D}";
+
+        return await _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            _logger.LogInformation("Fetching currency {CurrencyId} from external service", currencyId);
+            entry.AbsoluteExpirationRelativeToNow = _cacheDuration;
+            entry.Size = 1;
+
+            try
+            {
+                var response = await _httpClient.GetAsync($"{currencyId:D}", cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Failed to fetch currency {CurrencyId}: {StatusCode}", currencyId, response.StatusCode);
+                    return null;
+                }
+
+                var currency = await response.Content.ReadFromJsonAsync<CurrencyServiceCurrencyResponse>(cancellationToken);
+                return currency?.ToDto();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching currency {CurrencyId}", currencyId);
+                throw new ExternalServiceException($"Failed to fetch currency {currencyId}", ex);
+            }
+        });
+    }
+
+    /// <inheritdoc/>
+    public async Task<CurrencyDto?> GetCurrencyByCodeAsync(string currencyCode, CancellationToken cancellationToken = default)
+    {
+        var normalizedCode = currencyCode.Trim().ToUpperInvariant();
+        var cacheKey = $"currency_{normalizedCode}";
+
+        return await _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            _logger.LogInformation("Fetching currency {CurrencyCode} from external service", normalizedCode);
+            entry.AbsoluteExpirationRelativeToNow = _cacheDuration;
+            entry.Size = 1;
+
+            try
+            {
+                var response = await _httpClient.GetAsync(Uri.EscapeDataString(normalizedCode), cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Failed to fetch currency {CurrencyCode}: {StatusCode}", normalizedCode, response.StatusCode);
+                    return null;
+                }
+
+                var currency = await response.Content.ReadFromJsonAsync<CurrencyServiceCurrencyResponse>(cancellationToken);
+                return currency?.ToDto();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching currency {CurrencyCode}", normalizedCode);
+                throw new ExternalServiceException($"Failed to fetch currency {normalizedCode}", ex);
+            }
+        });
+    }
+
+    /// <inheritdoc/>
     public async Task<bool> ValidateCurrencyExistsAsync(int currencyId, CancellationToken cancellationToken = default)
     {
         try
@@ -72,6 +138,45 @@ public class CurrencyServiceClient : ICurrencyServiceClient
         {
             _logger.LogError(ex, "Error validating currency {CurrencyId}", currencyId);
             return false;
+        }
+    }
+
+    private sealed record CurrencyServiceCurrencyResponse(
+        JsonElement? Id,
+        Guid? ExternalId,
+        Guid? CurrencyId,
+        string Code,
+        string Symbol,
+        string Name,
+        decimal? ExchangeRate)
+    {
+        public CurrencyDto ToDto()
+        {
+            var (legacyId, externalId) = ParseId(Id);
+            return new CurrencyDto
+            {
+                Id = legacyId,
+                ExternalId = ExternalId ?? CurrencyId ?? externalId,
+                Code = Code,
+                Symbol = Symbol,
+                Name = Name,
+                ExchangeRate = ExchangeRate.GetValueOrDefault(1m)
+            };
+        }
+
+        private static (int LegacyId, Guid? ExternalId) ParseId(JsonElement? id)
+        {
+            if (id is null)
+            {
+                return (0, null);
+            }
+
+            return id.Value.ValueKind switch
+            {
+                JsonValueKind.Number when id.Value.TryGetInt32(out var legacyId) => (legacyId, null),
+                JsonValueKind.String when Guid.TryParse(id.Value.GetString(), out var externalId) => (0, externalId),
+                _ => (0, null)
+            };
         }
     }
 }

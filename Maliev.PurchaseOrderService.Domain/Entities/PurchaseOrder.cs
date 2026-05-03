@@ -9,10 +9,13 @@ public class PurchaseOrder
     public string OrderNumber { get; set; } = string.Empty;
     public string? CustomerPO { get; set; }
     public int SupplierID { get; set; }
+    public Guid? SupplierServiceId { get; set; }
     public string SupplierName { get; set; } = string.Empty;
     public string? SupplierContactInfo { get; set; }
     public int OrderID { get; set; }
+    public string? SourceOrderId { get; set; }
     public int CurrencyID { get; set; }
+    public Guid? CurrencyServiceId { get; set; }
     public string CurrencyCode { get; set; } = string.Empty;
     public string CurrencySymbol { get; set; } = string.Empty;
     public DateTime OrderDate { get; set; }

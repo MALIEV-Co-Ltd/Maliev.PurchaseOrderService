@@ -6,9 +6,13 @@ public record CreatePurchaseOrderRequest
 {
     public OrderType OrderType { get; init; }
     public int SupplierID { get; init; }
+    public Guid? SupplierServiceId { get; init; }
     public int OrderID { get; init; }
+    public string? SourceOrderId { get; init; }
     public string? CustomerPO { get; init; }
     public int CurrencyID { get; init; }
+    public Guid? CurrencyServiceId { get; init; }
+    public string? CurrencyCode { get; init; }
     public decimal WHTRate { get; init; }
     public DateTime? ExpectedDeliveryDate { get; init; }
     public string? Notes { get; init; }
@@ -20,6 +24,7 @@ public record CreatePurchaseOrderRequest
 public record PartialOrderItemRequest
 {
     public int ExternalOrderItemId { get; init; }
+    public string? SourceOrderItemId { get; init; }
     public decimal Quantity { get; init; }
 }
 

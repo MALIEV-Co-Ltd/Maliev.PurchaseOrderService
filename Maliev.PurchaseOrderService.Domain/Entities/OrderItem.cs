@@ -6,6 +6,7 @@ public class OrderItem
     public int Id { get; set; }
     public int PurchaseOrderId { get; set; }
     public int ExternalOrderItemId { get; set; }
+    public string? SourceOrderItemId { get; set; }
     public string? ProductCode { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public decimal Quantity { get; set; }

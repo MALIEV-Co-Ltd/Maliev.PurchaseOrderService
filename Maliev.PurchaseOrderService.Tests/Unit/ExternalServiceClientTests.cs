@@ -70,6 +70,47 @@ public class SupplierServiceClientTests
     }
 
     [Fact]
+    public async Task GetSupplierAsync_WithServiceGuid_RequestsSupplierServiceRouteAndMapsSupplier()
+    {
+        var supplierId = Guid.Parse("8f851a28-5947-4cd4-9ef9-0d2698fd36f8");
+        Uri? requestedUri = null;
+        var handlerMock = new Mock<HttpMessageHandler>();
+        var httpClient = new HttpClient(handlerMock.Object)
+        {
+            BaseAddress = new Uri("http://test/supplier/v1/suppliers/")
+        };
+
+        handlerMock.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((request, _) => requestedUri = request.RequestUri)
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = JsonContent.Create(new
+                {
+                    id = supplierId,
+                    companyName = "Acme Materials",
+                    address = "1 Industrial Road",
+                    city = "Bangkok",
+                    country = "TH"
+                })
+            });
+
+        _httpClientFactoryMock
+            .Setup(x => x.CreateClient("SupplierService"))
+            .Returns(httpClient);
+
+        var client = new SupplierServiceClient(_httpClientFactoryMock.Object, _loggerMock.Object);
+
+        var result = await client.GetSupplierAsync(supplierId);
+
+        Assert.NotNull(result);
+        Assert.Equal(supplierId, result.ExternalId);
+        Assert.Equal("Acme Materials", result.Name);
+        Assert.Equal(new Uri($"http://test/supplier/v1/suppliers/{supplierId:D}"), requestedUri);
+    }
+
+    [Fact]
     public async Task GetSupplierAsync_WithNotFound_ReturnsNull()
     {
         var handlerMock = new Mock<HttpMessageHandler>();
@@ -218,6 +259,53 @@ public class OrderServiceClientTests
 
         Assert.NotNull(result);
         Assert.Equal("ORD-001", result.OrderNumber);
+    }
+
+    [Fact]
+    public async Task GetOrderAsync_WithSourceOrderId_RequestsOrderServiceRouteAndDerivesLineItem()
+    {
+        const string orderId = "ORD-2026-0001";
+        Uri? requestedUri = null;
+        var handlerMock = new Mock<HttpMessageHandler>();
+        var httpClient = new HttpClient(handlerMock.Object)
+        {
+            BaseAddress = new Uri("http://test/order/v1/orders/")
+        };
+
+        handlerMock.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((request, _) => requestedUri = request.RequestUri)
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = JsonContent.Create(new
+                {
+                    orderId,
+                    serviceCategoryName = "CNC machining",
+                    processTypeName = "Milling",
+                    currentStatus = "Approved",
+                    orderedQuantity = 4,
+                    quotedAmount = 1200m,
+                    quoteCurrency = "THB",
+                    createdAt = DateTime.UtcNow
+                })
+            });
+
+        _httpClientFactoryMock
+            .Setup(x => x.CreateClient("OrderService"))
+            .Returns(httpClient);
+
+        var client = new OrderServiceClient(_httpClientFactoryMock.Object, _loggerMock.Object);
+
+        var result = await client.GetOrderAsync(orderId);
+
+        Assert.NotNull(result);
+        Assert.Equal(orderId, result.SourceOrderId);
+        Assert.Equal("ORD-2026-0001", result.OrderNumber);
+        Assert.Single(result.Items);
+        Assert.Equal("primary", result.Items[0].SourceItemId);
+        Assert.Equal(300m, result.Items[0].UnitPrice);
+        Assert.Equal(new Uri($"http://test/order/v1/orders/{orderId}"), requestedUri);
     }
 
     [Fact]
@@ -407,6 +495,47 @@ public class CurrencyServiceClientTests
         Assert.NotNull(result);
         Assert.Equal("THB", result.Code);
         Assert.Equal("฿", result.Symbol);
+    }
+
+    [Fact]
+    public async Task GetCurrencyByCodeAsync_RequestsCurrencyCodeRouteAndMapsCurrency()
+    {
+        var currencyId = Guid.Parse("447b1f1f-7287-44b7-a746-2a0d69a5d706");
+        Uri? requestedUri = null;
+        var handlerMock = new Mock<HttpMessageHandler>();
+        var httpClient = new HttpClient(handlerMock.Object)
+        {
+            BaseAddress = new Uri("http://test/currency/v1/currencies/")
+        };
+
+        handlerMock.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((request, _) => requestedUri = request.RequestUri)
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = JsonContent.Create(new
+                {
+                    id = currencyId,
+                    code = "THB",
+                    symbol = "฿",
+                    name = "Thai Baht",
+                    exchangeRate = 1m
+                })
+            });
+
+        _httpClientFactoryMock
+            .Setup(x => x.CreateClient("CurrencyService"))
+            .Returns(httpClient);
+
+        var client = new CurrencyServiceClient(_httpClientFactoryMock.Object, _cache, _loggerMock.Object);
+
+        var result = await client.GetCurrencyByCodeAsync("thb");
+
+        Assert.NotNull(result);
+        Assert.Equal(currencyId, result.ExternalId);
+        Assert.Equal("THB", result.Code);
+        Assert.Equal(new Uri("http://test/currency/v1/currencies/THB"), requestedUri);
     }
 
     [Fact]

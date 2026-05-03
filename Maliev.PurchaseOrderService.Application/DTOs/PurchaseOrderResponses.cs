@@ -9,8 +9,10 @@ public record PurchaseOrderResponse
     public string OrderType { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
     public int SupplierID { get; init; }
+    public Guid? SupplierServiceId { get; init; }
     public string SupplierName { get; init; } = string.Empty;
     public int OrderID { get; init; }
+    public string? SourceOrderId { get; init; }
     public string CurrencyCode { get; init; } = "THB";
     public decimal TotalAmount { get; init; }
     public DateTime? ExpectedDeliveryDate { get; init; }
@@ -22,6 +24,7 @@ public record PurchaseOrderDetailResponse : PurchaseOrderResponse
     public string? SupplierContactInfo { get; init; }
     public string? CustomerPO { get; init; }
     public int CurrencyID { get; init; }
+    public Guid? CurrencyServiceId { get; init; }
     public string? CurrencySymbol { get; init; }
     public DateTime? OrderDate { get; init; }
     public decimal SubtotalAmount { get; init; }
@@ -44,6 +47,7 @@ public record OrderItemResponse
 {
     public int Id { get; init; }
     public int ExternalOrderItemId { get; init; }
+    public string? SourceOrderItemId { get; init; }
     public string ProductCode { get; init; } = string.Empty;
     public string ProductName { get; init; } = string.Empty;
     public decimal Quantity { get; init; }

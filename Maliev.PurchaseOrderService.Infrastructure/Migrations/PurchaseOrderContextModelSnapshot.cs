@@ -182,6 +182,9 @@ namespace Maliev.PurchaseOrderService.Infrastructure.Migrations
                     b.Property<decimal>("Quantity")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("SourceOrderItemId")
+                        .HasColumnType("text");
+
                     b.Property<decimal>("TotalPrice")
                         .HasColumnType("numeric");
 
@@ -230,6 +233,9 @@ namespace Maliev.PurchaseOrderService.Infrastructure.Migrations
                     b.Property<int>("CurrencyID")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("CurrencyServiceId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("CurrencySymbol")
                         .IsRequired()
                         .HasColumnType("text");
@@ -277,6 +283,9 @@ namespace Maliev.PurchaseOrderService.Infrastructure.Migrations
                     b.Property<int?>("ShippingAddressId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SourceOrderId")
+                        .HasColumnType("text");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -288,6 +297,9 @@ namespace Maliev.PurchaseOrderService.Infrastructure.Migrations
 
                     b.Property<int>("SupplierID")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("SupplierServiceId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("SupplierName")
                         .IsRequired()

@@ -44,6 +44,29 @@ public class SupplierServiceClient : ISupplierServiceClient
     }
 
     /// <inheritdoc/>
+    public async Task<SupplierDto?> GetSupplierAsync(Guid supplierId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{supplierId:D}", cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to fetch supplier {SupplierId}: {StatusCode}", supplierId, response.StatusCode);
+                return null;
+            }
+
+            var supplier = await response.Content.ReadFromJsonAsync<SupplierServiceSupplierResponse>(cancellationToken);
+            return supplier?.ToDto();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching supplier {SupplierId}", supplierId);
+            throw new ExternalServiceException($"Failed to fetch supplier {supplierId}", ex);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task<bool> ValidateSupplierExistsAsync(int supplierId, CancellationToken cancellationToken = default)
     {
         try
@@ -57,6 +80,30 @@ public class SupplierServiceClient : ISupplierServiceClient
             return false;
         }
     }
+
+    private sealed record SupplierServiceSupplierResponse(
+        Guid Id,
+        string CompanyName,
+        string? Address,
+        string? City,
+        string? Country,
+        IReadOnlyList<SupplierServiceContactResponse>? Contacts)
+    {
+        public SupplierDto ToDto()
+        {
+            var primaryContact = Contacts?.FirstOrDefault();
+            return new SupplierDto
+            {
+                ExternalId = Id,
+                Name = CompanyName,
+                ContactInfo = primaryContact?.Name ?? string.Join(", ", new[] { Address, City, Country }.Where(value => !string.IsNullOrWhiteSpace(value))),
+                Email = primaryContact?.Email ?? string.Empty,
+                Phone = primaryContact?.PhoneNumber ?? string.Empty
+            };
+        }
+    }
+
+    private sealed record SupplierServiceContactResponse(string Name, string? Email, string? PhoneNumber);
 }
 
 /// <summary>

@@ -9,6 +9,7 @@ using Maliev.MessagingContracts.Contracts.Shared;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using System.Text.Json;
 
 namespace Maliev.PurchaseOrderService.Infrastructure.Services;
@@ -46,58 +47,34 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
 
     public async Task<PurchaseOrderDetailResponse> CreateAsync(CreatePurchaseOrderRequest request, string userId, string userRole, CancellationToken cancellationToken = default)
     {
-        var supplier = await _supplierClient.GetSupplierAsync(request.SupplierID, cancellationToken)
-            ?? throw new InvalidOperationException($"Supplier with ID {request.SupplierID} not found");
-
-        var order = await _orderClient.GetOrderAsync(request.OrderID, cancellationToken)
-            ?? throw new InvalidOperationException($"Order with ID {request.OrderID} not found");
-
-        var currency = await _currencyClient.GetCurrencyAsync(request.CurrencyID, cancellationToken)
-            ?? throw new InvalidOperationException($"Currency with ID {request.CurrencyID} not found");
-
-        var orderItems = await _orderClient.GetOrderItemsAsync(request.OrderID, cancellationToken);
+        var supplier = await ResolveSupplierAsync(request, cancellationToken);
+        var order = await ResolveOrderAsync(request, cancellationToken);
+        var currency = await ResolveCurrencyAsync(request, cancellationToken);
+        var orderItems = await ResolveOrderItemsAsync(request, cancellationToken);
 
         List<OrderItem> itemsToAdd;
         if (request.Items.Count > 0)
         {
-            var itemDict = orderItems.ToDictionary(i => i.Id);
+            var itemDict = orderItems
+                .Where(i => !string.IsNullOrWhiteSpace(GetOrderItemKey(i)))
+                .ToDictionary(GetOrderItemKey, StringComparer.OrdinalIgnoreCase);
+
             itemsToAdd = new List<OrderItem>();
 
             foreach (var partialItem in request.Items)
             {
-                if (!itemDict.TryGetValue(partialItem.ExternalOrderItemId, out var externalItem))
-                    throw new InvalidOperationException($"Order item {partialItem.ExternalOrderItemId} not found");
-
-                itemsToAdd.Add(new OrderItem
+                var requestedItemKey = GetRequestedOrderItemKey(partialItem);
+                if (!itemDict.TryGetValue(requestedItemKey, out var externalItem))
                 {
-                    ExternalOrderItemId = externalItem.Id,
-                    ProductCode = externalItem.ProductCode,
-                    ProductName = externalItem.ProductName,
-                    Quantity = partialItem.Quantity,
-                    UnitOfMeasure = externalItem.UnitOfMeasure,
-                    UnitPrice = externalItem.UnitPrice,
-                    TotalPrice = partialItem.Quantity * externalItem.UnitPrice,
-                    Currency = externalItem.Currency,
-                    CachedAt = DateTime.UtcNow,
-                    ExternallyModified = false
-                });
+                    throw new InvalidOperationException($"Order item {requestedItemKey} not found");
+                }
+
+                itemsToAdd.Add(MapOrderItem(externalItem, partialItem.Quantity));
             }
         }
         else
         {
-            itemsToAdd = orderItems.Select(i => new OrderItem
-            {
-                ExternalOrderItemId = i.Id,
-                ProductCode = i.ProductCode,
-                ProductName = i.ProductName,
-                Quantity = i.Quantity,
-                UnitOfMeasure = i.UnitOfMeasure,
-                UnitPrice = i.UnitPrice,
-                TotalPrice = i.TotalPrice,
-                Currency = i.Currency,
-                CachedAt = DateTime.UtcNow,
-                ExternallyModified = false
-            }).ToList();
+            itemsToAdd = orderItems.Select(i => MapOrderItem(i, i.Quantity)).ToList();
         }
 
         var subtotal = itemsToAdd.Sum(i => i.TotalPrice);
@@ -110,10 +87,13 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
         {
             OrderNumber = orderNumber,
             SupplierID = request.SupplierID,
+            SupplierServiceId = request.SupplierServiceId ?? supplier.ExternalId,
             SupplierName = supplier.Name,
             SupplierContactInfo = supplier.ContactInfo,
             OrderID = request.OrderID,
+            SourceOrderId = string.IsNullOrWhiteSpace(request.SourceOrderId) ? order.SourceOrderId : request.SourceOrderId,
             CurrencyID = request.CurrencyID,
+            CurrencyServiceId = request.CurrencyServiceId ?? currency.ExternalId,
             CurrencyCode = currency.Code,
             CurrencySymbol = currency.Symbol,
             OrderType = request.OrderType,
@@ -341,28 +321,24 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
         {
             _context.OrderItems.RemoveRange(purchaseOrder.Items);
 
-            var orderItems = await _orderClient.GetOrderItemsAsync(purchaseOrder.OrderID, cancellationToken);
-            var itemDict = orderItems.ToDictionary(i => i.Id);
+            var orderItems = !string.IsNullOrWhiteSpace(purchaseOrder.SourceOrderId)
+                ? await _orderClient.GetOrderItemsAsync(purchaseOrder.SourceOrderId, cancellationToken)
+                : await _orderClient.GetOrderItemsAsync(purchaseOrder.OrderID, cancellationToken);
+            var itemDict = orderItems
+                .Where(i => !string.IsNullOrWhiteSpace(GetOrderItemKey(i)))
+                .ToDictionary(GetOrderItemKey, StringComparer.OrdinalIgnoreCase);
 
             foreach (var partialItem in request.Items)
             {
-                if (!itemDict.TryGetValue(partialItem.ExternalOrderItemId, out var externalItem))
-                    throw new InvalidOperationException($"Order item {partialItem.ExternalOrderItemId} not found");
-
-                purchaseOrder.Items.Add(new OrderItem
+                var requestedItemKey = GetRequestedOrderItemKey(partialItem);
+                if (!itemDict.TryGetValue(requestedItemKey, out var externalItem))
                 {
-                    PurchaseOrderId = purchaseOrder.Id,
-                    ExternalOrderItemId = externalItem.Id,
-                    ProductCode = externalItem.ProductCode,
-                    ProductName = externalItem.ProductName,
-                    Quantity = partialItem.Quantity,
-                    UnitOfMeasure = externalItem.UnitOfMeasure,
-                    UnitPrice = externalItem.UnitPrice,
-                    TotalPrice = partialItem.Quantity * externalItem.UnitPrice,
-                    Currency = externalItem.Currency,
-                    CachedAt = DateTime.UtcNow,
-                    ExternallyModified = false
-                });
+                    throw new InvalidOperationException($"Order item {requestedItemKey} not found");
+                }
+
+                var orderItem = MapOrderItem(externalItem, partialItem.Quantity);
+                orderItem.PurchaseOrderId = purchaseOrder.Id;
+                purchaseOrder.Items.Add(orderItem);
             }
 
             var subtotal = purchaseOrder.Items.Sum(i => i.TotalPrice);
@@ -692,6 +668,117 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
         return MapToDetailResponse(purchaseOrder);
     }
 
+    private async Task<SupplierDto> ResolveSupplierAsync(CreatePurchaseOrderRequest request, CancellationToken cancellationToken)
+    {
+        SupplierDto? supplier;
+
+        if (request.SupplierServiceId.HasValue)
+        {
+            supplier = await _supplierClient.GetSupplierAsync(request.SupplierServiceId.Value, cancellationToken);
+            return supplier ?? throw new InvalidOperationException($"Supplier {request.SupplierServiceId.Value} not found");
+        }
+
+        if (request.SupplierID > 0)
+        {
+            supplier = await _supplierClient.GetSupplierAsync(request.SupplierID, cancellationToken);
+            return supplier ?? throw new InvalidOperationException($"Supplier with ID {request.SupplierID} not found");
+        }
+
+        throw new InvalidOperationException("Select a supplier");
+    }
+
+    private async Task<OrderDto> ResolveOrderAsync(CreatePurchaseOrderRequest request, CancellationToken cancellationToken)
+    {
+        OrderDto? order;
+
+        if (!string.IsNullOrWhiteSpace(request.SourceOrderId))
+        {
+            order = await _orderClient.GetOrderAsync(request.SourceOrderId.Trim(), cancellationToken);
+            return order ?? throw new InvalidOperationException($"Order {request.SourceOrderId} not found");
+        }
+
+        if (request.OrderID > 0)
+        {
+            order = await _orderClient.GetOrderAsync(request.OrderID, cancellationToken);
+            return order ?? throw new InvalidOperationException($"Order with ID {request.OrderID} not found");
+        }
+
+        throw new InvalidOperationException("Select a source order");
+    }
+
+    private async Task<CurrencyDto> ResolveCurrencyAsync(CreatePurchaseOrderRequest request, CancellationToken cancellationToken)
+    {
+        CurrencyDto? currency;
+
+        if (!string.IsNullOrWhiteSpace(request.CurrencyCode))
+        {
+            var currencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
+            currency = await _currencyClient.GetCurrencyByCodeAsync(currencyCode, cancellationToken);
+            return currency ?? throw new InvalidOperationException($"Currency {currencyCode} not found");
+        }
+
+        if (request.CurrencyServiceId.HasValue)
+        {
+            currency = await _currencyClient.GetCurrencyAsync(request.CurrencyServiceId.Value, cancellationToken);
+            return currency ?? throw new InvalidOperationException($"Currency {request.CurrencyServiceId.Value} not found");
+        }
+
+        if (request.CurrencyID > 0)
+        {
+            currency = await _currencyClient.GetCurrencyAsync(request.CurrencyID, cancellationToken);
+            return currency ?? throw new InvalidOperationException($"Currency with ID {request.CurrencyID} not found");
+        }
+
+        throw new InvalidOperationException("Select a currency");
+    }
+
+    private Task<List<OrderItemDto>> ResolveOrderItemsAsync(CreatePurchaseOrderRequest request, CancellationToken cancellationToken)
+    {
+        return !string.IsNullOrWhiteSpace(request.SourceOrderId)
+            ? _orderClient.GetOrderItemsAsync(request.SourceOrderId.Trim(), cancellationToken)
+            : _orderClient.GetOrderItemsAsync(request.OrderID, cancellationToken);
+    }
+
+    private static string GetRequestedOrderItemKey(PartialOrderItemRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.SourceOrderItemId))
+        {
+            return request.SourceOrderItemId.Trim();
+        }
+
+        if (request.ExternalOrderItemId > 0)
+        {
+            return request.ExternalOrderItemId.ToString(CultureInfo.InvariantCulture);
+        }
+
+        throw new InvalidOperationException("Select an order item");
+    }
+
+    private static string GetOrderItemKey(OrderItemDto orderItem)
+    {
+        return !string.IsNullOrWhiteSpace(orderItem.SourceItemId)
+            ? orderItem.SourceItemId.Trim()
+            : orderItem.Id.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static OrderItem MapOrderItem(OrderItemDto externalItem, decimal quantity)
+    {
+        return new OrderItem
+        {
+            ExternalOrderItemId = externalItem.Id,
+            SourceOrderItemId = externalItem.SourceItemId,
+            ProductCode = externalItem.ProductCode,
+            ProductName = externalItem.ProductName,
+            Quantity = quantity,
+            UnitOfMeasure = externalItem.UnitOfMeasure,
+            UnitPrice = externalItem.UnitPrice,
+            TotalPrice = quantity * externalItem.UnitPrice,
+            Currency = externalItem.Currency,
+            CachedAt = DateTime.UtcNow,
+            ExternallyModified = false
+        };
+    }
+
     private PurchaseOrderDetailResponse MapToDetailResponse(PurchaseOrder purchaseOrder)
     {
         return new PurchaseOrderDetailResponse
@@ -701,11 +788,14 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
             OrderType = purchaseOrder.OrderType.ToString(),
             Status = purchaseOrder.Status.ToString(),
             SupplierID = purchaseOrder.SupplierID,
+            SupplierServiceId = purchaseOrder.SupplierServiceId,
             SupplierName = purchaseOrder.SupplierName ?? string.Empty,
             SupplierContactInfo = purchaseOrder.SupplierContactInfo,
             OrderID = purchaseOrder.OrderID,
+            SourceOrderId = purchaseOrder.SourceOrderId,
             CustomerPO = purchaseOrder.CustomerPO,
             CurrencyID = purchaseOrder.CurrencyID,
+            CurrencyServiceId = purchaseOrder.CurrencyServiceId,
             CurrencyCode = purchaseOrder.CurrencyCode ?? string.Empty,
             CurrencySymbol = purchaseOrder.CurrencySymbol ?? string.Empty,
             OrderDate = purchaseOrder.OrderDate,
@@ -726,6 +816,7 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
             {
                 Id = i.Id,
                 ExternalOrderItemId = i.ExternalOrderItemId,
+                SourceOrderItemId = i.SourceOrderItemId,
                 ProductCode = i.ProductCode ?? string.Empty,
                 ProductName = i.ProductName,
                 Quantity = i.Quantity,
@@ -792,8 +883,10 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
             OrderType = purchaseOrder.OrderType.ToString(),
             Status = purchaseOrder.Status.ToString(),
             SupplierID = purchaseOrder.SupplierID,
+            SupplierServiceId = purchaseOrder.SupplierServiceId,
             SupplierName = purchaseOrder.SupplierName ?? string.Empty,
             OrderID = purchaseOrder.OrderID,
+            SourceOrderId = purchaseOrder.SourceOrderId,
             CurrencyCode = purchaseOrder.CurrencyCode ?? string.Empty,
             TotalAmount = purchaseOrder.TotalAmount,
             ExpectedDeliveryDate = purchaseOrder.ExpectedDeliveryDate,
