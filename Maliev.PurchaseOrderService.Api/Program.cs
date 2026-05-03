@@ -72,6 +72,33 @@ try
     builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.IWHTCalculationService, Maliev.PurchaseOrderService.Api.Services.WHTCalculationService>();
 
     // External Service Clients
+    builder.Services.AddHttpClient("SupplierService", (sp, client) =>
+    {
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:SupplierService:BaseUrl"] ?? "http://SupplierService";
+        client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/supplier/v1/suppliers/");
+    })
+    .AddServiceDiscovery()
+    .AddHttpMessageHandler<Maliev.Aspire.ServiceDefaults.IAM.ServiceAccountAuthenticationHandler>()
+    .AddStandardResilienceHandler();
+
+    builder.Services.AddHttpClient("OrderService", (sp, client) =>
+    {
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:OrderService:BaseUrl"] ?? "http://OrderService";
+        client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/order/v1/orders/");
+    })
+    .AddServiceDiscovery()
+    .AddHttpMessageHandler<Maliev.Aspire.ServiceDefaults.IAM.ServiceAccountAuthenticationHandler>()
+    .AddStandardResilienceHandler();
+
+    builder.Services.AddHttpClient("CurrencyService", (sp, client) =>
+    {
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:CurrencyService:BaseUrl"] ?? "http://CurrencyService";
+        client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/currency/v1/currencies/");
+    })
+    .AddServiceDiscovery()
+    .AddHttpMessageHandler<Maliev.Aspire.ServiceDefaults.IAM.ServiceAccountAuthenticationHandler>()
+    .AddStandardResilienceHandler();
+
     builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.ISupplierServiceClient, Maliev.PurchaseOrderService.Api.ExternalServices.SupplierServiceClient>();
     builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.IOrderServiceClient, Maliev.PurchaseOrderService.Api.ExternalServices.OrderServiceClient>();
     builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.ICurrencyServiceClient, Maliev.PurchaseOrderService.Api.ExternalServices.CurrencyServiceClient>();
