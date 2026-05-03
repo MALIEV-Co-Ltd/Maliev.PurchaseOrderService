@@ -65,6 +65,16 @@ public record UpdatePurchaseOrderRequest
     public string? RowVersion { get; init; }
 }
 
+public record RegisterPurchaseOrderFileRequest
+{
+    public string FileName { get; init; } = string.Empty;
+    public string ObjectName { get; init; } = string.Empty;
+    public long FileSize { get; init; }
+    public string ContentType { get; init; } = string.Empty;
+    public DocumentType DocumentType { get; init; } = DocumentType.Reference;
+    public string? Description { get; init; }
+}
+
 public record UpdateAddressRequest(
     AddressType? AddressType,
     string? CompanyName,

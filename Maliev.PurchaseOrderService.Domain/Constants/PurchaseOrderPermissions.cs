@@ -46,6 +46,13 @@ public static class PurchaseOrderPermissions
         public const string Check = "purchase-order.budgets.check";
     }
 
+    /// <summary>Permissions related to purchase order files.</summary>
+    public static class Files
+    {
+        /// <summary>Permission to upload files to purchase orders.</summary>
+        public const string Upload = "purchase-order.files.upload";
+    }
+
     /// <summary>
     /// Collection of all defined purchase order permissions with descriptions.
     /// </summary>
@@ -62,7 +69,8 @@ public static class PurchaseOrderPermissions
         { Orders.Export, "Export purchase orders" },
         { Suppliers.View, "View supplier information" },
         { Suppliers.Select, "Select suppliers for orders" },
-        { Budgets.Check, "Perform budget checks" }
+        { Budgets.Check, "Perform budget checks" },
+        { Files.Upload, "Upload files to purchase orders" }
     };
 
     /// <summary>

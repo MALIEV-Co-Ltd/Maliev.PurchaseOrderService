@@ -356,6 +356,50 @@ public class PurchaseOrdersController : ControllerBase
     }
 
     /// <summary>
+    /// Registers an already-uploaded file against a purchase order.
+    /// </summary>
+    /// <param name="id">The purchase order identifier.</param>
+    /// <param name="request">The uploaded file metadata.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the operation.</param>
+    /// <returns>The registered purchase order file metadata.</returns>
+    [HttpPost("{id}/files")]
+    [RequirePermission(PurchaseOrderPermissions.Files.Upload)]
+    [ProducesResponseType(typeof(PurchaseOrderFileResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PurchaseOrderFileResponse>> RegisterFile(
+        int id,
+        [FromBody] RegisterPurchaseOrderFileRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value
+                ?? "employee";
+
+            var result = await _purchaseOrderService.RegisterFileAsync(id, request, userId, userRole, cancellationToken);
+
+            return CreatedAtAction(
+                nameof(GetPurchaseOrderById),
+                new { id },
+                result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Failed to register file for purchase order {Id}", id);
+
+            if (ex.Message.Contains("not found"))
+            {
+                return NotFound(new { error = ex.Message });
+            }
+
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Exports the purchase order details to a specified format.
     /// </summary>
     /// <remarks>Requires 'purchase-order.orders.export' permission.</remarks>

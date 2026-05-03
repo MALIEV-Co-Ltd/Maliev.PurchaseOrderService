@@ -13,4 +13,5 @@ public interface IPurchaseOrderService
     Task<PurchaseOrderDetailResponse> CancelAsync(int id, string reason, string userId, string userRole, CancellationToken cancellationToken = default);
     Task<PurchaseOrderDetailResponse> SendToSupplierAsync(int id, string userId, string userRole, CancellationToken cancellationToken = default);
     Task<PurchaseOrderDetailResponse> ReceiveGoodsAsync(int id, bool isPartialReceipt, string userId, string userRole, CancellationToken cancellationToken = default);
+    Task<PurchaseOrderFileResponse> RegisterFileAsync(int id, RegisterPurchaseOrderFileRequest request, string userId, string userRole, CancellationToken cancellationToken = default);
 }

@@ -668,6 +668,68 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
         return MapToDetailResponse(purchaseOrder);
     }
 
+    public async Task<PurchaseOrderFileResponse> RegisterFileAsync(int id, RegisterPurchaseOrderFileRequest request, string userId, string userRole, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.FileName))
+        {
+            throw new InvalidOperationException("File name is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ObjectName))
+        {
+            throw new InvalidOperationException("Object name is required");
+        }
+
+        if (request.FileSize <= 0)
+        {
+            throw new InvalidOperationException("File size must be greater than zero");
+        }
+
+        var purchaseOrder = await _context.PurchaseOrders
+            .Include(po => po.Files)
+            .FirstOrDefaultAsync(po => po.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException($"Purchase order with ID {id} not found");
+
+        if (userRole == "employee" && purchaseOrder.CreatedBy != userId)
+        {
+            throw new InvalidOperationException("You can only attach files to your own purchase orders");
+        }
+
+        var file = new PurchaseOrderFile
+        {
+            PurchaseOrderId = id,
+            FileName = request.FileName.Trim(),
+            ObjectName = request.ObjectName.Trim(),
+            FileSize = request.FileSize,
+            ContentType = string.IsNullOrWhiteSpace(request.ContentType) ? "application/octet-stream" : request.ContentType.Trim(),
+            DocumentType = request.DocumentType,
+            Description = request.Description,
+            UploadedBy = userId,
+            UploadedAt = DateTime.UtcNow
+        };
+
+        _context.Files.Add(file);
+        purchaseOrder.LastModifiedBy = userId;
+        purchaseOrder.LastModifiedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        await _auditLogService.LogAuditAsync(
+            "PurchaseOrder",
+            purchaseOrder.Id.ToString(),
+            AuditAction.Update,
+            userId,
+            userRole,
+            null,
+            JsonSerializer.Serialize(new { FileName = file.FileName, file.DocumentType }),
+            null,
+            cancellationToken);
+
+        _logger.LogInformation("Registered file {FileName} for purchase order {OrderNumber}", file.FileName, purchaseOrder.OrderNumber);
+
+        return MapFileToResponse(file);
+    }
+
     private async Task<SupplierDto> ResolveSupplierAsync(CreatePurchaseOrderRequest request, CancellationToken cancellationToken)
     {
         SupplierDto? supplier;
@@ -871,6 +933,23 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
                 UploadedBy = f.UploadedBy,
                 Description = f.Description
             }).ToList() ?? new List<PurchaseOrderFileResponse>()
+        };
+    }
+
+    private static PurchaseOrderFileResponse MapFileToResponse(PurchaseOrderFile file)
+    {
+        return new PurchaseOrderFileResponse
+        {
+            Id = file.Id,
+            PurchaseOrderId = file.PurchaseOrderId,
+            FileName = file.FileName,
+            ObjectName = file.ObjectName,
+            FileSize = file.FileSize,
+            ContentType = file.ContentType,
+            DocumentType = file.DocumentType,
+            UploadedAt = file.UploadedAt,
+            UploadedBy = file.UploadedBy,
+            Description = file.Description
         };
     }
 

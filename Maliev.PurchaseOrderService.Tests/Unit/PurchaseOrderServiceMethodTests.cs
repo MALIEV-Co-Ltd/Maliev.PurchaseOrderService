@@ -187,6 +187,66 @@ public class PurchaseOrderServiceMethodTests : IDisposable
         await Assert.ThrowsAsync<InvalidOperationException>(() => _service.CreateAsync(request, "user123", "admin"));
     }
 
+    [Fact]
+    public async Task RegisterFileAsync_WithValidMetadata_PersistsPurchaseOrderFile()
+    {
+        var purchaseOrder = new PurchaseOrder
+        {
+            OrderNumber = "PO-2026-0001",
+            SupplierID = 1,
+            SupplierName = "Test Supplier",
+            OrderID = 100,
+            CurrencyID = 1,
+            CurrencyCode = "THB",
+            CurrencySymbol = "THB",
+            OrderDate = DateTime.UtcNow,
+            Status = OrderStatus.Pending,
+            OrderType = OrderType.Internal,
+            DepartmentId = 1,
+            CreatedBy = "user123",
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.PurchaseOrders.Add(purchaseOrder);
+        await _context.SaveChangesAsync();
+
+        var result = await _service.RegisterFileAsync(
+            purchaseOrder.Id,
+            new RegisterPurchaseOrderFileRequest
+            {
+                FileName = "supplier-quote.pdf",
+                ObjectName = "purchase-orders/1/supplier-quote.pdf",
+                FileSize = 2048,
+                ContentType = "application/pdf",
+                DocumentType = DocumentType.Reference,
+                Description = "Supplier quote"
+            },
+            "user123",
+            "admin");
+
+        Assert.Equal(purchaseOrder.Id, result.PurchaseOrderId);
+        Assert.Equal("supplier-quote.pdf", result.FileName);
+        Assert.Equal("purchase-orders/1/supplier-quote.pdf", result.ObjectName);
+        Assert.Equal(2048, result.FileSize);
+        Assert.Equal(DocumentType.Reference, result.DocumentType);
+        Assert.Equal("user123", result.UploadedBy);
+
+        var file = await _context.Files.SingleAsync();
+        Assert.Equal(result.Id, file.Id);
+        Assert.Equal("Supplier quote", file.Description);
+        _auditLogMock.Verify(
+            log => log.LogAuditAsync(
+                "PurchaseOrder",
+                purchaseOrder.Id.ToString(),
+                AuditAction.Update,
+                "user123",
+                "admin",
+                null,
+                It.IsAny<string>(),
+                null,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     #endregion
 
     #region ApproveAsync Tests
