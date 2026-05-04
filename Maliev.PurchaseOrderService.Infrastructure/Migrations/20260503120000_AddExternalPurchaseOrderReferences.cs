@@ -1,4 +1,6 @@
 using System;
+using Maliev.PurchaseOrderService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,6 +8,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Maliev.PurchaseOrderService.Infrastructure.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(PurchaseOrderContext))]
+    [Migration("20260503120000_AddExternalPurchaseOrderReferences")]
     public partial class AddExternalPurchaseOrderReferences : Migration
     {
         /// <inheritdoc />
