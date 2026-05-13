@@ -47,6 +47,7 @@ To maintain high performance and low complexity, the following are **NOT** used:
 - **Multi-Level Approval Engine**: Sophisticated routing for order approvals based on department, amount thresholds, and hierarchical authority.
 - **Supplier Integration**: Real-time synchronization with external suppliers for order transmission and shipment tracking.
 - **3-Way Matching**: Automated reconciliation between Purchase Orders, Goods Receipts, and Invoices for financial compliance.
+- **Employee Ownership Scope**: Employee-role purchase order access is limited to orders created by the authenticated employee, including the production role id `roles.purchase-order.employee`.
 - **Comprehensive Lifecycle Status**: Granular tracking from Draft to Sent, Partially Received, and Closed states with complete audit history.
 
 ---
@@ -99,6 +100,13 @@ All endpoints are prefixed with `/purchase-order/v1/`.
 | POST | `/purchase-orders/{id}/submit` | Submit order for administrative approval |
 | POST | `/purchase-orders/{id}/receive` | Record a goods receipt against an order |
 | GET | `/requisitions` | List and review purchase requisitions |
+
+### Authorization Model
+
+- Endpoint access uses `[RequirePermission]` with `PurchaseOrderPermissions`.
+- `roles.purchase-order.employee` and legacy/simple `employee` are treated as the same scoped employee role.
+- Employee-role callers can read, search, update, and attach files only for purchase orders where `CreatedBy` matches the authenticated user id.
+- Manager-role callers retain full purchase-order access.
 
 ---
 

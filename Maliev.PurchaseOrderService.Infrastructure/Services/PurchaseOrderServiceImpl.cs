@@ -1,5 +1,6 @@
 using Maliev.PurchaseOrderService.Application.DTOs;
 using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Domain.Constants;
 using Maliev.PurchaseOrderService.Domain.Entities;
 using Maliev.PurchaseOrderService.Domain.Enumerations;
 using Maliev.PurchaseOrderService.Infrastructure.Persistence;
@@ -176,7 +177,7 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
             .Include(po => po.Files)
             .AsQueryable();
 
-        if (userRole == "employee")
+        if (IsEmployeeRole(userRole))
         {
             query = query.Where(po => po.CreatedBy == userId);
         }
@@ -195,7 +196,7 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
     {
         var query = _context.PurchaseOrders.AsNoTracking().AsQueryable();
 
-        if (userRole == "employee")
+        if (IsEmployeeRole(userRole))
         {
             query = query.Where(po => po.CreatedBy == userId);
         }
@@ -266,7 +267,7 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
             .FirstOrDefaultAsync(po => po.Id == id, cancellationToken)
             ?? throw new InvalidOperationException($"Purchase order with ID {id} not found");
 
-        if (userRole == "employee" && purchaseOrder.CreatedBy != userId)
+        if (IsEmployeeRole(userRole) && purchaseOrder.CreatedBy != userId)
         {
             throw new InvalidOperationException("You can only update your own purchase orders");
         }
@@ -690,7 +691,7 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
             .FirstOrDefaultAsync(po => po.Id == id, cancellationToken)
             ?? throw new InvalidOperationException($"Purchase order with ID {id} not found");
 
-        if (userRole == "employee" && purchaseOrder.CreatedBy != userId)
+        if (IsEmployeeRole(userRole) && purchaseOrder.CreatedBy != userId)
         {
             throw new InvalidOperationException("You can only attach files to your own purchase orders");
         }
@@ -728,6 +729,12 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
         _logger.LogInformation("Registered file {FileName} for purchase order {OrderNumber}", file.FileName, purchaseOrder.OrderNumber);
 
         return MapFileToResponse(file);
+    }
+
+    private static bool IsEmployeeRole(string userRole)
+    {
+        return string.Equals(userRole, "employee", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(userRole, PurchaseOrderPredefinedRoles.Employee, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<SupplierDto> ResolveSupplierAsync(CreatePurchaseOrderRequest request, CancellationToken cancellationToken)

@@ -99,6 +99,8 @@ This service's tests cover **Tier 1 (Unit)** and **Tier 2 (Service Integration)*
 - **JSON**: Check existing conventions in this service for naming policy
 - **Manual mapping**: Static extension methods (`ToDto()`, `ToEntity()`). AutoMapper is banned
 - **Validation**: `System.ComponentModel.DataAnnotations` on DTOs. FluentValidation is banned
+- **Ownership checks**: Treat `roles.purchase-order.employee` and legacy/simple `employee` as the same employee role; employee-role access must stay scoped to purchase orders whose `CreatedBy` equals the authenticated user id.
+- **Cross-boundary DTO rule**: Before changing controllers, service clients, DTOs, events, or BFF payloads, verify request/response DTOs, JSON property names, messaging schemas, and tests that assert the actual wire shape.
 
 ### Data Access (EF Core)
 *   **Entities:** Located in `Maliev.PurchaseOrderService.Domain.Entities`.

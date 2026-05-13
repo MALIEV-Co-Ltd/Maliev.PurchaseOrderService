@@ -352,6 +352,47 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task GetPurchaseOrderById_AsProductionEmployeeRole_CanOnlySeeOwnOrders()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+
+        var otherUserPO = new Domain.Entities.PurchaseOrder
+        {
+            OrderNumber = "PO-2025-PROD-ROLE",
+            SupplierID = 1,
+            SupplierName = "Test Supplier",
+            OrderID = 100,
+            CurrencyID = 1,
+            CurrencyCode = "THB",
+            CurrencySymbol = "฿",
+            OrderType = OrderType.External,
+            DepartmentId = 1,
+            Status = OrderStatus.Pending,
+            OrderDate = DateTime.UtcNow,
+            WHTRate = 3.0m,
+            SubtotalAmount = 1000.00m,
+            WHTAmount = 30.00m,
+            TotalAmount = 970.00m,
+            CreatedBy = "otheruser",
+            CreatedAt = DateTime.UtcNow
+        };
+        dbContext.PurchaseOrders.Add(otherUserPO);
+        await dbContext.SaveChangesAsync();
+
+        var client = Factory.CreateAuthenticatedClient(
+            "user123",
+            roles: new[] { PurchaseOrderPredefinedRoles.Employee },
+            permissions: new[] { PurchaseOrderPermissions.Orders.Read });
+
+        // Act
+        var response = await client.GetAsync($"/purchase-order/v1/purchase-orders/{otherUserPO.Id}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task SearchPurchaseOrders_WithFilters_ReturnsFilteredResults()
     {
         // Arrange

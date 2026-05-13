@@ -1,5 +1,6 @@
 using Maliev.PurchaseOrderService.Application.DTOs;
 using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Domain.Constants;
 using Maliev.PurchaseOrderService.Domain.Entities;
 using Maliev.PurchaseOrderService.Domain.Enumerations;
 using Maliev.PurchaseOrderService.Infrastructure.Persistence;
@@ -90,6 +91,19 @@ public class PurchaseOrderServiceImplTests : IDisposable
     }
 
     [Fact]
+    public async Task GetByIdAsync_AsProductionEmployeeRole_ReturnsOnlyOwnOrders()
+    {
+        var po1 = CreateTestPurchaseOrder(1, "PO-001", "user1");
+        var po2 = CreateTestPurchaseOrder(2, "PO-002", "user2");
+        _context.PurchaseOrders.AddRange(po1, po2);
+        await _context.SaveChangesAsync();
+
+        var result = await _service.GetByIdAsync(2, "user1", PurchaseOrderPredefinedRoles.Employee);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public async Task GetByIdAsync_AsAdmin_ReturnsAnyOrder()
     {
         var po = CreateTestPurchaseOrder(1, "PO-001", "user1");
@@ -156,6 +170,20 @@ public class PurchaseOrderServiceImplTests : IDisposable
 
         var request = new SearchPurchaseOrdersRequest(SupplierId: null, Status: null, OrderType: null, OrderId: null, FromDate: null, ToDate: null, SortBy: null, SortDirection: null, Page: 1, PageSize: 10);
         var result = await _service.SearchAsync(request, "user1", "employee");
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal("PO-001", result.Items[0].OrderNumber);
+    }
+
+    [Fact]
+    public async Task SearchAsync_AsProductionEmployeeRole_ReturnsOnlyOwnOrders()
+    {
+        _context.PurchaseOrders.Add(CreateTestPurchaseOrder(1, "PO-001", "user1"));
+        _context.PurchaseOrders.Add(CreateTestPurchaseOrder(2, "PO-002", "user2"));
+        await _context.SaveChangesAsync();
+
+        var request = new SearchPurchaseOrdersRequest(SupplierId: null, Status: null, OrderType: null, OrderId: null, FromDate: null, ToDate: null, SortBy: null, SortDirection: null, Page: 1, PageSize: 10);
+        var result = await _service.SearchAsync(request, "user1", PurchaseOrderPredefinedRoles.Employee);
 
         Assert.Equal(1, result.TotalCount);
         Assert.Equal("PO-001", result.Items[0].OrderNumber);

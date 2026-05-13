@@ -1,5 +1,6 @@
 using Maliev.PurchaseOrderService.Application.DTOs;
 using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Domain.Constants;
 using Maliev.PurchaseOrderService.Domain.Entities;
 using Maliev.PurchaseOrderService.Domain.Enumerations;
 using Maliev.PurchaseOrderService.Infrastructure.Consumers;
@@ -245,6 +246,42 @@ public class PurchaseOrderServiceMethodTests : IDisposable
                 null,
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task RegisterFileAsync_AsProductionEmployeeRoleCannotAttachToOthersOrder()
+    {
+        var purchaseOrder = new PurchaseOrder
+        {
+            OrderNumber = "PO-2026-0002",
+            SupplierID = 1,
+            SupplierName = "Test Supplier",
+            OrderID = 100,
+            CurrencyID = 1,
+            CurrencyCode = "THB",
+            CurrencySymbol = "THB",
+            OrderDate = DateTime.UtcNow,
+            Status = OrderStatus.Pending,
+            OrderType = OrderType.Internal,
+            DepartmentId = 1,
+            CreatedBy = "other-user",
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.PurchaseOrders.Add(purchaseOrder);
+        await _context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.RegisterFileAsync(
+            purchaseOrder.Id,
+            new RegisterPurchaseOrderFileRequest
+            {
+                FileName = "supplier-quote.pdf",
+                ObjectName = "purchase-orders/1/supplier-quote.pdf",
+                FileSize = 2048,
+                ContentType = "application/pdf",
+                DocumentType = DocumentType.Reference
+            },
+            "user123",
+            PurchaseOrderPredefinedRoles.Employee));
     }
 
     #endregion
