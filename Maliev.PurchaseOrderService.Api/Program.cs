@@ -74,7 +74,7 @@ try
     // External Service Clients
     builder.Services.AddHttpClient("SupplierService", (sp, client) =>
     {
-        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:SupplierService:BaseUrl"] ?? "http://SupplierService";
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:SupplierService:BaseUrl"] ?? "https+http://SupplierService";
         client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/supplier/v1/suppliers/");
     })
     .AddServiceDiscovery()
@@ -83,7 +83,7 @@ try
 
     builder.Services.AddHttpClient("OrderService", (sp, client) =>
     {
-        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:OrderService:BaseUrl"] ?? "http://OrderService";
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:OrderService:BaseUrl"] ?? "https+http://OrderService";
         client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/order/v1/orders/");
     })
     .AddServiceDiscovery()
@@ -92,7 +92,7 @@ try
 
     builder.Services.AddHttpClient("CurrencyService", (sp, client) =>
     {
-        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:CurrencyService:BaseUrl"] ?? "http://CurrencyService";
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:CurrencyService:BaseUrl"] ?? "https+http://CurrencyService";
         client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/currency/v1/currencies/");
     })
     .AddServiceDiscovery()
