@@ -102,7 +102,7 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
             Status = OrderStatus.Pending,
             DepartmentId = 1,
             CustomerPO = request.CustomerPO,
-            ExpectedDeliveryDate = request.ExpectedDeliveryDate,
+            ExpectedDeliveryDate = NormalizeToUtc(request.ExpectedDeliveryDate),
             SubtotalAmount = subtotal,
             WHTRate = request.WHTRate > 0 ? request.WHTRate : null,
             WHTAmount = whtAmount,
@@ -845,6 +845,17 @@ public class PurchaseOrderServiceImpl : IPurchaseOrderService
             Currency = externalItem.Currency,
             CachedAt = DateTime.UtcNow,
             ExternallyModified = false
+        };
+    }
+
+    private static DateTime? NormalizeToUtc(DateTime? value)
+    {
+        return value?.Kind switch
+        {
+            null => null,
+            DateTimeKind.Utc => value,
+            DateTimeKind.Unspecified => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc),
+            _ => value.Value.ToUniversalTime()
         };
     }
 

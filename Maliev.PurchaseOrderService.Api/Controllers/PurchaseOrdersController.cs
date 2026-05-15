@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Maliev.PurchaseOrderService.Application.Interfaces;
 using Maliev.PurchaseOrderService.Domain.Entities;
 using Maliev.PurchaseOrderService.Domain.Constants;
@@ -18,6 +19,7 @@ namespace Maliev.PurchaseOrderService.Api.Controllers;
 [Route("purchase-order/v{version:apiVersion}/purchase-orders")]
 public class PurchaseOrdersController : ControllerBase
 {
+    private readonly IHostEnvironment _environment;
     private readonly IPurchaseOrderService _purchaseOrderService;
     private readonly ILogger<PurchaseOrdersController> _logger;
 
@@ -26,11 +28,14 @@ public class PurchaseOrdersController : ControllerBase
     /// logger.
     /// </summary>
     /// <param name="purchaseOrderService">The service used to manage and process purchase order operations.</param>
+    /// <param name="environment">The current host environment.</param>
     /// <param name="logger">The logger used to record diagnostic and operational information for the controller.</param>
     public PurchaseOrdersController(
         IPurchaseOrderService purchaseOrderService,
+        IHostEnvironment environment,
         ILogger<PurchaseOrdersController> logger)
     {
+        _environment = environment;
         _purchaseOrderService = purchaseOrderService;
         _logger = logger;
     }
@@ -73,10 +78,18 @@ public class PurchaseOrdersController : ControllerBase
             _logger.LogWarning(ex, "Failed to create purchase order");
             return BadRequest(new { error = ex.Message });
         }
+        catch (ExternalServiceException ex)
+        {
+            _logger.LogError(ex, "External service error during purchase order creation");
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "External service error during purchase order creation");
-            return StatusCode(StatusCodes.Status502BadGateway, new { error = "External service unavailable" });
+            var message = _environment.IsProduction()
+                ? "External service unavailable"
+                : ex.GetBaseException().Message;
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = message });
         }
     }
 

@@ -81,6 +81,7 @@ public class PurchaseOrdersControllerTests : IntegrationTestBase
             CurrencyID = 1,
             OrderType = OrderType.External,
             WHTRate = 3.0m,
+            ExpectedDeliveryDate = DateTime.SpecifyKind(DateTime.Today.AddDays(14), DateTimeKind.Local),
             ShippingAddress = new CreateAddressRequest(
                 AddressType.Shipping,
                 null,
