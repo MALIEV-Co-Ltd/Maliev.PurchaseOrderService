@@ -35,5 +35,3 @@ dotnet pack "$defaults_project" --configuration Release --no-restore -p:GITHUB_A
 test -s "$output_dir/Maliev.MessagingContracts.$messaging_version.nupkg"
 test -s "$output_dir/Maliev.Aspire.ServiceDefaults.$service_defaults_version.nupkg"
 (cd "$output_dir" && sha256sum "Maliev.MessagingContracts.$messaging_version.nupkg" "Maliev.Aspire.ServiceDefaults.$service_defaults_version.nupkg" > SHA256SUMS && sha256sum --check SHA256SUMS)
-
-
