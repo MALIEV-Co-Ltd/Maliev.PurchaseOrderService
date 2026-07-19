@@ -10,9 +10,9 @@
 
   <ItemGroup>
     <!-- Test Framework -->
-    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="coverlet.collector" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.*-*" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <PrivateAssets>all</PrivateAssets>
@@ -61,7 +61,14 @@
     <ProjectReference Include="..\Maliev.PurchaseOrderService.Application\Maliev.PurchaseOrderService.Application.csproj" />
     <ProjectReference Include="..\Maliev.PurchaseOrderService.Domain\Maliev.PurchaseOrderService.Domain.csproj" />
     <ProjectReference Include="..\Maliev.PurchaseOrderService.Infrastructure\Maliev.PurchaseOrderService.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(GITHUB_ACTIONS)' != 'true'">
     <ProjectReference Include="..\..\Maliev.Aspire\Maliev.Aspire.ServiceDefaults\Maliev.Aspire.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <PackageReference Include="Maliev.Aspire.ServiceDefaults" Version="$(ServiceDefaultsVersion)" />
   </ItemGroup>
 
 </Project>

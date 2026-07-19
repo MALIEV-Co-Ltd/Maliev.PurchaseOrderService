@@ -200,13 +200,14 @@ public class PurchaseOrderServiceAdditionalTests : IntegrationTestBase
         var orderClient = scope.ServiceProvider.GetRequiredService<IOrderServiceClient>();
         var permissionService = scope.ServiceProvider.GetRequiredService<IUserPermissionService>();
 
-        // Mock 500 errors
+        // Use non-retriable client errors so this test exercises the clients' non-success
+        // handling without waiting for the production transient-failure retry pipeline.
         SupplierServiceMock.Given(Request.Create().WithPath("/v1/suppliers/999").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(500));
+            .RespondWith(Response.Create().WithStatusCode(400));
         OrderServiceMock.Given(Request.Create().WithPath("/v1/orders/999").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(500));
+            .RespondWith(Response.Create().WithStatusCode(400));
         IAMServiceMock.Given(Request.Create().WithPath("/v1/users/bad-user/permissions").UsingGet())
-            .RespondWith(Response.Create().WithStatusCode(500));
+            .RespondWith(Response.Create().WithStatusCode(400));
 
         // Act & Assert
         var supplier = await supplierClient.GetSupplierAsync(999);
