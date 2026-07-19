@@ -1,0 +1,1384 @@
+openapi: 3.0.3
+info:
+  title: Purchase Order Service API
+  description: |
+    RESTful API for managing purchase orders (internal and external) with full CRUD operations,
+    role-based access control, audit trail, optimistic concurrency control, and automatic PDF generation.
+
+    ## Authentication
+    All endpoints require JWT Bearer token authentication with specific permission claims.
+
+    ## Authorization
+    Access is controlled via fine-grained permissions (e.g., `purchase-order.orders.create`).
+    Roles are predefined collections of these permissions.
+
+    ## Error Handling
+    - 400: Bad Request (validation errors)
+    - 401: Unauthorized (missing/invalid token)
+    - 403: Forbidden (insufficient permissions)
+    - 404: Not Found (resource doesn't exist)
+    - 409: Conflict (concurrency/business rule violation)
+    - 500: Internal Server Error
+  version: 1.0.0
+  contact:
+    name: Maliev Co. Ltd.
+    email: support@maliev.com
+servers:
+  - url: https://api.maliev.com/purchase-orders/v1
+    description: Production server (API v1)
+  - url: https://staging.api.maliev.com/purchase-orders/v1
+    description: Staging server (API v1)
+  - url: https://dev.api.maliev.com/purchase-orders/v1
+    description: Development server (API v1)
+
+security:
+  - BearerAuth: []
+
+paths:
+  /purchase-orders:
+    get:
+      summary: Get purchase orders
+      description: |
+        Retrieve purchase orders based on user role and query parameters.
+        - Employees see only their own orders
+        - Managers see orders from their department
+        - Procurement/Admin see all orders
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          description: Filter by order status
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - name: orderType
+          in: query
+          description: Filter by order type
+          schema:
+            $ref: '#/components/schemas/OrderType'
+        - name: supplierID
+          in: query
+          description: Filter by supplier ID
+          schema:
+            type: integer
+            format: int32
+        - name: orderID
+          in: query
+          description: Filter by referenced order ID
+          schema:
+            type: integer
+            format: int32
+        - name: createdFrom
+          in: query
+          description: Filter by creation date from (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: createdTo
+          in: query
+          description: Filter by creation date to (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: sortBy
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [orderNumber, supplierID, orderID, totalAmount, createdAt, status]
+            default: createdAt
+        - name: sortDirection
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Purchase orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPurchaseOrdersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Orders
+
+    post:
+      summary: Create purchase order
+      description: |
+        Create a new purchase order linked to existing supplier, order, and currency.
+        - Validates SupplierID exists in SupplierService
+        - Validates OrderID exists in OrderService and is not already linked to another PO
+        - Validates CurrencyID exists in CurrencyService
+        - Fetches order items from OrderService/QuotationService automatically
+        - Calculates totals based on fetched items
+        - Order will be created with Pending status and auto-generated order number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePurchaseOrderRequest'
+      responses:
+        '201':
+          description: Purchase order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          description: External service unavailable (SupplierService, OrderService, or CurrencyService)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Orders
+
+  /purchase-orders/{id}:
+    get:
+      summary: Get purchase order by ID
+      description: |
+        Retrieve a specific purchase order by ID.
+        Access controlled by user role and ownership rules.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Purchase order retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Orders
+
+    put:
+      summary: Update purchase order
+      description: |
+        Update an existing purchase order. Implements optimistic concurrency control.
+        Note: Order items cannot be modified as they are derived from OrderService.
+        Only delivery information, notes, and addresses can be updated.
+        - Employees can update only their own pending orders
+        - Managers can update orders in their department
+        - Procurement/Admin can update any order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePurchaseOrderRequest'
+      responses:
+        '200':
+          description: Purchase order updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Orders
+
+    delete:
+      summary: Delete purchase order
+      description: |
+        Soft delete a purchase order. Only available for pending orders.
+        - Employees can delete only their own pending orders
+        - Admin can delete any order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '204':
+          description: Purchase order deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cannot delete order in current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Orders
+
+  /purchase-orders/{id}/approve:
+    post:
+      summary: Approve purchase order
+      description: |
+        Approve a pending purchase order. Changes status from Pending to Approved.
+        Available to managers (for their department), procurement, and admin roles.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                  maxLength: 500
+                  description: Optional approval notes
+      responses:
+        '200':
+          description: Purchase order approved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderResponse'
+        '400':
+          description: Order cannot be approved in current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Orders
+
+  /purchase-orders/{id}/cancel:
+    post:
+      summary: Cancel purchase order
+      description: |
+        Cancel a purchase order. Available for Pending and Approved orders.
+        Available to order creator, managers, procurement, and admin roles.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Reason for cancellation
+      responses:
+        '200':
+          description: Purchase order cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderResponse'
+        '400':
+          description: Order cannot be cancelled in current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Orders
+
+  /purchase-orders/{id}/items:
+    get:
+      summary: Get order items
+      description: |
+        Get all items for a specific purchase order.
+        Items are read-only and derived from OrderService/QuotationService.
+        If cached data is stale, it will be refreshed from the external service.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+        - name: refresh
+          in: query
+          description: Force refresh from external service
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Order items retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          description: External service unavailable (SupplierService, OrderService, or CurrencyService)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Order Items
+
+  /addresses:
+    get:
+      summary: Get addresses
+      description: Get addresses for purchase orders (filtered by user access)
+      parameters:
+        - name: type
+          in: query
+          description: Filter by address type
+          schema:
+            $ref: '#/components/schemas/AddressType'
+      responses:
+        '200':
+          description: Addresses retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AddressResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Addresses
+
+    post:
+      summary: Create address
+      description: Create a new address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAddressRequest'
+      responses:
+        '201':
+          description: Address created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Addresses
+
+  /purchase-orders/{id}/files:
+    get:
+      summary: Get purchase order files
+      description: |
+        Retrieve all files associated with a specific purchase order, including
+        automatically generated PDFs and manually uploaded documents.
+        Access controlled by user role and ownership rules.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Files retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PurchaseOrderFileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Order Files
+
+    post:
+      summary: Upload purchase order file
+      description: |
+        Upload a new file for a purchase order to UploadService.
+        Only authorized users with PO access can upload files.
+
+        **Note**: GeneratedPDF documents are created automatically and cannot be uploaded manually.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadFileRequest'
+      responses:
+        '201':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderFileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: UploadService unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Order Files
+
+  /purchase-orders/{id}/files/{fileId}:
+    get:
+      summary: Download purchase order file
+      description: |
+        Download a specific file from a purchase order.
+        Returns a redirect to the UploadService download URL.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+        - name: fileId
+          in: path
+          required: true
+          description: File ID
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '302':
+          description: Redirect to file download URL
+          headers:
+            Location:
+              description: UploadService download URL
+              schema:
+                type: string
+                format: uri
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          description: UploadService unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Order Files
+
+    delete:
+      summary: Delete purchase order file
+      description: |
+        Delete a file from a purchase order.
+        Removes the file from UploadService and local database.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Purchase order ID
+          schema:
+            type: integer
+            format: int32
+        - name: fileId
+          in: path
+          required: true
+          description: File ID
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '204':
+          description: File deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          description: UploadService unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      tags:
+        - Purchase Order Files
+
+  /health/liveness:
+    get:
+      summary: Liveness probe
+      description: Basic health check for Kubernetes liveness probe
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Healthy"
+      tags:
+        - Health
+
+  /health/readiness:
+    get:
+      summary: Readiness probe
+      description: Comprehensive health check including database connectivity
+      security: []
+      responses:
+        '200':
+          description: Service is ready to handle requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [Healthy, Degraded, Unhealthy]
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                          enum: [Healthy, Degraded, Unhealthy]
+                        description:
+                          type: string
+                        duration:
+                          type: string
+        '503':
+          description: Service is not ready
+      tags:
+        - Health
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    OrderStatus:
+      type: string
+      enum:
+        - Pending
+        - Approved
+        - Ordered
+        - Delivered
+        - Cancelled
+      description: Status of the purchase order
+
+    OrderType:
+      type: string
+      enum:
+        - Internal
+        - External
+      description: Type of purchase order
+
+    AddressType:
+      type: string
+      enum:
+        - Shipping
+        - Billing
+      description: Type of address
+
+    CreatePurchaseOrderRequest:
+      type: object
+      required:
+        - supplierID
+        - orderID
+        - currencyID
+        - orderType
+      properties:
+        supplierID:
+          type: integer
+          format: int32
+          description: ID of the supplier in SupplierService
+        orderID:
+          type: integer
+          format: int32
+          description: ID of the order/quotation/internal order in OrderService
+        currencyID:
+          type: integer
+          format: int32
+          description: ID of the currency in CurrencyService
+        orderType:
+          $ref: '#/components/schemas/OrderType'
+        customerPO:
+          type: string (allows all characters - numeric, alphanumeric, special chars)
+          maxLength: 50
+        items:
+          type: array
+          description: Optional array for partial ordering. If provided, only these items are included in the PO. If omitted, all items from the quotation are fetched.
+          items:
+            type: object
+            required:
+              - externalOrderItemId
+              - quantity
+            properties:
+              externalOrderItemId:
+                type: integer
+                format: int32
+                description: Reference to the item ID in OrderService/QuotationService
+              quantity:
+                type: number
+                format: decimal
+                minimum: 0.001
+                description: Quantity for this item (can differ from quotation quantity)
+          description: Optional customer purchase order number for external POs
+        expectedDeliveryDate:
+          type: string
+          format: date-time
+          description: Expected delivery date
+        whtRate:
+          type: number
+          format: decimal
+          minimum: 0.00
+          maximum: 99.99
+          description: Withholding tax rate percentage (optional)
+        notes:
+          type: string
+          maxLength: 1000
+          description: Additional notes
+        shippingAddress:
+          $ref: '#/components/schemas/CreateAddressRequest'
+        billingAddress:
+          $ref: '#/components/schemas/CreateAddressRequest'
+
+    UpdatePurchaseOrderRequest:
+      type: object
+      required:
+        - rowVersion
+      properties:
+        currencyID:
+          type: integer
+          format: int32
+          description: ID of the currency in CurrencyService (optional, triggers recalculation)
+        customerPO:
+          type: string (allows all characters - numeric, alphanumeric, special chars)
+          maxLength: 50
+        items:
+          type: array
+          description: Optional array for partial ordering. If provided, only these items are included in the PO. If omitted, all items from the quotation are fetched.
+          items:
+            type: object
+            required:
+              - externalOrderItemId
+              - quantity
+            properties:
+              externalOrderItemId:
+                type: integer
+                format: int32
+                description: Reference to the item ID in OrderService/QuotationService
+              quantity:
+                type: number
+                format: decimal
+                minimum: 0.001
+                description: Quantity for this item (can differ from quotation quantity)
+          description: Optional customer purchase order number for external POs
+        expectedDeliveryDate:
+          type: string
+          format: date-time
+          description: Expected delivery date
+        whtRate:
+          type: number
+          format: decimal
+          minimum: 0.00
+          maximum: 99.99
+          description: Withholding tax rate percentage (optional, triggers recalculation)
+        notes:
+          type: string
+          maxLength: 1000
+          description: Additional notes (SupplierID and OrderID cannot be changed)
+        shippingAddress:
+          $ref: '#/components/schemas/UpdateAddressRequest'
+        billingAddress:
+          $ref: '#/components/schemas/UpdateAddressRequest'
+        rowVersion:
+          type: string
+          format: byte
+          description: Concurrency token (base64 encoded)
+
+    CreateOrderItemRequest:
+      type: object
+      required:
+        - productName
+        - quantity
+        - unitPrice
+      properties:
+        productCode:
+          type: string
+          maxLength: 50
+        productName:
+          type: string
+          maxLength: 200
+        quantity:
+          type: number
+          format: decimal
+          minimum: 0.001
+          maximum: 999999.999
+        unitOfMeasure:
+          type: string
+          maxLength: 20
+          default: "pcs"
+        unitPrice:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 999999999999.99
+        deliveryDate:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          maxLength: 500
+
+    UpdateOrderItemRequest:
+      type: object
+      properties:
+        productCode:
+          type: string
+          maxLength: 50
+        productName:
+          type: string
+          maxLength: 200
+        quantity:
+          type: number
+          format: decimal
+          minimum: 0.001
+          maximum: 999999.999
+        unitOfMeasure:
+          type: string
+          maxLength: 20
+        unitPrice:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 999999999999.99
+        deliveryDate:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          maxLength: 500
+
+    CreateAddressRequest:
+      type: object
+      required:
+        - addressType
+        - contactName
+        - addressLine1
+        - city
+        - postalCode
+        - country
+      properties:
+        addressType:
+          $ref: '#/components/schemas/AddressType'
+        companyName:
+          type: string
+          maxLength: 100
+        contactName:
+          type: string
+          maxLength: 100
+        addressLine1:
+          type: string
+          maxLength: 100
+        addressLine2:
+          type: string
+          maxLength: 100
+        city:
+          type: string
+          maxLength: 50
+        stateProvince:
+          type: string
+          maxLength: 50
+        postalCode:
+          type: string
+          maxLength: 20
+        country:
+          type: string
+          maxLength: 50
+        phoneNumber:
+          type: string
+          maxLength: 20
+        emailAddress:
+          type: string
+          maxLength: 100
+          format: email
+
+    UpdateAddressRequest:
+      type: object
+      properties:
+        companyName:
+          type: string
+          maxLength: 100
+        contactName:
+          type: string
+          maxLength: 100
+        addressLine1:
+          type: string
+          maxLength: 100
+        addressLine2:
+          type: string
+          maxLength: 100
+        city:
+          type: string
+          maxLength: 50
+        stateProvince:
+          type: string
+          maxLength: 50
+        postalCode:
+          type: string
+          maxLength: 20
+        country:
+          type: string
+          maxLength: 50
+        phoneNumber:
+          type: string
+          maxLength: 20
+        emailAddress:
+          type: string
+          maxLength: 100
+          format: email
+
+    PurchaseOrderResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        orderNumber:
+          type: string
+        customerPO:
+          type: string (allows all characters - numeric, alphanumeric, special chars)
+          nullable: true
+        items:
+          type: array
+          description: Optional array for partial ordering. If provided, only these items are included in the PO. If omitted, all items from the quotation are fetched.
+          items:
+            type: object
+            required:
+              - externalOrderItemId
+              - quantity
+            properties:
+              externalOrderItemId:
+                type: integer
+                format: int32
+                description: Reference to the item ID in OrderService/QuotationService
+              quantity:
+                type: number
+                format: decimal
+                minimum: 0.001
+                description: Quantity for this item (can differ from quotation quantity)
+          description: Optional customer purchase order number for external POs
+        supplierID:
+          type: integer
+          format: int32
+          description: ID of the supplier in SupplierService
+        supplierName:
+          type: string
+          description: Cached supplier name from SupplierService
+        orderID:
+          type: integer
+          format: int32
+          description: ID of the referenced order in OrderService
+        currencyID:
+          type: integer
+          format: int32
+          description: ID of the currency in CurrencyService
+        currencyCode:
+          type: string
+          maxLength: 3
+          description: Cached currency code from CurrencyService (e.g., "THB", "USD")
+        currencySymbol:
+          type: string
+          maxLength: 10
+          description: Cached currency symbol for display
+        orderDate:
+          type: string
+          format: date-time
+        expectedDeliveryDate:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        orderType:
+          $ref: '#/components/schemas/OrderType'
+        subtotalAmount:
+          type: number
+          format: decimal
+          description: Subtotal before WHT, calculated from derived order items
+        whtRate:
+          type: number
+          format: decimal
+          nullable: true
+          description: Withholding tax rate percentage (if applicable)
+        whtAmount:
+          type: number
+          format: decimal
+          nullable: true
+          description: Calculated withholding tax amount
+        totalAmount:
+          type: number
+          format: decimal
+          description: Final total after WHT deduction (subtotal - WHT)
+        currency:
+          type: string
+          deprecated: true
+          description: Deprecated - use currencyCode instead
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastModifiedBy:
+          type: string
+          nullable: true
+        lastModifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedBy:
+          type: string
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        rowVersion:
+          type: string
+          format: byte
+        isStale:
+          type: boolean
+          description: Indicates if the underlying Order/Quotation has changed since the PO was created. Client should warn user.
+
+    PurchaseOrderDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/PurchaseOrderResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderItemResponse'
+            shippingAddress:
+              $ref: '#/components/schemas/AddressResponse'
+              nullable: true
+            billingAddress:
+              $ref: '#/components/schemas/AddressResponse'
+              nullable: true
+
+    OrderItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        externalOrderItemId:
+          type: integer
+          format: int32
+          description: Reference to the original item in OrderService
+        productCode:
+          type: string
+          nullable: true
+          description: Product/SKU code from external service
+        productName:
+          type: string
+          description: Name/description from external service
+        quantity:
+          type: number
+          format: decimal
+          description: Quantity from external order (read-only)
+        unitOfMeasure:
+          type: string
+          description: Unit of measure from external service
+        unitPrice:
+          type: number
+          format: decimal
+          description: Price per unit from external service (read-only)
+        totalPrice:
+          type: number
+          format: decimal
+          description: Calculated total (read-only)
+        currency:
+          type: string
+        deliveryDate:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+          description: Item-specific notes from external service
+        cachedAt:
+          type: string
+          format: date-time
+          description: When this data was last retrieved from external service
+        externallyModified:
+          type: boolean
+          description: Flag indicating if external item has been modified since caching
+
+    AddressResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        addressType:
+          $ref: '#/components/schemas/AddressType'
+        companyName:
+          type: string
+          nullable: true
+        contactName:
+          type: string
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+        stateProvince:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+        country:
+          type: string
+        phoneNumber:
+          type: string
+          nullable: true
+        emailAddress:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        lastModifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    PaginatedPurchaseOrdersResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseOrderResponse'
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+              format: int32
+            pageSize:
+              type: integer
+              format: int32
+            totalCount:
+              type: integer
+              format: int32
+            totalPages:
+              type: integer
+              format: int32
+            hasNextPage:
+              type: boolean
+            hasPreviousPage:
+              type: boolean
+
+    PurchaseOrderFileResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        purchaseOrderId:
+          type: integer
+          format: int32
+        fileName:
+          type: string
+          description: Original filename
+        objectName:
+          type: string
+          description: Full object path in GCS bucket
+        documentType:
+          $ref: '#/components/schemas/DocumentType'
+        fileSize:
+          type: integer
+          format: int64
+          description: File size in bytes
+        contentType:
+          type: string
+          description: MIME type of the file
+        uploadedBy:
+          type: string
+          description: User ID who uploaded the file
+        uploadedAt:
+          type: string
+          format: date-time
+          description: Upload timestamp
+        description:
+          type: string
+          nullable: true
+          description: Optional description of the document
+
+    UploadFileRequest:
+      type: object
+      required:
+        - file
+        - documentType
+      properties:
+        file:
+          type: string
+          format: binary
+          description: The file to upload
+        documentType:
+          $ref: '#/components/schemas/DocumentType'
+        objectName:
+          type: string
+          description: Optional custom object path in GCS bucket
+        description:
+          type: string
+          description: Optional description of the document
+
+    DocumentType:
+      type: string
+      enum:
+        - CustomerPO
+        - InternalApproval
+        - Invoice
+        - Reference
+        - GeneratedPDF
+        - Other
+      description: |
+        Type of document. GeneratedPDF documents are created automatically
+        when purchase orders are created or updated and cannot be uploaded manually.
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Error code
+            message:
+              type: string
+              description: Error message
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+              description: Detailed validation errors
+            traceId:
+              type: string
+              description: Request trace ID for debugging
+
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Insufficient permissions for the requested operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Requested resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Conflict:
+      description: Concurrency conflict or business rule violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Purchase Orders
+    description: Purchase order management operations
+  - name: Order Items
+    description: Order item management operations
+  - name: Addresses
+    description: Address management operations
+  - name: Health
+    description: Health check endpoints
