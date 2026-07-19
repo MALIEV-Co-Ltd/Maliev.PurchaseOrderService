@@ -1,180 +1,181 @@
-using AutoMapper;
-using Maliev.PurchaseOrderService.Api.MappingProfiles;
-using Maliev.PurchaseOrderService.Api.Services;
-using Maliev.PurchaseOrderService.Data;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Diagnostics;
+using Maliev.PurchaseOrderService.Infrastructure.Persistence;
+using Maliev.PurchaseOrderService.Domain.Entities;
+using Maliev.Aspire.ServiceDefaults;
+using Maliev.PurchaseOrderService.Api.Extensions;
+using Maliev.PurchaseOrderService.Application;
+using Maliev.PurchaseOrderService.Application.Interfaces;
+using Maliev.PurchaseOrderService.Infrastructure.Consumers;
+using Maliev.PurchaseOrderService.Infrastructure;
+using Maliev.PurchaseOrderService.Infrastructure.Services;
+using Maliev.PurchaseOrderService.Api.ExternalServices;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System.Reflection;
-using System.Text;
-using Asp.Versioning;
-using Asp.Versioning.ApiExplorer;
-using Swashbuckle.AspNetCore.SwaggerGen;
-using Swashbuckle.AspNetCore.SwaggerUI;
+using MassTransit;
+using ApiServices = Maliev.PurchaseOrderService.Api.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+// Initialize bootstrap logging
+using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
+var bootstrapLogger = loggerFactory.CreateLogger("Program");
 
-// Add AutoMapper
-builder.Services.AddAutoMapper(cfg =>
+try
 {
-    cfg.AddProfile<Maliev.PurchaseOrderService.Api.MappingProfiles.PurchaseOrderMappingProfile>();
-});
-builder.Services.AddDbContext<PurchaseOrderContext>(options =>
-{
-    options.UseSqlServer(builder.Configuration.GetConnectionString("PurchaseOrderDbContext"));
-});
+    Log.StartingHost(bootstrapLogger, "Purchase Order Service");
 
-// Configure Authentication
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    var builder = WebApplication.CreateBuilder(args);
+
+    // --- Secrets & Configuration ---
+    builder.AddGoogleSecretManagerVolume(); // Load secrets from /mnt/secrets if available
+
+    // --- Infrastructure & Observability ---
+    builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
+    builder.AddStandardMiddleware(options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSecurityKey"] ?? throw new InvalidOperationException("JwtSecurityKey not configured"))),
-        };
+        options.EnableRequestLogging = true;
+    });
+    builder.AddServiceMeters("purchase-orders-meter"); // Register service meters
+
+    // Add Redis Distributed Cache
+    builder.AddStandardCache("purchase-order:");
+
+    // Add MassTransit with RabbitMQ
+    builder.AddMassTransitWithRabbitMq(x =>
+    {
+        x.AddConsumer<SearchReindexRequestedConsumer>();
     });
 
-// Configure API Versioning Services
-builder.Services.AddApiVersioning(options =>
-{
-    options.ReportApiVersions = true;
-    options.AssumeDefaultVersionWhenUnspecified = true;
-    options.DefaultApiVersion = new ApiVersion(1, 0);
-})
-.AddApiExplorer(options =>
-{
-    options.GroupNameFormat = "'v'VVV";
-    options.SubstituteApiVersionInUrl = true;
-});
-
-
-
-// Configure Swagger
-builder.Services.AddSwaggerGen(options =>
-{
-    OpenApiSecurityScheme apiKey = new OpenApiSecurityScheme
+    // Add PostgreSQL DbContext
+    builder.AddPostgresDbContext<PurchaseOrderContext>(connectionName: "PurchaseOrderDbContext", configureOptions: options =>
     {
-        Description = @"JWT Authorization header using the Bearer scheme. Example: ""Bearer {token}""",
-        In = ParameterLocation.Header,
-        Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
-    };
-
-    OpenApiInfo info = new OpenApiInfo
-    {
-        Title = "Purchase Order Service",
-        Version = "v1", // Explicitly set to v1
-        Contact = new OpenApiContact
-        {
-            Name = "MALIEV Co., Ltd.",
-            Email = "support@maliev.com",
-            Url = new Uri("https://www.maliev.com"),
-        },
-    };
-
-    options.SwaggerDoc("v1", info); // Define a single SwaggerDoc for v1
-    options.AddSecurityDefinition("Bearer", apiKey);
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer",
-                },
-                Scheme = "oauth2",
-                Name = "Bearer",
-                In = ParameterLocation.Header,
-            },
-            new List<string>()
-        },
+        options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+        options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.LazyLoadOnDisposedContextWarning));
     });
-    options.DescribeAllParametersInCamelCase();
 
-    // Set the comments path for the Swagger JSON and UI.
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    options.IncludeXmlComments(xmlPath);
-});
+    // --- API Configuration ---
+    builder.AddStandardCors(); // CORS with fail-fast validation
+    builder.AddDefaultApiVersioning(); // API versioning with URL segment reader
 
-// Configure CORS
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(
-        policy =>
-        {
-            policy.WithOrigins(
-                "http://*.maliev.com",
-                "https://*.maliev.com")
-            .SetIsOriginAllowedToAllowWildcardSubdomains()
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-        });
-});
+    // JWT Authentication (tests override via PostConfigureAll with dynamic RSA keys)
+    builder.AddJwtAuthentication();
 
-// Register service layer
-builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+    // --- Authorization & Permissions ---
+    builder.Services.AddPermissionAuthorization();
 
-builder.Services.AddControllers();
+    // --- Layer Registration ---
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
 
-var app = builder.Build();
+    // Register application services
+    builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderServiceImpl>();
 
-// Configure Base Path Middleware
-app.UsePathBase("/purchaseorders");
+    // Additional API Services
+    builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.IAuditLogService, Maliev.PurchaseOrderService.Api.Services.AuditLogService>();
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.IWHTCalculationService, Maliev.PurchaseOrderService.Api.Services.WHTCalculationService>();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-    // app.UseMigrationsEndPoint(); // Not needed for initial setup, only if using EF Core Migrations UI
-}
-else
-{
-    app.UseExceptionHandler(errorApp =>
+    // External Service Clients
+    builder.Services.AddHttpClient("SupplierService", (sp, client) =>
     {
-        errorApp.Run(async context =>
-        {
-            var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
-            var exception = exceptionHandlerPathFeature?.Error;
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:SupplierService:BaseUrl"] ?? "https+http://SupplierService";
+        client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/supplier/v1/suppliers/");
+    })
+    .AddServiceDiscovery()
+    .AddHttpMessageHandler<Maliev.Aspire.ServiceDefaults.IAM.ServiceAccountAuthenticationHandler>()
+    .AddStandardResilienceHandler();
 
-            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-            logger.LogError(exception, "An unhandled exception has occurred.");
-
-            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-            await context.Response.WriteAsJsonAsync(new { error = "An unexpected error occurred." });
-        });
-    });
-    app.UseHsts();
-}
-
-app.UseHttpsRedirection();
-
-app.UseCors();
-
-app.UseAuthentication();
-
-app.UseAuthorization();
-
-app.UseSwagger();
-app.UseSwaggerUI(options =>
-{
-    var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
-    foreach (var description in provider.ApiVersionDescriptions)
+    builder.Services.AddHttpClient("OrderService", (sp, client) =>
     {
-        options.SwaggerEndpoint($"/purchaseorders/swagger/{description.GroupName}/swagger.json", description.GroupName.ToUpperInvariant());
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:OrderService:BaseUrl"] ?? "https+http://OrderService";
+        client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/order/v1/orders/");
+    })
+    .AddServiceDiscovery()
+    .AddHttpMessageHandler<Maliev.Aspire.ServiceDefaults.IAM.ServiceAccountAuthenticationHandler>()
+    .AddStandardResilienceHandler();
+
+    builder.Services.AddHttpClient("CurrencyService", (sp, client) =>
+    {
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Services:CurrencyService:BaseUrl"] ?? "https+http://CurrencyService";
+        client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/currency/v1/currencies/");
+    })
+    .AddServiceDiscovery()
+    .AddHttpMessageHandler<Maliev.Aspire.ServiceDefaults.IAM.ServiceAccountAuthenticationHandler>()
+    .AddStandardResilienceHandler();
+
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.ISupplierServiceClient, Maliev.PurchaseOrderService.Api.ExternalServices.SupplierServiceClient>();
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.IOrderServiceClient, Maliev.PurchaseOrderService.Api.ExternalServices.OrderServiceClient>();
+    builder.Services.AddScoped<Maliev.PurchaseOrderService.Application.Interfaces.ICurrencyServiceClient, Maliev.PurchaseOrderService.Api.ExternalServices.CurrencyServiceClient>();
+
+    // MassTransit IPublishEndpoint is auto-registered by MassTransit
+
+    // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
+    if (!builder.Environment.IsProduction())
+    {
+        builder.AddStandardOpenApi(
+            title: "MALIEV Purchase Order Service API",
+            description: "Purchase order management service.");
     }
-    options.RoutePrefix = "swagger";
-});
 
-app.MapControllers();
+    // IAM Registration
+    builder.AddIAMServiceClient("purchase-order");
+    builder.Services.AddIAMRegistration<ApiServices.PurchaseOrderIAMRegistrationService>("purchase-order");
 
-app.Run();
+    builder.Services.AddControllers();
+    builder.Services.AddMemoryCache();
+
+    builder.AddStandardRateLimiting();
+
+    var app = builder.Build();
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+    // Run database migrations on startup
+    await app.MigrateDatabaseAsync<PurchaseOrderContext>();
+
+    // Configure middleware pipeline
+    app.UseStandardMiddleware();
+
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHttpsRedirection();
+    }
+
+    app.UseCors();
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    // Map endpoints
+    app.MapControllers();
+
+    // Map Aspire default endpoints (/health, /alive, /metrics)
+    app.MapDefaultEndpoints(servicePrefix: "purchase-order");
+
+    // Map OpenAPI and Scalar documentation (dev/staging only)
+    app.MapApiDocumentation(servicePrefix: "purchase-order");
+
+    Log.ServiceStarted(logger, "Purchase Order Service");
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    Log.HostTerminated(bootstrapLogger, ex, "Purchase Order Service");
+    throw;
+}
+finally
+{
+    loggerFactory.Dispose();
+}
+
+/// <summary>
+/// Main program class for the application
+/// </summary>
+public partial class Program
+{
+    internal static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Information, Message = "Starting {ServiceName} host")]
+        public static partial void StartingHost(ILogger logger, string serviceName);
+
+        [LoggerMessage(Level = LogLevel.Critical, Message = "{ServiceName} host terminated unexpectedly during startup")]
+        public static partial void HostTerminated(ILogger logger, Exception ex, string serviceName);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "{ServiceName} started successfully")]
+        public static partial void ServiceStarted(ILogger logger, string serviceName);
+    }
+}
