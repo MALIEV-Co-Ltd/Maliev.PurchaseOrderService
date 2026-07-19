@@ -1,54 +1,54 @@
-# syntax=docker/dockerfile:1.4
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+# syntax=docker/dockerfile:1.7
 
-# This stage is used when running from VS in fast mode (Default for Debug configuration)
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-USER $APP_UID
-WORKDIR /app
-EXPOSE 8080
-EXPOSE 8081
+ARG dependency_restore_stage=restore-private
 
-# This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build-base
 ARG BUILD_CONFIGURATION=Release
+ARG SHARED_LIBRARY_VERSION=1.0.96-alpha
+ARG SERVICE_DEFAULTS_VERSION=1.0.89-alpha
+ENV GITHUB_ACTIONS=true
 WORKDIR /src
+COPY ["nuget.config", "."]
+COPY ["NuGet.PRValidation.Config", "."]
+COPY ["Directory.Build.props", "."]
 COPY ["Maliev.PurchaseOrderService.Api/Maliev.PurchaseOrderService.Api.csproj", "Maliev.PurchaseOrderService.Api/"]
 COPY ["Maliev.PurchaseOrderService.Domain/Maliev.PurchaseOrderService.Domain.csproj", "Maliev.PurchaseOrderService.Domain/"]
+COPY ["Maliev.PurchaseOrderService.Application/Maliev.PurchaseOrderService.Application.csproj", "Maliev.PurchaseOrderService.Application/"]
 COPY ["Maliev.PurchaseOrderService.Infrastructure/Maliev.PurchaseOrderService.Infrastructure.csproj", "Maliev.PurchaseOrderService.Infrastructure/"]
-COPY ["nuget.config", "."]
-RUN --mount=type=secret,id=nuget_username \
-    --mount=type=secret,id=nuget_password \
-    NUGET_USERNAME=$(cat /run/secrets/nuget_username) \
-    NUGET_PASSWORD=$(cat /run/secrets/nuget_password) \
-    dotnet restore "./Maliev.PurchaseOrderService.Api/Maliev.PurchaseOrderService.Api.csproj"
-COPY . .
-WORKDIR "/src/Maliev.PurchaseOrderService.Api"
-RUN dotnet build "./Maliev.PurchaseOrderService.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
+COPY [".ci-packages/", ".ci-packages/"]
 
-# This stage is used to publish the service project to be copied to the final stage
-FROM build AS publish
+FROM build-base AS restore-private
+RUN --mount=type=secret,id=nuget_username,required=true \
+    --mount=type=secret,id=nuget_password,required=true \
+    NUGET_USERNAME="$(cat /run/secrets/nuget_username)" \
+    NUGET_PASSWORD="$(cat /run/secrets/nuget_password)" \
+    dotnet restore "./Maliev.PurchaseOrderService.Api/Maliev.PurchaseOrderService.Api.csproj" \
+      -p:SharedLibraryVersion=$SHARED_LIBRARY_VERSION \
+      -p:ServiceDefaultsVersion=$SERVICE_DEFAULTS_VERSION
+
+FROM build-base AS restore-local
+RUN dotnet restore "./Maliev.PurchaseOrderService.Api/Maliev.PurchaseOrderService.Api.csproj" \
+      --configfile "NuGet.PRValidation.Config" \
+      -p:SharedLibraryVersion=$SHARED_LIBRARY_VERSION \
+      -p:ServiceDefaultsVersion=$SERVICE_DEFAULTS_VERSION
+
+FROM ${dependency_restore_stage} AS build
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./Maliev.PurchaseOrderService.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+ARG SHARED_LIBRARY_VERSION=1.0.96-alpha
+ARG SERVICE_DEFAULTS_VERSION=1.0.89-alpha
+COPY . .
+WORKDIR /src/Maliev.PurchaseOrderService.Api
+RUN dotnet publish "./Maliev.PurchaseOrderService.Api.csproj" \
+      -c $BUILD_CONFIGURATION --no-restore -o /app/publish /p:UseAppHost=false \
+      -p:SharedLibraryVersion=$SHARED_LIBRARY_VERSION \
+      -p:ServiceDefaultsVersion=$SERVICE_DEFAULTS_VERSION
 
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
-FROM base AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-
-# Ensure 'app' owns the workdir (app user already exists in ASP.NET runtime image)
-RUN chown -R app:app /app
-
-# Switch to non-root user
+COPY --chown=app:app --from=build /app/publish .
 USER app
-
-# Copy published application (now owned by app)
-COPY --chown=app:app --from=publish /app/publish .
-
-# Set environment variables
-ENV ASPNETCORE_URLS=http://+:8080
-ENV ASPNETCORE_ENVIRONMENT=Production
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/purchase-order/liveness || exit 1
-
+EXPOSE 8080
+ENV ASPNETCORE_HTTP_PORTS=8080 \
+    ASPNETCORE_ENVIRONMENT=Production \
+    DOTNET_EnableDiagnostics=0
 ENTRYPOINT ["dotnet", "Maliev.PurchaseOrderService.Api.dll"]
